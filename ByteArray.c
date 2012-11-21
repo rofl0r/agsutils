@@ -63,8 +63,8 @@ enum ByteArray_Endianess ByteArray_get_endian(struct ByteArray* self) {
 void ByteArray_clear(struct ByteArray* self) {
 	fprintf(stderr, "clear called\n");
 	assert_op(self->type, ==, BAT_MEMSTREAM);
-	assert_op(self->start_addr, !=, 0);
-	memset(self->start_addr, 0, self->size);
+	assert_op(self->source.start_addr, !=, 0);
+	memset(self->source.start_addr, 0, self->size);
 }
 
 off_t ByteArray_get_position(struct ByteArray* self) {
@@ -114,7 +114,7 @@ int ByteArray_set_position(struct ByteArray* self, off_t pos) {
 	}
 		
 	if(self->type == BAT_FILESTREAM) {
-		off_t ret = lseek(self->fd, pos, SEEK_SET);
+		off_t ret = lseek(self->source.fd, pos, SEEK_SET);
 		if(ret == (off_t) -1) {
 			seek_error();
 			return 0;
@@ -141,40 +141,41 @@ int ByteArray_open_file(struct ByteArray* self, char* filename) {
 	self->size = 0;
 	if(stat(filename, &st) == -1) return 0;
 	self->size = st.st_size;
-	self->fd = open(filename, O_RDONLY);
-	return (self->fd != -1);
+	self->source.fd = open(filename, O_RDONLY);
+	return (self->source.fd != -1);
 }
 
 void ByteArray_close_file(struct ByteArray *self) {
-	close(self->fd);
-	self->fd = -1;
+	close(self->source.fd);
+	self->source.fd = -1;
 }
 
 int ByteArray_open_mem(struct ByteArray* self, char* data, size_t size) {
 	self->pos = 0;
 	self->size = size;
 	self->type = BAT_MEMSTREAM;
-	self->start_addr = data;
+	self->source.start_addr = data;
 	return 1;
 }
 
-void ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len) {
+ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len) {
 	if(self->type == BAT_MEMSTREAM) {
-		assert_op(self->start_addr, !=, 0);
+		assert_op(self->source.start_addr, !=, 0);
 		assert_op(self->pos + len, <=, self->size);
-		memcpy(buffer, &self->start_addr[self->pos], len);
+		memcpy(buffer, &self->source.start_addr[self->pos], len);
 	} else {
-		ssize_t ret = read(self->fd, buffer, len);
+		ssize_t ret = read(self->source.fd, buffer, len);
 		if(ret == -1) {
 			read_error();
-			return;
+			return -1;
 		} else if(ret != len) {
 			read_error_short();
 			self->pos += len;
-			return;
+			return -1;
 		}
 	}
 	self->pos += len;
+	return len;
 }
 
 // write contents of self into what
@@ -199,7 +200,7 @@ off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, off_t 
 	if(dest->type != BAT_MEMSTREAM) {
 		assert_dbg(0);
 	}
-	self->readMultiByte(self, &dest->start_addr[start], len);
+	self->readMultiByte(self, &dest->source.start_addr[start], len);
 	return len;
 }
 
@@ -277,8 +278,8 @@ unsigned char ByteArray_getUnsignedByte(struct ByteArray* self, off_t index) {
 	//assert_op(self->type, ==, BAT_MEMSTREAM);
 	assert_op(index, <, self->size);
 	if(self->type == BAT_MEMSTREAM) {
-		assert_op(self->start_addr, !=, 0);
-		return (self->start_addr[index]);
+		assert_op(self->source.start_addr, !=, 0);
+		return (self->source.start_addr[index]);
 	} else {
 		off_t save = self->pos;
 		unsigned char res;
@@ -365,9 +366,9 @@ off_t ByteArray_writeMem(struct ByteArray* self, unsigned char* what, size_t len
 		assert_dbg(0);
 		return 0;
 	}
-	assert_op(self->start_addr, !=, 0);
+	assert_op(self->source.start_addr, !=, 0);
 
-	memcpy(&self->start_addr[self->pos], what, len);
+	memcpy(&self->source.start_addr[self->pos], what, len);
 	self->pos += len;
 	return len;
 }
@@ -383,7 +384,7 @@ off_t ByteArray_writeBytes(struct ByteArray* self, struct ByteArray* what) {
 		assert_dbg(0);
 		return 0;
 	} else {
-		return ByteArray_writeMem(self, (unsigned char*) &what->start_addr[what->pos], what->size - what->pos);
+		return ByteArray_writeMem(self, (unsigned char*) &what->source.start_addr[what->pos], what->size - what->pos);
 	}
 }
 
@@ -403,7 +404,7 @@ off_t ByteArray_writeFloat(struct ByteArray* self, float what) {
 void ByteArray_dump_to_file(struct ByteArray* self, char* filename) {
 	assert_op(self->type, ==, BAT_MEMSTREAM);
 	int fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0666);
-	write(fd, self->start_addr, self->size);
+	write(fd, self->source.start_addr, self->size);
 	close(fd);
 }
 

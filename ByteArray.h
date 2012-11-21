@@ -33,8 +33,8 @@ struct ByteArray {
 	union {
 		char* start_addr;
 		int fd;
-	};
-	void (*readMultiByte)(struct ByteArray*, char*, size_t);
+	} source;
+	ssize_t (*readMultiByte)(struct ByteArray*, char*, size_t);
 	unsigned int (*readUnsignedInt)(struct ByteArray*);
 	signed int (*readInt)(struct ByteArray*);
 	unsigned short (*readUnsignedShort)(struct ByteArray*);
@@ -78,7 +78,7 @@ int ByteArray_set_position(struct ByteArray* self, off_t pos);
 int ByteArray_set_position_rel(struct ByteArray* self, int rel);
 off_t ByteArray_bytesAvailable(struct ByteArray* self);
 
-void ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len);
+ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len);
 unsigned int ByteArray_readUnsignedInt(struct ByteArray* self);
 int ByteArray_readInt(struct ByteArray* self);
 unsigned short ByteArray_readUnsignedShort(struct ByteArray* self);
@@ -106,5 +106,5 @@ void ByteArray_dump_to_file(struct ByteArray* self, char* filename);
 #ifdef __cplusplus
 }
 #endif
-
+//RcB: DEP "ByteArray.c"
 #endif

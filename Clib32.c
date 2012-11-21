@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "Clib32.h"
 
 #define CLIB_IS_INSTALLED
 char clib32copyright[] = "CLIB32 v1.21 (c) 1995,1996,1998,2001,2007 Chris Jones";
@@ -31,8 +32,27 @@ char base_path[255] = ".";
 char original_base_filename[255];
 char clbuff[20];
 const int RAND_SEED_SALT = 9338638;  // must update editor agsnative.cpp if this changes
-#define MAX_FILES 10000
-#define MAXMULTIFILES 25
+
+
+#include <ctype.h>
+char *strlwr(char *s) {
+	char *p = s;
+	while(*p) {
+		if(isupper(*p))
+			*p = tolower(*p);
+		p++;
+	}
+	return s;
+}
+
+struct ByteArray* ci_fopen(struct ByteArray *buf, char*fn, char*mode) {
+	ByteArray_ctor(buf);
+	if(ByteArray_open_file(buf, fn)) {
+		ByteArray_set_endian(buf, BAE_LITTLE);
+		return buf;
+	}
+	return 0;
+}
 
 static off_t filelength(int fd) {
   struct stat st;
@@ -40,30 +60,9 @@ static off_t filelength(int fd) {
   return st.st_size;
 }
 
-struct MultiFileLib {
-	char data_filenames[MAXMULTIFILES][20];
-	size_t num_data_files;
-	char filenames[MAX_FILES][25];
-	unsigned offset[MAX_FILES];
-	unsigned length[MAX_FILES];
-	char file_datafile[MAX_FILES];        // number of datafile
-	size_t num_files;
-};
-
-struct MultiFileLibNew {
-	char data_filenames[MAXMULTIFILES][50];
-	size_t num_data_files;
-	char filenames[MAX_FILES][100];
-	unsigned offset[MAX_FILES];
-	unsigned length[MAX_FILES];
-	char file_datafile[MAX_FILES];        // number of datafile
-	size_t num_files;
-};
-
-MultiFileLibNew mflib;
-NATIVESTATIC char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
-NATIVESTATIC char *clibpasswencstring = "My\x1\xde\x4Jibzle";
-NATIVESTATIC int _last_rand;
+char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
+char *clibpasswencstring = "My\x1\xde\x4Jibzle";
+int _last_rand;
 
 void init_pseudo_rand_gen(int seed) {
 	_last_rand = seed;
@@ -90,7 +89,7 @@ void clib_decrypt_text(char *toenc) {
 	}
 }
 
-void fgetnulltermstring(char *sss, ByteArray *ddd, int bufsize) {
+void fgetnulltermstring(char *sss, struct ByteArray *ddd, int bufsize) {
 	int b = -1;
 	off_t l = ByteArray_get_length(ddd);
 	do {
@@ -150,7 +149,7 @@ int getw_enc(struct ByteArray *ooo) {
 	return fread_data_enc_int(ooo);
 }
 
-int read_new_new_enc_format_clib(MultiFileLibNew * mfl, struct ByteArray * wout, int libver) {
+int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout, int libver) {
 	size_t aa;
 	int randSeed = ByteArray_readInt(wout);
 	init_pseudo_rand_gen(randSeed + RAND_SEED_SALT);
@@ -172,7 +171,7 @@ int read_new_new_enc_format_clib(MultiFileLibNew * mfl, struct ByteArray * wout,
 	return 0;
 }
 
-int read_new_new_format_clib(MultiFileLibNew * mfl, struct ByteArray * wout, int libver) {
+int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wout, int libver) {
 	int aa;
 	mfl->num_data_files = ByteArray_readInt(wout);
 	for (aa = 0; aa < mfl->num_data_files; aa++)
@@ -193,7 +192,7 @@ int read_new_new_format_clib(MultiFileLibNew * mfl, struct ByteArray * wout, int
 	return 0;
 }
 
-int read_new_format_clib(MultiFileLib * mfl, struct ByteArray * wout, int libver) {
+int read_new_format_clib(struct MultiFileLib * mfl, struct ByteArray * wout, int libver) {
 	mfl->num_data_files = ByteArray_readInt(wout);
 	ByteArray_readMultiByte(wout, (char*) mfl->data_filenames, 20U * mfl->num_data_files);
 	mfl->num_files = ByteArray_readInt(wout);
@@ -214,7 +213,11 @@ int read_new_format_clib(MultiFileLib * mfl, struct ByteArray * wout, int libver
 	return 0;
 }
 
-int csetlib(char *namm, char *passw)  {
+void AgsFile_close(struct AgsFile *f) {
+	ByteArray_close_file(&f->f);
+}
+
+int csetlib(struct AgsFile* f, char *namm, char *passw)  {
 	original_base_filename[0] = 0;
 
 	if (namm == NULL) {
@@ -227,7 +230,7 @@ int csetlib(char *namm, char *passw)  {
 	int passwmodifier = 0, aa;
 	size_t cc, l;
 	
-	struct ByteArray ba_b, *ba = &ba_b; // allocate on stack so we dont have to deal with mem leaks.
+	struct ByteArray *ba = &f->f;
 	ByteArray_ctor(ba);
 	if(!ByteArray_open_file(ba, namm)) return -1;
 	ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.
@@ -273,101 +276,137 @@ int csetlib(char *namm, char *passw)  {
 			return -4;  // not first datafile in chain
 
 		if (lib_version >= 21) {
-			if (read_new_new_enc_format_clib(&mflib, ba, lib_version))
+			if (read_new_new_enc_format_clib(&f->mflib, ba, lib_version))
 			return -5;
 		}
 		else if (lib_version == 20) {
-			if (read_new_new_format_clib(&mflib, ba, lib_version))
+			if (read_new_new_format_clib(&f->mflib, ba, lib_version))
 			return -5;
 		} else  {
 			// PSP: Allocate struct on the heap to avoid overflowing the stack.
-			MultiFileLib* mflibOld = (MultiFileLib*)malloc(sizeof(MultiFileLib));
+			struct MultiFileLib* mflibOld = (struct MultiFileLib*)malloc(sizeof(struct MultiFileLib));
 
 			if (read_new_format_clib(mflibOld, ba, lib_version))
 			return -5;
 			// convert to newer format
-			mflib.num_files = mflibOld->num_files;
-			mflib.num_data_files = mflibOld->num_data_files;
-			memcpy(mflib.offset, mflibOld->offset, sizeof(int) * mflib.num_files);
-			memcpy(mflib.length, mflibOld->length, sizeof(int) * mflib.num_files);
-			memcpy(mflib.file_datafile, mflibOld->file_datafile, sizeof(char) * mflib.num_files);
-			for (aa = 0; aa < mflib.num_data_files; aa++)
-			strcpy(mflib.data_filenames[aa], mflibOld->data_filenames[aa]);
-			for (aa = 0; aa < mflib.num_files; aa++)
-			strcpy(mflib.filenames[aa], mflibOld->filenames[aa]);
+			f->mflib.num_files = mflibOld->num_files;
+			f->mflib.num_data_files = mflibOld->num_data_files;
+			memcpy(f->mflib.offset, mflibOld->offset, sizeof(int) * f->mflib.num_files);
+			memcpy(f->mflib.length, mflibOld->length, sizeof(int) * f->mflib.num_files);
+			memcpy(f->mflib.file_datafile, mflibOld->file_datafile, sizeof(char) * f->mflib.num_files);
+			for (aa = 0; aa < f->mflib.num_data_files; aa++)
+				strcpy(f->mflib.data_filenames[aa], mflibOld->data_filenames[aa]);
+			for (aa = 0; aa < f->mflib.num_files; aa++)
+				strcpy(f->mflib.filenames[aa], mflibOld->filenames[aa]);
 
 			free(mflibOld);
 		}
 
-		ByteArray_close_file(ba);
 		strcpy(lib_file_name, namm);
 
 		// make a backup of the original file name
-		strcpy(original_base_filename, mflib.data_filenames[0]);
+		strcpy(original_base_filename, f->mflib.data_filenames[0]);
 		strlwr(original_base_filename);
 
-		strcpy(mflib.data_filenames[0], namm);
-		for (aa = 0; aa < mflib.num_files; aa++) {
+		strcpy(f->mflib.data_filenames[0], namm);
+		for (aa = 0; aa < f->mflib.num_files; aa++) {
 			// correct offsetes for EXE file
-			if (mflib.file_datafile[aa] == 0)
-			mflib.offset[aa] += absoffs;
+			if (f->mflib.file_datafile[aa] == 0)
+				f->mflib.offset[aa] += absoffs;
 		}
 		return 0;
 	}
 
 	passwmodifier = ByteArray_readUnsignedByte(ba);
 	ByteArray_readUnsignedByte(ba); // unused byte
-	mflib.num_data_files = 1;
-	strcpy(mflib.data_filenames[0], namm);
+	f->mflib.num_data_files = 1;
+	strcpy(f->mflib.data_filenames[0], namm);
 
 	short tempshort = ByteArray_readShort(ba);
-	mflib.num_files = tempshort;
+	f->mflib.num_files = tempshort;
 
-	if (mflib.num_files > MAX_FILES) return -4;
+	if (f->mflib.num_files > MAX_FILES) return -4;
 
 	ByteArray_readMultiByte(ba, clbuff, 13);  // skip password dooberry
-	for (aa = 0; aa < mflib.num_files; aa++) {
-		ByteArray_readMultiByte(ba, mflib.filenames[aa], 13);
-		l = strlen(mflib.filenames[aa]);
+	for (aa = 0; aa < f->mflib.num_files; aa++) {
+		ByteArray_readMultiByte(ba, f->mflib.filenames[aa], 13);
+		l = strlen(f->mflib.filenames[aa]);
 		for (cc = 0; cc < l; cc++)
-			mflib.filenames[aa][cc] -= passwmodifier;
+			f->mflib.filenames[aa][cc] -= passwmodifier;
 	}
-	for(cc = 0; cc < mflib.num_files; cc++)
-		mflib.length[cc] = ByteArray_readUnsignedInt(ba);
+	for(cc = 0; cc < f->mflib.num_files; cc++)
+		f->mflib.length[cc] = ByteArray_readUnsignedInt(ba);
 	
-	ByteArray_set_position_rel(ba, 2 * mflib.num_files); // skip flags & ratio
+	ByteArray_set_position_rel(ba, 2 * f->mflib.num_files); // skip flags & ratio
 	
-	mflib.offset[0] = ByteArray_get_position(ba);
+	f->mflib.offset[0] = ByteArray_get_position(ba);
 	strcpy(lib_file_name, namm);
-	ByteArray_close_file(ba);
 
-	for (aa = 1; aa < mflib.num_files; aa++) {
-		mflib.offset[aa] = mflib.offset[aa - 1] + mflib.length[aa - 1];
-		mflib.file_datafile[aa] = 0;
+	for (aa = 1; aa < f->mflib.num_files; aa++) {
+		f->mflib.offset[aa] = f->mflib.offset[aa - 1] + f->mflib.length[aa - 1];
+		f->mflib.file_datafile[aa] = 0;
 	}
-	mflib.file_datafile[0] = 0;
+	f->mflib.file_datafile[0] = 0;
 	return 0;
 }
 
-int clibGetNumFiles() {
-	if (lib_file_name[0] == ' ') return 0;
-	return mflib.num_files;
+static int checkIndex(struct AgsFile *f, size_t index) {
+	if (index >= AgsFile_getCount(f)) return 0;
+	return 1;
 }
 
-const char *clibGetFileName(int index) {
-	if (lib_file_name[0] == ' ') return 0;
-
-	if ((index < 0) || (index >= mflib.num_files)) return 0;
-
-	return mflib.filenames[index];
+size_t AgsFile_getCount(struct AgsFile *f) {
+	return f->mflib.num_files;
 }
 
+char *AgsFile_getFileName(struct AgsFile *f, size_t index) {
+	if (!checkIndex(f, index)) return 0;
+	return f->mflib.filenames[index];
+}
+
+size_t AgsFile_getFileSize(struct AgsFile *f, size_t index) {
+	if (!checkIndex(f, index)) return 0;
+	return f->mflib.length[index];
+}
+
+size_t AgsFile_getOffset(struct AgsFile *f, size_t index) {
+	if (!checkIndex(f, index)) return 0;
+	return f->mflib.offset[index];
+}
+
+int AgsFile_seek(struct AgsFile *f, off_t pos) {
+	return ByteArray_set_position(&f->f, pos);
+}
+
+ssize_t AgsFile_read(struct AgsFile *f, void* buf, size_t count) {
+	return ByteArray_readMultiByte(&f->f, buf, count);
+}
+
+int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn) {
+	int fd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, 0660);
+	if(fd == -1) return 0;
+	char buf[4096];
+	size_t written = 0, l = AgsFile_getFileSize(f, index);
+	AgsFile_seek(f, AgsFile_getOffset(f, index));
+	while(written < l) {
+		size_t togo = l - written;
+		if(togo > sizeof(buf)) togo = sizeof(buf);
+		if(togo == 0) break;
+		ssize_t ret = AgsFile_read(f, buf, togo);
+		if(ret <= 0) break;
+		write(fd, buf, togo);
+		written += togo;
+	}
+	close(fd);
+	return written == l;
+}
+/*
 int clibfindindex(char *fill) {
 	if (lib_file_name[0] == ' ') return -1;
 
 	size_t bb;
 	for (bb = 0; bb < mflib.num_files; bb++) {
-		if (stricmp(mflib.filenames[bb], fill) == 0)
+		if (strcasecmp(mflib.filenames[bb], fill) == 0)
 			return bb;
 	}
 	return -1;
@@ -403,12 +442,20 @@ char *clibgetdatafile(char *fill) {
 	}
 	return 0;
 }
+*/
+int AgsFile_init(struct AgsFile *buf, char* filename) {
+	int ret = csetlib(buf, filename, "");
+	
+	return ret == 0;
+}
+
+#if 0
 
 FILE *tfil;
 FILE *clibopenfile(char *filly, char *readmode) {
 	int bb;
 	for (bb = 0; bb < mflib.num_files; bb++) {
-		if (stricmp(mflib.filenames[bb], filly) == 0) {
+		if (strcasecmp(mflib.filenames[bb], filly) == 0) {
 			char actfilename[250];
 		#if defined(ANDROID_VERSION)
 			sprintf(actfilename, "%s/%s", base_path, mflib.data_filenames[mflib.file_datafile[bb]]);
@@ -460,3 +507,4 @@ FILE *clibfopen(char *filnamm, char *fmt) {
 
 	return tfil;
 }
+#endif
