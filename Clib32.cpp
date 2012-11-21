@@ -17,41 +17,10 @@
 #include <string.h>
 #include <stddef.h>
 #include "ByteArray.h"
-
-#if defined(ANDROID_VERSION) || defined(IOS_VERSION)
 #include <sys/stat.h>
-#endif
-
-#if defined(LINUX_VERSION) && !defined(PSP_VERSION) && !defined(ANDROID_VERSION)
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#endif
-
-#define NATIVESTATIC
-
-#ifdef _MANAGED
-// ensure this doesn't get compiled to .NET IL
-#pragma unmanaged
-// don't allow these fields to be in the assembly manifest
-#undef NATIVESTATIC
-#define NATIVESTATIC static
-#endif
-
-#if !defined(LINUX_VERSION) && !defined(MAC_VERSION)
-#include <io.h>
-#else
-//#include "djcompat.h"
-#include "allegro.h"
-#endif
-#include "misc.h"
-
-#ifdef MAC_VERSION
-#include "macport.h"
-#include <sys/stat.h>
-#endif
-
-#include "bigend.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -65,13 +34,11 @@ const int RAND_SEED_SALT = 9338638;  // must update editor agsnative.cpp if this
 #define MAX_FILES 10000
 #define MAXMULTIFILES 25
 
-#if defined(LINUX_VERSION) || defined(MAC_VERSION)
 static off_t filelength(int fd) {
   struct stat st;
   fstat(fd, &st);
   return st.st_size;
 }
-#endif
 
 struct MultiFileLib {
 	char data_filenames[MAXMULTIFILES][20];
@@ -98,32 +65,29 @@ NATIVESTATIC char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
 NATIVESTATIC char *clibpasswencstring = "My\x1\xde\x4Jibzle";
 NATIVESTATIC int _last_rand;
 
-void init_pseudo_rand_gen(int seed)
-{
-  _last_rand = seed;
+void init_pseudo_rand_gen(int seed) {
+	_last_rand = seed;
 }
 
-int get_pseudo_rand()
-{
-  return( ((_last_rand = _last_rand * 214013L
-      + 2531011L) >> 16) & 0x7fff );
+int get_pseudo_rand() {
+	return( ((_last_rand = _last_rand * 214013L
+	+ 2531011L) >> 16) & 0x7fff );
 }
 
-void clib_decrypt_text(char *toenc)
-{
-  int adx = 0;
+void clib_decrypt_text(char *toenc) {
+	int adx = 0;
 
-  while (1) {
-    toenc[0] -= clibpasswencstring[adx];
-    if (toenc[0] == 0)
-      break;
+	while (1) {
+		toenc[0] -= clibpasswencstring[adx];
+		if (toenc[0] == 0)
+			break;
 
-    adx++;
-    toenc++;
+		adx++;
+		toenc++;
 
-    if (adx > 10)
-      adx = 0;
-  }
+		if (adx > 10)
+			adx = 0;
+	}
 }
 
 void fgetnulltermstring(char *sss, ByteArray *ddd, int bufsize) {
@@ -137,9 +101,6 @@ void fgetnulltermstring(char *sss, ByteArray *ddd, int bufsize) {
 	} while (sss[b] != 0);
 }
 
-extern "C"
-{
-  
 long last_opened_size;
 
 int fread_data_enc_byte(struct ByteArray *ba) {
@@ -499,4 +460,3 @@ FILE *clibfopen(char *filnamm, char *fmt) {
 
 	return tfil;
 }
-} // extern "C"

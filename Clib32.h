@@ -1,10 +1,6 @@
 #ifndef CLIB32_H
 #define CLIB32_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdio.h>
 
 int cliboffset(char*);
@@ -16,9 +12,5 @@ int  csetlib(char*,char*);
 
 extern long last_opened_size;
 extern char lib_file_name[];
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
