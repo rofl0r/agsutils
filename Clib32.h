@@ -30,6 +30,7 @@ struct MultiFileLibNew {
 struct AgsFile {
 	struct ByteArray f;
 	struct MultiFileLibNew mflib;
+	int libversion;
 };
 
 int AgsFile_init(struct AgsFile *buf, char* filename);
@@ -39,6 +40,7 @@ char *AgsFile_getFileName(struct AgsFile *f, size_t index);
 size_t AgsFile_getOffset(struct AgsFile *f, size_t index);
 size_t AgsFile_getFileSize(struct AgsFile *f, size_t index);
 int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn);
+int AgsFile_getVersion(struct AgsFile *f);
 
 /*
 int cliboffset(char*);

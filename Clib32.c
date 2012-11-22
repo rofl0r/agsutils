@@ -32,23 +32,7 @@
 #include <stddef.h>
 #include "Clib32.h"
 
-static char lib_file_name[255] = " ";
-static char base_path[255] = ".";
-static char original_base_filename[255];
-static char clbuff[20];
-static const int RAND_SEED_SALT = 9338638;  // must update editor agsnative.cpp if this changes
-
-
-#include <ctype.h>
-char *strlwr(char *s) {
-	char *p = s;
-	while(*p) {
-		if(isupper(*p))
-			*p = tolower(*p);
-		p++;
-	}
-	return s;
-}
+#define RAND_SEED_SALT 9338638
 
 static char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
 static char *clibpasswencstring = "My\x1\xde\x4Jibzle";
@@ -164,8 +148,7 @@ static int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct Byt
 	return 0;
 }
 
-static int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wout, int libver) {
-	(void) libver;
+static int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wout) {
 	size_t aa;
 	mfl->num_data_files = ByteArray_readInt(wout);
 	for (aa = 0; aa < mfl->num_data_files; aa++)
@@ -211,23 +194,22 @@ void AgsFile_close(struct AgsFile *f) {
 	ByteArray_close_file(&f->f);
 }
 
-static int csetlib(struct AgsFile* f, char *namm)  {
-	original_base_filename[0] = 0;
+int AgsFile_getVersion(struct AgsFile *f) {
+	return f->libversion;
+}
 
-	if (namm == NULL) {
-		lib_file_name[0] = ' ';
-		lib_file_name[1] = 0;
-		return 0;
-	}
-	strcpy(base_path, ".");
-
+static int csetlib(struct AgsFile* f, char *filename)  {
+	char clbuff[20];
+	if (!filename)
+		return -11;
+	
 	int passwmodifier = 0;
 	size_t aa;
 	size_t cc, l;
 	
 	struct ByteArray *ba = &f->f;
 	ByteArray_ctor(ba);
-	if(!ByteArray_open_file(ba, namm)) return -1;
+	if(!ByteArray_open_file(ba, filename)) return -1;
 	ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.
 	off_t ba_len = ByteArray_get_length(ba);
 	ByteArray_readMultiByte(ba, clbuff, 5);
@@ -247,40 +229,33 @@ static int csetlib(struct AgsFile* f, char *namm)  {
 		ByteArray_set_position(ba, absoffs + 5);
 	}
 
-	int lib_version = ByteArray_readUnsignedByte(ba);
-	if ((lib_version != 6) && (lib_version != 10) &&
-		(lib_version != 11) && (lib_version != 15) &&
-		(lib_version != 20) && (lib_version != 21))
-	return -3;  // unsupported version
-
-	char *nammwas = namm;
-	// remove slashes so that the lib name fits in the buffer
-	while (namm[0] == '\\' || namm[0] == '/') namm++;
-
-	if (namm != nammwas) {
-		// store complete path
-		snprintf(base_path, sizeof(base_path), "%s", nammwas);
-		base_path[namm - nammwas] = 0;
-		l = strlen(base_path);
-		if ((base_path[l - 1] == '\\') || (base_path[l - 1] == '/'))
-			base_path[l - 1] = 0;
+	f->libversion = ByteArray_readUnsignedByte(ba);
+	switch (f->libversion) {
+		case 6: case 10: case 11: case 15: case 20: case 21:
+			break;
+		default:
+			// unsupported version
+			return -3;
 	}
 
-	if (lib_version >= 10) {
+	// remove slashes so that the lib name fits in the buffer
+	while (filename[0] == '\\' || filename[0] == '/') filename++;
+
+	if (f->libversion >= 10) {
 		if (ByteArray_readUnsignedByte(ba) != 0)
 			return -4;  // not first datafile in chain
 
-		if (lib_version >= 21) {
+		if (f->libversion >= 21) {
 			if (read_new_new_enc_format_clib(&f->mflib, ba))
 			return -5;
 		}
-		else if (lib_version == 20) {
-			if (read_new_new_format_clib(&f->mflib, ba, lib_version))
+		else if (f->libversion == 20) {
+			if (read_new_new_format_clib(&f->mflib, ba))
 			return -5;
 		} else  {
 			struct MultiFileLib mflibOld_b, *mflibOld = &mflibOld_b;
 
-			if (read_new_format_clib(mflibOld, ba, lib_version))
+			if (read_new_format_clib(mflibOld, ba, f->libversion))
 				return -5;
 			// convert to newer format
 			f->mflib.num_files = mflibOld->num_files;
@@ -294,13 +269,7 @@ static int csetlib(struct AgsFile* f, char *namm)  {
 				strcpy(f->mflib.filenames[aa], mflibOld->filenames[aa]);
 		}
 
-		strcpy(lib_file_name, namm);
-
-		// make a backup of the original file name
-		strcpy(original_base_filename, f->mflib.data_filenames[0]);
-		strlwr(original_base_filename);
-
-		strcpy(f->mflib.data_filenames[0], namm);
+		strcpy(f->mflib.data_filenames[0], filename);
 		for (aa = 0; aa < f->mflib.num_files; aa++) {
 			// correct offsetes for EXE file
 			if (f->mflib.file_datafile[aa] == 0)
@@ -312,7 +281,7 @@ static int csetlib(struct AgsFile* f, char *namm)  {
 	passwmodifier = ByteArray_readUnsignedByte(ba);
 	ByteArray_readUnsignedByte(ba); // unused byte
 	f->mflib.num_data_files = 1;
-	strcpy(f->mflib.data_filenames[0], namm);
+	strcpy(f->mflib.data_filenames[0], filename);
 
 	short tempshort = ByteArray_readShort(ba);
 	f->mflib.num_files = tempshort;
@@ -332,7 +301,6 @@ static int csetlib(struct AgsFile* f, char *namm)  {
 	ByteArray_set_position_rel(ba, 2 * f->mflib.num_files); // skip flags & ratio
 	
 	f->mflib.offset[0] = ByteArray_get_position(ba);
-	strcpy(lib_file_name, namm);
 
 	for (aa = 1; aa < f->mflib.num_files; aa++) {
 		f->mflib.offset[aa] = f->mflib.offset[aa - 1] + f->mflib.length[aa - 1];
