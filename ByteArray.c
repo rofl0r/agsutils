@@ -1,3 +1,7 @@
+/* ByteArray (C) 2012 rofl0r
+ * 
+ * licensed under the LGPL 2.1+ */
+
 #include "ByteArray.h"
 #include "debug.h"
 #include "endianness.h"
@@ -161,14 +165,14 @@ int ByteArray_open_mem(struct ByteArray* self, char* data, size_t size) {
 ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len) {
 	if(self->type == BAT_MEMSTREAM) {
 		assert_op(self->source.start_addr, !=, 0);
-		assert_op(self->pos + len, <=, self->size);
+		assert_op((size_t) self->pos + len, <=, (size_t) self->size);
 		memcpy(buffer, &self->source.start_addr[self->pos], len);
 	} else {
 		ssize_t ret = read(self->source.fd, buffer, len);
 		if(ret == -1) {
 			read_error();
 			return -1;
-		} else if(ret != len) {
+		} else if((size_t) ret != len) {
 			read_error_short();
 			self->pos += len;
 			return -1;
@@ -361,7 +365,7 @@ off_t ByteArray_writeMem(struct ByteArray* self, unsigned char* what, size_t len
 		assert_dbg(0);
 		return 0;
 	}
-	if(self->pos + len > self->size) {
+	if((size_t) self->pos + len > (size_t) self->size) {
 		fprintf(stderr, "oob write attempted");
 		assert_dbg(0);
 		return 0;
