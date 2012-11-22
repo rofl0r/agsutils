@@ -25,13 +25,12 @@
 #include <stddef.h>
 #include "Clib32.h"
 
-#define CLIB_IS_INSTALLED
-char clib32copyright[] = "CLIB32 v1.21 (c) 1995,1996,1998,2001,2007 Chris Jones";
-char lib_file_name[255] = " ";
-char base_path[255] = ".";
-char original_base_filename[255];
-char clbuff[20];
-const int RAND_SEED_SALT = 9338638;  // must update editor agsnative.cpp if this changes
+static char clib32copyright[] = "CLIB32 v1.21 (c) 1995,1996,1998,2001,2007 Chris Jones";
+static char lib_file_name[255] = " ";
+static char base_path[255] = ".";
+static char original_base_filename[255];
+static char clbuff[20];
+static const int RAND_SEED_SALT = 9338638;  // must update editor agsnative.cpp if this changes
 
 
 #include <ctype.h>
@@ -45,35 +44,20 @@ char *strlwr(char *s) {
 	return s;
 }
 
-struct ByteArray* ci_fopen(struct ByteArray *buf, char*fn, char*mode) {
-	ByteArray_ctor(buf);
-	if(ByteArray_open_file(buf, fn)) {
-		ByteArray_set_endian(buf, BAE_LITTLE);
-		return buf;
-	}
-	return 0;
-}
+static char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
+static char *clibpasswencstring = "My\x1\xde\x4Jibzle";
+static int _last_rand;
 
-static off_t filelength(int fd) {
-  struct stat st;
-  fstat(fd, &st);
-  return st.st_size;
-}
-
-char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
-char *clibpasswencstring = "My\x1\xde\x4Jibzle";
-int _last_rand;
-
-void init_pseudo_rand_gen(int seed) {
+static void init_pseudo_rand_gen(int seed) {
 	_last_rand = seed;
 }
 
-int get_pseudo_rand() {
+static int get_pseudo_rand() {
 	return( ((_last_rand = _last_rand * 214013L
 	+ 2531011L) >> 16) & 0x7fff );
 }
 
-void clib_decrypt_text(char *toenc) {
+static void clib_decrypt_text(char *toenc) {
 	int adx = 0;
 
 	while (1) {
@@ -89,7 +73,7 @@ void clib_decrypt_text(char *toenc) {
 	}
 }
 
-void fgetnulltermstring(char *sss, struct ByteArray *ddd, int bufsize) {
+static void fgetnulltermstring(char *sss, struct ByteArray *ddd, int bufsize) {
 	int b = -1;
 	off_t l = ByteArray_get_length(ddd);
 	do {
@@ -102,11 +86,11 @@ void fgetnulltermstring(char *sss, struct ByteArray *ddd, int bufsize) {
 
 long last_opened_size;
 
-int fread_data_enc_byte(struct ByteArray *ba) {
+static int fread_data_enc_byte(struct ByteArray *ba) {
 	return ByteArray_readUnsignedByte(ba) - get_pseudo_rand();
 }
 
-uint32_t fread_data_enc_int(struct ByteArray *ba) {
+static uint32_t fread_data_enc_int(struct ByteArray *ba) {
 	union {
 		uint32_t i;
 		unsigned char c[4];
@@ -118,26 +102,26 @@ uint32_t fread_data_enc_int(struct ByteArray *ba) {
 	return res.i;
 }
 
-void fread_data_intarray_enc(struct ByteArray *ba, unsigned* dest, size_t count) {
+static void fread_data_intarray_enc(struct ByteArray *ba, unsigned* dest, size_t count) {
 	size_t i = 0;
 	for(; i < count; i++)
 		dest[i] = fread_data_enc_int(ba);
 }
 
-void fread_data_intarray(struct ByteArray *ba, unsigned* dest, size_t count) {
+static void fread_data_intarray(struct ByteArray *ba, unsigned* dest, size_t count) {
 	size_t i = 0;
 	for(; i < count; i++)
 		dest[i] = ByteArray_readInt(ba);
 }
 
-void fread_data_enc(void *data, size_t dataSize, size_t dataCount, struct ByteArray *ooo) {
+static void fread_data_enc(void *data, size_t dataSize, size_t dataCount, struct ByteArray *ooo) {
 	ByteArray_readMultiByte(ooo, (char*)data, dataSize * dataCount);
 	unsigned char *dataChar = (unsigned char*)data;
 	for (int i = 0; i < dataSize * dataCount; i++)
 		dataChar[i] -= get_pseudo_rand();
 }
 
-void fgetstring_enc(char *sss, struct ByteArray *ooo, int maxLength) {
+static void fgetstring_enc(char *sss, struct ByteArray *ooo, int maxLength) {
 	int i = 0;
 	while ((i == 0) || (sss[i - 1] != 0)) {
 		sss[i] = ByteArray_readByte(ooo) - get_pseudo_rand();
@@ -145,11 +129,11 @@ void fgetstring_enc(char *sss, struct ByteArray *ooo, int maxLength) {
 	}
 }
 
-int getw_enc(struct ByteArray *ooo) {
+static int getw_enc(struct ByteArray *ooo) {
 	return fread_data_enc_int(ooo);
 }
 
-int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout, int libver) {
+static int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout, int libver) {
 	size_t aa;
 	int randSeed = ByteArray_readInt(wout);
 	init_pseudo_rand_gen(randSeed + RAND_SEED_SALT);
@@ -171,7 +155,7 @@ int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct ByteArray 
 	return 0;
 }
 
-int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wout, int libver) {
+static int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wout, int libver) {
 	int aa;
 	mfl->num_data_files = ByteArray_readInt(wout);
 	for (aa = 0; aa < mfl->num_data_files; aa++)
@@ -192,7 +176,7 @@ int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wou
 	return 0;
 }
 
-int read_new_format_clib(struct MultiFileLib * mfl, struct ByteArray * wout, int libver) {
+static int read_new_format_clib(struct MultiFileLib * mfl, struct ByteArray * wout, int libver) {
 	mfl->num_data_files = ByteArray_readInt(wout);
 	ByteArray_readMultiByte(wout, (char*) mfl->data_filenames, 20U * mfl->num_data_files);
 	mfl->num_files = ByteArray_readInt(wout);
@@ -217,7 +201,7 @@ void AgsFile_close(struct AgsFile *f) {
 	ByteArray_close_file(&f->f);
 }
 
-int csetlib(struct AgsFile* f, char *namm, char *passw)  {
+static int csetlib(struct AgsFile* f, char *namm)  {
 	original_base_filename[0] = 0;
 
 	if (namm == NULL) {
@@ -383,6 +367,7 @@ ssize_t AgsFile_read(struct AgsFile *f, void* buf, size_t count) {
 }
 
 int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn) {
+	if (!checkIndex(f, index)) return 0;
 	int fd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, 0660);
 	if(fd == -1) return 0;
 	char buf[4096];
@@ -400,111 +385,10 @@ int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn) {
 	close(fd);
 	return written == l;
 }
-/*
-int clibfindindex(char *fill) {
-	if (lib_file_name[0] == ' ') return -1;
 
-	size_t bb;
-	for (bb = 0; bb < mflib.num_files; bb++) {
-		if (strcasecmp(mflib.filenames[bb], fill) == 0)
-			return bb;
-	}
-	return -1;
-}
-
-int clibfilesize(char *fill) {
-	int idxx = clibfindindex(fill);
-	if (idxx >= 0) return mflib.length[idxx];
-	return -1;
-}
-
-int cliboffset(char *fill) {
-	int idxx = clibfindindex(fill);
-	if (idxx >= 0)
-		return mflib.offset[idxx];
-	return -1;
-}
-
-const char *clibgetoriginalfilename() {
-	return original_base_filename;
-}
-
-char actfilename[250];
-char *clibgetdatafile(char *fill) {
-	int idxx = clibfindindex(fill);
-	if (idxx >= 0) {
-		#if defined(LINUX_VERSION) || defined(MAC_VERSION) 
-		sprintf(actfilename, "%s/%s", base_path, mflib.data_filenames[mflib.file_datafile[idxx]]);
-		#else
-		sprintf(actfilename, "%s\\%s", base_path, mflib.data_filenames[mflib.file_datafile[idxx]]);
-		#endif
-		return actfilename;
-	}
-	return 0;
-}
-*/
 int AgsFile_init(struct AgsFile *buf, char* filename) {
-	int ret = csetlib(buf, filename, "");
+	int ret = csetlib(buf, filename);
 	
 	return ret == 0;
 }
 
-#if 0
-
-FILE *tfil;
-FILE *clibopenfile(char *filly, char *readmode) {
-	int bb;
-	for (bb = 0; bb < mflib.num_files; bb++) {
-		if (strcasecmp(mflib.filenames[bb], filly) == 0) {
-			char actfilename[250];
-		#if defined(ANDROID_VERSION)
-			sprintf(actfilename, "%s/%s", base_path, mflib.data_filenames[mflib.file_datafile[bb]]);
-		#else
-			sprintf(actfilename, "%s\\%s", base_path, mflib.data_filenames[mflib.file_datafile[bb]]);
-		#endif
-			tfil = ci_fopen(actfilename, readmode);
-			if (tfil == NULL)
-			return NULL;
-			fseek(tfil, mflib.offset[bb], SEEK_SET);
-			return tfil;
-		}
-	}
-	return ci_fopen(filly, readmode);
-}
-
-#define PR_DATAFIRST 1
-#define PR_FILEFIRST 2
-int cfopenpriority = PR_DATAFIRST;
-
-FILE *clibfopen(char *filnamm, char *fmt) {
-	last_opened_size = -1;
-	if (cfopenpriority == PR_FILEFIRST) {
-		// check for file, otherwise use datafile
-		if (fmt[0] != 'r') {
-			tfil = ci_fopen(filnamm, fmt);
-		} else {
-			tfil = ci_fopen(filnamm, fmt);
-
-			if ((tfil == NULL) && (lib_file_name[0] != ' ')) {
-				tfil = clibopenfile(filnamm, fmt);
-				last_opened_size = clibfilesize(filnamm);
-			}
-		}
-
-	} else {
-		// check datafile first, then scan directory
-		if ((cliboffset(filnamm) < 1) | (fmt[0] != 'r'))
-			tfil = ci_fopen(filnamm, fmt);
-		else {
-			tfil = clibopenfile(filnamm, fmt);
-			last_opened_size = clibfilesize(filnamm);
-		}
-
-	}
-
-	if ((last_opened_size < 0) && (tfil != NULL))
-		last_opened_size = filelength(fileno(tfil));
-
-	return tfil;
-}
-#endif
