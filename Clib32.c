@@ -6,10 +6,17 @@
   v1.2 (Apr'01)  added support for new multi-file CLIB version 10 files
   v1.1 (Jul'99)  added support for appended-to-exe data files
 
-  This is UNPUBLISHED PROPRIETARY SOURCE CODE;
-  the contents of this file may not be disclosed to third parties,
-  copied or duplicated in any form, in whole or in part, without
-  prior express permission from Chris Jones.
+  Adventure Game Studio source code Copyright 1999-2011 Chris Jones.
+  All rights reserved.
+
+  The AGS Editor Source Code is provided under the Artistic License 2.0
+  http://www.opensource.org/licenses/artistic-license-2.0.php
+
+  You MAY NOT compile your own builds of the engine without making it EXPLICITLY
+  CLEAR that the code has been altered from the Standard Version.
+  
+  v1.3 code cleaned up by rofl0r for usage in agsutils.
+  
 */
 
 #include <stdio.h>
