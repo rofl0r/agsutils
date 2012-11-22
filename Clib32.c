@@ -32,7 +32,6 @@
 #include <stddef.h>
 #include "Clib32.h"
 
-static char clib32copyright[] = "CLIB32 v1.21 (c) 1995,1996,1998,2001,2007 Chris Jones";
 static char lib_file_name[255] = " ";
 static char base_path[255] = ".";
 static char original_base_filename[255];
@@ -121,12 +120,15 @@ static void fread_data_intarray(struct ByteArray *ba, unsigned* dest, size_t cou
 		dest[i] = ByteArray_readInt(ba);
 }
 
+#if 0
 static void fread_data_enc(void *data, size_t dataSize, size_t dataCount, struct ByteArray *ooo) {
 	ByteArray_readMultiByte(ooo, (char*)data, dataSize * dataCount);
 	unsigned char *dataChar = (unsigned char*)data;
-	for (int i = 0; i < dataSize * dataCount; i++)
+	size_t i = 0;
+	for (; i < dataSize * dataCount; i++)
 		dataChar[i] -= get_pseudo_rand();
 }
+#endif
 
 static void fgetstring_enc(char *sss, struct ByteArray *ooo, int maxLength) {
 	int i = 0;
@@ -140,7 +142,7 @@ static int getw_enc(struct ByteArray *ooo) {
 	return fread_data_enc_int(ooo);
 }
 
-static int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout, int libver) {
+static int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout) {
 	size_t aa;
 	int randSeed = ByteArray_readInt(wout);
 	init_pseudo_rand_gen(randSeed + RAND_SEED_SALT);
@@ -163,7 +165,8 @@ static int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct Byt
 }
 
 static int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wout, int libver) {
-	int aa;
+	(void) libver;
+	size_t aa;
 	mfl->num_data_files = ByteArray_readInt(wout);
 	for (aa = 0; aa < mfl->num_data_files; aa++)
 		fgetnulltermstring(mfl->data_filenames[aa], wout, 50);
@@ -218,7 +221,8 @@ static int csetlib(struct AgsFile* f, char *namm)  {
 	}
 	strcpy(base_path, ".");
 
-	int passwmodifier = 0, aa;
+	int passwmodifier = 0;
+	size_t aa;
 	size_t cc, l;
 	
 	struct ByteArray *ba = &f->f;
@@ -267,18 +271,17 @@ static int csetlib(struct AgsFile* f, char *namm)  {
 			return -4;  // not first datafile in chain
 
 		if (lib_version >= 21) {
-			if (read_new_new_enc_format_clib(&f->mflib, ba, lib_version))
+			if (read_new_new_enc_format_clib(&f->mflib, ba))
 			return -5;
 		}
 		else if (lib_version == 20) {
 			if (read_new_new_format_clib(&f->mflib, ba, lib_version))
 			return -5;
 		} else  {
-			// PSP: Allocate struct on the heap to avoid overflowing the stack.
-			struct MultiFileLib* mflibOld = (struct MultiFileLib*)malloc(sizeof(struct MultiFileLib));
+			struct MultiFileLib mflibOld_b, *mflibOld = &mflibOld_b;
 
 			if (read_new_format_clib(mflibOld, ba, lib_version))
-			return -5;
+				return -5;
 			// convert to newer format
 			f->mflib.num_files = mflibOld->num_files;
 			f->mflib.num_data_files = mflibOld->num_data_files;
@@ -289,8 +292,6 @@ static int csetlib(struct AgsFile* f, char *namm)  {
 				strcpy(f->mflib.data_filenames[aa], mflibOld->data_filenames[aa]);
 			for (aa = 0; aa < f->mflib.num_files; aa++)
 				strcpy(f->mflib.filenames[aa], mflibOld->filenames[aa]);
-
-			free(mflibOld);
 		}
 
 		strcpy(lib_file_name, namm);
