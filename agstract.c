@@ -28,6 +28,7 @@ int main(int argc, char** argv) {
 		AgsFile_dump(ags, i, fnbuf);
 	}
 	
+	AgsFile_close(ags);
 	
 	return 0;
 }
