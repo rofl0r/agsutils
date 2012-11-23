@@ -5,4 +5,7 @@
 *.lo
 *.la
 *.log
-
+*.out
+*.rcb
+*.pack
+*.exe
