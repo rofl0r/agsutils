@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #define VERSION "0.0.1"
-#define ADS ":::AGStract " VERSION "by rofl0r:::"
+#define ADS ":::AGStract " VERSION " by rofl0r:::"
 
 __attribute__((noreturn))
 void usage(char *argv0) {
@@ -22,18 +22,29 @@ int main(int argc, char** argv) {
 	snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.info", dir);
 	int outfd = open(fnbuf, O_WRONLY | O_CREAT | O_TRUNC, 0660);
 	if(outfd == -1) {
+		dprintf(2, "did you forget to create %s?\n", dir);
 		perror(fnbuf);
 		return 1;
 	}
-	
-	if(!AgsFile_init(ags, fn)) {
+	dprintf(outfd, "info=infofile created by %s\n"
+	        "info=this file is needed to reconstruct the packfile with AGSpack\n", ADS);
+	AgsFile_init(ags, fn);
+	if(!AgsFile_open(ags)) {
 		dprintf(2, "error opening %s\n", fn);
 		return 1;
 	}
-	size_t i, l = AgsFile_getCount(ags);
+	size_t i, l = AgsFile_getFileCount(ags), ld =AgsFile_getDataFileCount(ags);
 	dprintf(1, "%s: version %d, containing %zu files.\n", fn, AgsFile_getVersion(ags), l);
 	dprintf(outfd, "agspackfile=%s\nagsversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
-	
+	dprintf(outfd, "datafilecount=%zu\n", ld);
+	for(i = 0; i < ld; i++) {
+		dprintf(outfd, "df%zu=%s\n", i, AgsFile_getDataFileName(ags, i));
+	}
+	for(i = 0; i < l; i++) {
+		char buf[16];
+		snprintf(buf, sizeof(buf), "%d", AgsFile_getFileNumber(ags, i));
+		dprintf(outfd, "fileno%zu=%s\n", i, buf);
+	}
 	for(i = 0; i < l; i++) {
 		char *currfn = AgsFile_getFileName(ags, i);
 		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, currfn);

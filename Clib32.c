@@ -1,5 +1,5 @@
 /* CLIB32 - DJGPP implemention of the CLIB reader.
-  (c) 1998-99 Chris Jones
+  (c) 1998-99 Chris Jones, (c) 2012 rofl0r
   
   22/12/02 - Shawn's Linux changes approved and integrated - CJ
 
@@ -15,7 +15,8 @@
   You MAY NOT compile your own builds of the engine without making it EXPLICITLY
   CLEAR that the code has been altered from the Standard Version.
   
-  v1.3 code cleaned up by rofl0r for usage in agsutils.
+  v1.3 rofl0r: code cleaned up for usage in agsutils.
+  v1.4 rofl0r: added writer and reader interfaces, as well as the entire writer code.
   
 */
 
@@ -31,6 +32,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "Clib32.h"
+#include "endianness.h"
 
 #define RAND_SEED_SALT 9338638
 
@@ -47,19 +49,23 @@ static int get_pseudo_rand() {
 	+ 2531011L) >> 16) & 0x7fff );
 }
 
+static void clib_encrypt_text(unsigned char *clear, unsigned char *encbuf) {
+	unsigned adx = 0;
+	while(1) {
+		*encbuf = *clear + clibpasswencstring[adx];
+		if(!*clear) break;
+		adx++; encbuf++; clear++;
+		if (adx > 10) adx = 0;
+	}
+}
+
 static void clib_decrypt_text(char *toenc) {
-	int adx = 0;
-
+	unsigned adx = 0;
 	while (1) {
-		toenc[0] -= clibpasswencstring[adx];
-		if (toenc[0] == 0)
-			break;
-
-		adx++;
-		toenc++;
-
-		if (adx > 10)
-			adx = 0;
+		*toenc -= clibpasswencstring[adx];
+		if (!*toenc) break;
+		adx++; toenc++;
+		if (adx > 10) adx = 0;
 	}
 }
 
@@ -198,6 +204,163 @@ int AgsFile_getVersion(struct AgsFile *f) {
 	return f->libversion;
 }
 
+void AgsFile_setVersion(struct AgsFile *f, int version) {
+	f->libversion = version;
+}
+
+void AgsFile_setSourceDir(struct AgsFile *f, char* sourcedir) {
+	f->dir = sourcedir;
+}
+
+void AgsFile_setFileCount(struct AgsFile *f, size_t count) {
+	f->mflib.num_files = count;
+}
+
+static off_t filelength(int fd) {
+	struct stat st;
+	fstat(fd, &st);
+	return st.st_size;
+}
+
+int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn) {
+	strncpy(f->mflib.filenames[index], fn, 100);
+	char fnbuf[512];
+	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", f->dir, f->mflib.filenames[index]);
+	int fd = open(fnbuf, O_RDONLY);
+	if(fd == -1) return 0;
+	off_t fl = filelength(fd);
+	close(fd);
+	f->mflib.length[index] = fl;
+	return 1;
+}
+
+int AgsFile_setDataFile(struct AgsFile *f, size_t index, char* fn) {
+	size_t l = strlen(fn);
+	if(l >= 20) return 0;
+	strncpy(f->mflib.data_filenames[index], fn, 20);
+	return 1;
+}
+
+void AgsFile_setDataFileCount(struct AgsFile *f, size_t count) {
+	f->mflib.num_data_files = count;
+}
+
+
+static int get_int_le(int val) {
+#ifdef IS_LITTLE_ENDIAN
+	return val;
+#else
+	return byteswap32(val);
+#endif
+}
+
+static void write_int(int fd, int val) {
+	int le = get_int_le(val);
+	write(fd, &le, sizeof(le));
+}
+
+static short get_short_le(short val) {
+#ifdef IS_LITTLE_ENDIAN
+	return val;
+#else
+	return byteswap16(val);
+#endif
+}
+
+static void write_short(int fd, short val) {
+	short le = get_short_le(val);
+	write(fd, &le, sizeof(le));
+}
+
+static void write_int_array(int fd, int* arr, size_t len) {
+	size_t i = 0;
+	for(; i < len; i++)
+		write_int(fd, arr[i]);
+}
+
+static int copy_into_file(int fd, char *dir, char *fn, size_t filesize) {
+	char fnbuf[512];
+	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, fn);
+	int f = open(fnbuf, O_RDONLY);
+	if(f == -1) return 0;
+	char readbuf[4096];
+	int ret = 1;
+	do {
+		size_t togo = filesize > sizeof(readbuf) ? sizeof(readbuf) : filesize;
+		if((size_t) read(f, readbuf, togo) != togo) { ret = 0; goto end; }
+		if((size_t) write(fd, readbuf, togo) != togo) { ret = 0; goto end; }
+		filesize -= togo;
+	} while(filesize);
+	end:
+	close(f);
+	return ret;
+}
+
+static size_t write_header(struct AgsFile *f, int fd) {
+	int myversion = 20; //f->libversion;
+	unsigned char version = myversion;
+	write(fd, "CLIB", 5);
+	write(fd, &version, 1);
+	version = 0;
+	if(myversion >= 10) write(fd, &version, 1);
+	size_t written = 7;
+	size_t i,l;
+	write_int(fd, f->mflib.num_data_files);
+	written += sizeof(int);
+	for(i = 0; i < f->mflib.num_data_files; i++) {
+		l = strlen(f->mflib.data_filenames[i]) + 1;
+		written += l;
+		if(l != (size_t) write(fd, f->mflib.data_filenames[i], l))
+			return 0;
+	}
+	
+	write_int(fd, f->mflib.num_files);
+	written += sizeof(int);
+	unsigned char encbuf[100];
+	for(i = 0; i < f->mflib.num_files; i++) {
+		l = strlen(f->mflib.filenames[i]) + 1;
+		write_short(fd, l * 5);
+		clib_encrypt_text((unsigned char*)f->mflib.filenames[i], encbuf);
+		if(l != (size_t) write(fd, encbuf, l)) return 0;
+		written += sizeof(short) + l;
+	}
+	l = f->mflib.num_files;
+	write_int_array(fd, (int*) f->mflib.offset, l);
+	written += sizeof(int) * l;
+	write_int_array(fd, (int*) f->mflib.length, l);
+	written += sizeof(int) * l;
+	if(l != (size_t) write(fd, f->mflib.file_datafile, l))
+		return 0;
+	written += l;
+	return written;
+}
+
+static void write_footer(int fd) {
+	write_int(fd, 0);
+	write(fd, clibendfilesig, 12);
+}
+
+
+int AgsFile_write(struct AgsFile *f) {
+	int fd = open(f->fn, O_CREAT | O_WRONLY | O_TRUNC, 0660);
+	if(fd == -1) return 0;
+	size_t i, off;
+	if(!(off = write_header(f, fd))) return 0;
+	lseek(fd, 0, SEEK_SET);
+	for(i = 0; i < f->mflib.num_files; i++) {
+		f->mflib.offset[i] = off;
+		off += f->mflib.length[i];
+	}
+	write_header(f, fd);
+	for(i = 0; i < f->mflib.num_files; i++) {
+		if(!copy_into_file(fd, f->dir, f->mflib.filenames[i], f->mflib.length[i]))
+			return 0;
+	}
+	write_footer(fd);
+	close(fd);
+	return 1;
+}
+
 static int csetlib(struct AgsFile* f, char *filename)  {
 	char clbuff[20];
 	if (!filename)
@@ -311,17 +474,40 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 }
 
 static int checkIndex(struct AgsFile *f, size_t index) {
-	if (index >= AgsFile_getCount(f)) return 0;
+	if (index >= AgsFile_getFileCount(f)) return 0;
 	return 1;
 }
 
-size_t AgsFile_getCount(struct AgsFile *f) {
+static int checkDataIndex(struct AgsFile *f, size_t index) {
+	if (index >= AgsFile_getDataFileCount(f)) return 0;
+	return 1;
+}
+
+size_t AgsFile_getFileCount(struct AgsFile *f) {
 	return f->mflib.num_files;
+}
+
+size_t AgsFile_getDataFileCount(struct AgsFile *f) {
+	return f->mflib.num_data_files;
+}
+
+int AgsFile_getFileNumber(struct AgsFile *f, size_t index) {
+	if (!checkIndex(f, index)) return -1;
+	return f->mflib.file_datafile[index];
+}
+
+void AgsFile_setFileNumber(struct AgsFile *f, size_t index, int number) {
+	*(unsigned char*)(&f->mflib.file_datafile[index]) = number;
 }
 
 char *AgsFile_getFileName(struct AgsFile *f, size_t index) {
 	if (!checkIndex(f, index)) return 0;
 	return f->mflib.filenames[index];
+}
+
+char *AgsFile_getDataFileName(struct AgsFile *f, size_t index) {
+	if (!checkDataIndex(f, index)) return 0;
+	return f->mflib.data_filenames[index];
 }
 
 size_t AgsFile_getFileSize(struct AgsFile *f, size_t index) {
@@ -362,8 +548,12 @@ int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn) {
 	return written == l;
 }
 
-int AgsFile_init(struct AgsFile *buf, char* filename) {
-	int ret = csetlib(buf, filename);
+void AgsFile_init(struct AgsFile *buf, char* filename) {
+	buf->fn = filename;
+}
+
+int AgsFile_open(struct AgsFile *buf) {
+	int ret = csetlib(buf, buf->fn);
 	
 	return ret == 0;
 }
