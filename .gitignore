@@ -9,3 +9,7 @@
 *.rcb
 *.pack
 *.exe
+*.s
+*.cfg
+*.dat
+agssave.*
