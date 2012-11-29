@@ -457,6 +457,8 @@ int ASI_read_script(AF *a, ASI* s) {
 			AF_read_int(a); /* export_addr */
 		}
 	}  else s->exportstart = 0;
+	s->sectionstart = 0;
+	s->sectioncount = 0;
 	if (s->version >= 83) {
 		s->sectioncount = AF_read_int(a);
 		if(s->sectioncount) {
