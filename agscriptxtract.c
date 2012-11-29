@@ -22,6 +22,7 @@ static void disas(char *o) {
 		memcpy(s, o, l + 1);
 		s[l-1] = 's';
 		ASI *i = ASI_read_script(f, &sc) ? &sc : 0;
+		dprintf(1, "disassembling %s -> %s\n", o, s);
 		if(i) ASI_disassemble(f, i, s);
 		AF_close(f);
 	}
