@@ -8,14 +8,16 @@ static void dump_byte(int fd, unsigned char byte) {
 	dprintf(fd, "\\x%.2x", (int) byte);
 }
 
-static int dump_section(AF* a, int fd, char *section, size_t start, size_t len, size_t align) {
-	size_t i;
-	if(len) {
+static int dump_sections(AF* a, int fd, size_t start, size_t count) {
+	if(count) {
 		AF_set_pos(a, start);
-		dprintf(fd, ".%s", section);
-		for(i = 0; i < len; i++) {
-			if(i % align == 0) dprintf(fd, "\n");
-			dump_byte(fd, ByteArray_readByte(a->b));
+		dprintf(fd, ".sections\n");
+		char buf[300];
+		size_t i = 0;
+		for(; i < count; i++) {
+			if(!AF_read_string(a, buf, sizeof(buf))) return 0;
+			int off = AF_read_int(a);
+			dprintf(fd, "\"%s\" = %d\n", buf, off);
 		}
 		dprintf(fd, "\n");
 	}
@@ -400,7 +402,7 @@ int ASI_disassemble(AF* a, ASI* s, char *fn) {
 	if(!dump_fixups(a, fd, s->fixupstart, s->fixupcount)) goto err_close;
 	if(!dump_import_export(a, fd, s->importstart, s->importcount, 1)) goto err_close;
 	if(!dump_import_export(a, fd, s->exportstart, s->exportcount, 0)) goto err_close;
-	if(!dump_section(a, fd, "sections", s->sectionstart, s->sectioncount, 32)) goto err_close;
+	if(!dump_sections(a, fd, s->sectionstart, s->sectioncount)) goto err_close;
 	ret:
 	close(fd);
 	return ret;
