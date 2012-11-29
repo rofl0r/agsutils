@@ -363,6 +363,9 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 							if(vn) dprintf(fd, "@%s", vn);
 							else dprintf(fd, "@var%.6u", insn / 4);
 							break;
+						case FIXUP_STACK: /* it is unclear if and where those ever get generated */
+							dprintf(fd, "@stack + %d", insn);
+							break;
 						case FIXUP_STRING:
 							dprintf(fd, "\"%s\"", str.data + insn);
 						default:
