@@ -340,8 +340,8 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 			if((!l && regs) || (l == 1 && regs == 2))
 				dprintf(fd, "%s", regnames[insn]);
 			else {
-				//while(currFixup < s->fixupcount && fxd.types[currFixup] != FIXUP_IMPORT)
-				//	currFixup++;
+				while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA)
+					currFixup++; /* DATADATA fixups are unrelated to the code */
 				if(currFixup < s->fixupcount && fxd.codeindex[currFixup] == currInstr - 1) {
 					switch(fxd.types[currFixup]) {
 						case FIXUP_IMPORT:
