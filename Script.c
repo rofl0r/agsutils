@@ -52,7 +52,7 @@ struct fixup_data {
 };
 
 static struct fixup_data get_fixups(AF* a, size_t start, size_t count) {
-	struct fixup_data ret = {0};
+	struct fixup_data ret = {0,0};
 	size_t i;
 	if(!(ret.types = malloc(count))) goto out;
 	if(!(ret.codeindex = malloc(count * sizeof(unsigned)))) goto err1;
@@ -265,17 +265,83 @@ static char* get_varname(struct function_export* exp, size_t expcount, unsigned 
 	return 0;
 }
 
-static int dump_globaldata(AF *a, int fd, size_t start, size_t size, struct function_export* exp, size_t expcount) {
+unsigned *get_code(AF *a, size_t start, size_t count) {
+	unsigned *ret = malloc(count * sizeof(unsigned));
+	if(!ret) return 0;
+	AF_set_pos(a, start);
+	size_t i;
+	for(i=0; i<count; i++)
+		ret[i] = AF_read_uint(a);
+	return ret;
+}
+
+enum varsize {vs0 = 0, vs1, vs2, vs4, vsmax};
+struct varinfo {size_t numrefs; enum varsize varsize;};
+struct varinfo find_fixup_for_globaldata(size_t offset, struct fixup_data *fxd, size_t fxcount, unsigned* code, size_t codecount) {
+	size_t i;
+	struct varinfo ret = {0,vs0};
+	for(i = 0; i < fxcount; i++) {
+		if(fxd->types[i] == FIXUP_GLOBALDATA) {
+			size_t x = fxd->codeindex[i];
+			assert(x + 1 < codecount);
+			if(code[x] == offset) {
+				ret.numrefs++;
+				enum varsize oldvarsize = ret.varsize;
+				switch(code[x+1]) {
+					case SCMD_MEMREADB: case SCMD_MEMWRITEB:
+						ret.varsize = vs1;
+						break;
+					case SCMD_MEMREADW: case SCMD_MEMWRITEW:
+						ret.varsize = vs2;
+						break;
+					case SCMD_MEMREAD: case SCMD_MEMWRITE:
+						ret.varsize = vs4;
+						break;
+					default:
+						assert(0); /* unexpected instruction */
+				}
+				if(oldvarsize != 0 && oldvarsize != ret.varsize)
+					assert(0);
+			}
+		}
+	}
+	return ret;
+}
+
+static int dump_globaldata(AF *a, int fd, size_t start, size_t size, 
+			   struct function_export* exp, size_t expcount,
+			   struct fixup_data *fxd, size_t fxcount,
+			   unsigned *code, size_t codesize) {
 	if(!size) return 1;
-	assert(size % 4 == 0);
+	const char*typenames[vsmax] = {[vs0]="ERR", [vs1]="char", [vs2]="short", [vs4]="int"};
 	dprintf(fd, ".%s\n", "data");
 	AF_set_pos(a, start);
 	size_t i = 0, v = 0;
-	for(; i < size; v++, i+=sizeof(int)) {
-		int x = AF_read_int(a);
-		char* vn = get_varname(exp, expcount, v * sizeof(int));
-		if(vn) dprintf(fd, "export %s = %d\n", vn, x);
-		else dprintf(fd, "var%.6zu = %d\n", v, x);
+	for(; i < size; v++) {
+		struct varinfo vi = find_fixup_for_globaldata(i, fxd, fxcount, code, codesize);
+		int x;
+		sw:
+		switch(vi.varsize) {
+			case vs4: 
+				x = AF_read_int(a);
+				break;
+			case vs2:
+				x = AF_read_short(a);
+				break;
+			case vs1:
+				x = ByteArray_readByte(a->b);
+				break;
+			case vs0:
+				dprintf(fd, "# unreferenced variable, assuming int\n");
+				vi.varsize = vs4;
+				goto sw;
+			case vsmax:
+				assert(0);
+		}
+		char* vn = get_varname(exp, expcount, i);
+		if(vn) dprintf(fd, "export %s %s = %d\n", typenames[vi.varsize], vn, x);
+		else dprintf(fd, "%s var%.6zu = %d\n", typenames[vi.varsize], i, x);
+		i += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4} [vi.varsize];
 	}
 	return 1;
 }
@@ -285,12 +351,18 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	size_t len = s->codesize * sizeof(unsigned);
 	if(!len) return 0;
 	
+	unsigned *code = get_code(a, s->codestart, s->codesize);
+	if(!code) return 0;
+	
 	struct function_export* fl = get_exports(a, s->exportstart, s->exportcount);
 	if(!fl) return 0;
-	if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize, fl, s->exportcount)) return 0;
 	
 	struct fixup_data fxd = get_fixups(a, s->fixupstart, s->fixupcount);
 	if(!fxd.types) return 0; //FIXME free fl and members.
+	
+	if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize, 
+		fl, s->exportcount, &fxd, s->fixupcount, code, s->codesize)) return 0;
+	
 	
 	struct importlist il = get_imports(a, s->importstart, s->importcount);
 	
@@ -359,14 +431,13 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 							}
 							break;
 						}
-						case FIXUP_GLOBALDATA:
-							assert(insn % 4 == 0);
+						case FIXUP_GLOBALDATA: {
 							char *vn = get_varname(fl, s->exportcount, insn);
 							if(vn) dprintf(fd, "@%s", vn);
-							else dprintf(fd, "@var%.6u", insn / 4);
-							break;
+							else dprintf(fd, "@var%.6u", insn);
+							break; }
 						case FIXUP_STACK: /* it is unclear if and where those ever get generated */
-							dprintf(fd, "@stack + %d", insn);
+							dprintf(fd, "@___stack___ + %d", insn);
 							break;
 						case FIXUP_STRING:
 							dprintf(fd, "\"%s\"", str.data + insn);
