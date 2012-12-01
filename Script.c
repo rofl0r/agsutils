@@ -308,6 +308,14 @@ struct varinfo find_fixup_for_globaldata(size_t offset, struct fixup_data *fxd, 
 	return ret;
 }
 
+int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd, size_t fxcount) {
+	size_t i;
+	for(i = 0; i < fxcount; i++)
+		if(fxd->types[i] == FIXUP_DATADATA && fxd->codeindex[i] == gdoffset)
+			return 1;
+	return 0;
+}
+
 static int dump_globaldata(AF *a, int fd, size_t start, size_t size, 
 			   struct function_export* exp, size_t expcount,
 			   struct fixup_data *fxd, size_t fxcount,
@@ -339,8 +347,13 @@ static int dump_globaldata(AF *a, int fd, size_t start, size_t size,
 				assert(0);
 		}
 		char* vn = get_varname(exp, expcount, i);
-		if(vn) dprintf(fd, "export %s %s = %d\n", typenames[vi.varsize], vn, x);
-		else dprintf(fd, "%s var%.6zu = %d\n", typenames[vi.varsize], i, x);
+		if(has_datadata_fixup(i, fxd, fxcount)) {
+			if(vn) dprintf(fd, "export %s %s = .data + %d\n", typenames[vi.varsize], vn, x);
+			else dprintf(fd, "%s var%.6zu = .data + %d\n", typenames[vi.varsize], i, x);
+		} else {
+			if(vn) dprintf(fd, "export %s %s = %d\n", typenames[vi.varsize], vn, x);
+			else dprintf(fd, "%s var%.6zu = %d\n", typenames[vi.varsize], i, x);
+		}
 		i += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4} [vi.varsize];
 	}
 	return 1;
