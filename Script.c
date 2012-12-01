@@ -404,9 +404,22 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 			currInstr++;
 			continue;
 		}
+
 		regs = opcodes[op].regcount;
 		args = opcodes[op].argcount;
 		dprintf(fd, "%.12zu\t%s ", currInstr - 1, opcodes[op].mnemonic);
+
+		if(insn == SCMD_REGTOREG) {
+			/* the "mov" instruction differs from all others in that the source comes first
+			   we do not want that. */
+			unsigned src, dst;
+			src = AF_read_uint(a);
+			currInstr++;
+			dst = AF_read_uint(a);
+			currInstr++;
+			dprintf(fd, "%s, %s\n", regnames[dst], regnames[src]);
+			continue;
+		}
 		for (size_t l = 0; l < args; l++) {
 			if(l) dprintf(fd, ", ");
 			insn = AF_read_uint(a);
