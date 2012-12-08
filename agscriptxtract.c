@@ -22,8 +22,9 @@ static void disas(char *o) {
 		memcpy(s, o, l + 1);
 		s[l-1] = 's';
 		ASI *i = ASI_read_script(f, &sc) ? &sc : 0;
-		dprintf(1, "disassembling %s -> %s\n", o, s);
-		if(i) ASI_disassemble(f, i, s);
+		dprintf(1, "disassembling %s -> %s", o, s);
+		if(!i || !ASI_disassemble(f, i, s)) dprintf(1, " FAIL");
+		dprintf(1, "\n");
 		AF_close(f);
 	}
 }
@@ -42,7 +43,7 @@ static void dumprooms(char* dir) {
 			snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, di->d_name);
 			AF f; ssize_t off; ASI s;
 			if(!AF_open(&f, fnbuf)) continue;
-			if((off = ARF_find_code_start(&f)) == -1) continue;
+			if((off = ARF_find_code_start(&f, 0)) == -1) continue;
 			AF_set_pos(&f, off);
 			if(!ASI_read_script(&f, &s)) {
 				dprintf(2, "trouble finding script in %s\n", di->d_name);
@@ -61,6 +62,12 @@ static void dumprooms(char* dir) {
 	closedir(d);
 }
 
+void dump_script(AF* f, ASI* s, char* fn) {
+	if(!s->len) return;
+	AF_dump_chunk(f, s->start, s->len, fn);
+	disas(fn);
+}
+
 int main(int argc, char**argv) {
 	char *dir = argv[1];
 	if(argc != 2) usage(argv[0]);
@@ -69,21 +76,16 @@ int main(int argc, char**argv) {
 	if(!ADF_open(a)) return 1;
 	ASI* s;
 	s = ADF_get_global_script(a);
-	if(s->len) AF_dump_chunk(a->f, s->start, s->len, "globalscript.o");
+	dump_script(a->f, s, "globalscript.o");
 	s = ADF_get_dialog_script(a);
-	if(s->len) AF_dump_chunk(a->f, s->start, s->len, "dialogscript.o");
+	dump_script(a->f, s, "dialogscript.o");
 	size_t i, l = ADF_get_scriptcount(a);
 	for(i = 0; i < l; i++) {
 		char fnbuf[32];
 		s = ADF_get_script(a, i);
 		snprintf(fnbuf, sizeof(fnbuf), "gamescript%zu.o", i);
-		if(s->len) {
-			AF_dump_chunk(a->f, s->start, s->len, fnbuf);
-			disas(fnbuf);
-		}
+		dump_script(a->f, s, fnbuf);
 	}
-	disas("globalscript.o");
-	disas("dialogscript.o");
 	ADF_close(a);
 	dumprooms(dir);
 

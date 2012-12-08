@@ -1,7 +1,7 @@
 #include "RoomFile.h"
 
-ssize_t ARF_find_code_start(AF* f) {
-	if(!AF_set_pos(f, 0)) return -1;
+ssize_t ARF_find_code_start(AF* f, size_t start) {
+	if(!AF_set_pos(f, start)) return -1;
 	char buf[4];
 	unsigned match = 0;
 	while(1) {

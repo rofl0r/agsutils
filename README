@@ -1,1 +1,104 @@
-this is going to be one more utils for ags
+agsutils by rofl0r
+
+tools for (un)packing, disassembling, modifying and recompiling ags games.
+
+agstract:
+  extracts the files a game "pack" (.exe) consists of.
+  creates a file agspack.info which contains metadata about the 
+  files included in the pack.
+  example: 
+	mkdir 252test ; cd 252test
+	agstract.out ~/srv/install/252test.exe .
+	:::AGStract 0.0.1 by rofl0r:::
+	~/srv/install/252test.exe: version 10, containing 6 files.
+	ac2game.dta -> ./ac2game.dta
+	acsprset.spr -> ./acsprset.spr
+	agsfnt0.wfn -> ./agsfnt0.wfn
+	agsfnt1.wfn -> ./agsfnt1.wfn
+	agsfnt2.wfn -> ./agsfnt2.wfn
+	room1.crm -> ./room1.crm
+
+agspack:
+  takes the files created by agstract and makes a new bundle out of it.
+  example:
+	agspack.out . ../252mytest.exe
+
+  the new "exe" will miss the original windows exe stub, but is
+  compatible with the opensource AGS engine, as well as with scummvm ags port.
+  that way, a game is about 500 KB smaller after extract and repack as it originally was.
+
+agscriptxtract:
+  detects and unpacks all binary scripts embedded in room and game files.
+  the compiled scripts are stored with a .o extension, the disassembled files with .s.
+  example:
+	agscriptxtract.out .
+	disassembling globalscript.o -> globalscript.s
+	disassembling room1.o -> room1.s
+
+  TODO: the room files of old versions contain the entire source code in encrypted form.
+  we should extract it into a file room%d.c.
+  see acroom.h at around line 2100.
+	2125          for (hh = 0; hh < lee; hh++)
+	(gdb) 
+	2126            rstruc->scripts[hh] += passwencstring[hh % 11];
+	[...]
+	2102      while (thisblock != BLOCKTYPE_EOF) {
+	(gdb) 
+	2103        update_polled_stuff();
+	(gdb) 
+	2104        thisblock = fgetc(opty);
+	(gdb) 
+	2106        if (thisblock == BLOCKTYPE_EOF)
+	(gdb) 
+	2109        fread(&bloklen, 4, 1, opty);
+	(gdb) 
+	2110        bloklen += ftell(opty);  // make it the new position for after block read
+	(gdb) p rstruc->scripts
+	$8 = 0xa653b0 "// text script for room\r\n\r\nfunction internal_func() {\r\n  return 42;\r\n}\r\n\r\nfunction using_import() {\r\n\t int i = GetGlobalInt(1);\r\n\t i = i * internal_func();\r\n\t return i;\r\n}\r\n"
+	(gdb) p bloklen
+	$9 = 1002
+
+agsdisas:
+  disassembles a single .o file to .s. useful to compare a re-assembled file with the original.
+  example:
+	../agsdisas.out room1.o room1.s
+	disassembling room1.o -> room1.s
+
+agssemble:
+  creates a compiled object file from a .s assembly file.
+  example:
+	agssemble.out room1.s
+	creates a new room1.o (you will notice filesize/date has changed)
+	
+  the compiled object file will miss debug info (line numbers) and thus be smaller than the original.
+  also imports cover only really used ones. it needs to be investigated whether this is compatible
+  with the ags engine, but seemed to work in a quick test.
+
+agsinject:
+  once you have recompiled an .o file with agssemble, you can inject it into the original
+  container file (either a .crm room file or a game file like "ac2game.dta")
+  example:
+	agsinject.out 0 room1.o room1.crm
+
+	injects room1.o at the first found script (0) in room1.crm.
+	rooms have only 1 script so you must always use 0.
+	for ac2game.dta kinda gamefiles, the index is i.e. 0 for the globalscript,
+	1 for the dialogscript (if one exists), otherwise 1 is the first gamescript, etc.
+
+  after you injected your .o file, the next thing you want to do is agspack it all up again.
+  then you can test your changes in the ags engine.
+
+
+compilation:
+
+needs RcB ( https://github.com/rofl0r/rcb )
+make the perl script rcb.pl available as "rcb" in your $PATH
+then run "make".
+
+License:
+there is a tiny part of code left from the original AGS engine, about 150 LOC in CLib32.c.
+it is covered under the artistic license, see file header for details.
+all other code is (C) 2012 rofl0r and licensed under the LGPL 2.1+ with the "NO C++" exception.
+the "NO C++" exception means that you are not allowed to convert the code into C++, but
+you can link it to C++ code.
+

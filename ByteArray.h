@@ -13,6 +13,7 @@ extern "C" {
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
+#include "MemGrow.h"
 
 enum ByteArray_Endianess {
 	BAE_BIG,
@@ -24,14 +25,20 @@ enum ByteArray_Type {
 	BAT_FILESTREAM,
 };
 
+enum ByteArray_Flags {
+	BAF_CANGROW = 1,
+	
+};
+
 struct ByteArray {
 	int type;
-	off_t pos;
-	off_t size;
+	int flags;
 	enum ByteArray_Endianess endian;
 	enum ByteArray_Endianess sys_endian;
+	off_t pos;
+	off_t size;
 	union {
-		char* start_addr;
+		MG mem;
 		int fd;
 	} source;
 	ssize_t (*readMultiByte)(struct ByteArray*, char*, size_t);
@@ -63,6 +70,7 @@ void ByteArray_ctor(struct ByteArray* self);
 struct ByteArray* ByteArray_new(void);
 
 void ByteArray_set_endian(struct ByteArray* self, enum ByteArray_Endianess endian);
+void ByteArray_set_flags(struct ByteArray *self, int flags);
 enum ByteArray_Endianess ByteArray_get_endian(struct ByteArray* self);
 
 int ByteArray_open_file(struct ByteArray* self, char* filename);

@@ -75,6 +75,8 @@
 #define SCMD_DYNAMICBOUNDS 71   // check reg1 is between 0 and m[MAR-4]
 #define SCMD_NEWARRAY     72    // reg1 = new array of reg1 elements, each of size arg2 (arg3=managed type?)
 
+#define SCMD_MAX 73
+
 struct opcode_info {
 	const char* mnemonic;
 	const unsigned char argcount;
@@ -157,7 +159,28 @@ static const struct opcode_info opcodes[] = {
 	[SCMD_NEWARRAY] = {"newarr", 3, 1},
 };
 
-static const char *regnames[] = { "null", "sp", "mar", "ax", "bx", "cx", "op", "dx" };
+enum ags_reg {
+	AR_NULL = 0,
+	AR_SP,
+	AR_MAR,
+	AR_AX,
+	AR_BX,
+	AR_CX,
+	AR_OP,
+	AR_DX,
+	AR_MAX
+};
+
+static const char *regnames[AR_MAX] = { 
+	[AR_NULL] = "null",
+	[AR_SP] = "sp",
+	[AR_MAR] = "mar",
+	[AR_AX] = "ax",
+	[AR_BX] = "bx",
+	[AR_CX] = "cx",
+	[AR_OP] = "op",
+	[AR_DX] = "dx",
+};
 
 
 #endif

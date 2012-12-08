@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "Script.h"
+#include "Script_internal.h"
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -25,7 +26,7 @@ static int dump_sections(AF* a, int fd, size_t start, size_t count) {
 }
 
 static int dump_strings(AF* a, int fd, size_t start, size_t len) {
-	if(!len) return 0;
+	if(!len) return 1;
 	AF_set_pos(a, start);
 	dprintf(fd, ".%s\n\"", "strings");
 	char buf[4096];
@@ -45,11 +46,6 @@ static int dump_strings(AF* a, int fd, size_t start, size_t len) {
 	}
 	return 1;
 }
-
-struct fixup_data {
-	char *types;
-	unsigned *codeindex;
-};
 
 static struct fixup_data get_fixups(AF* a, size_t start, size_t count) {
 	struct fixup_data ret = {0,0};
@@ -74,12 +70,6 @@ static struct fixup_data get_fixups(AF* a, size_t start, size_t count) {
 	goto out;
 }
 
-#define FIXUP_GLOBALDATA  1     // code[fixup] += &globaldata[0]
-#define FIXUP_FUNCTION    2     // code[fixup] += &code[0]
-#define FIXUP_STRING      3     // code[fixup] += &strings[0]
-#define FIXUP_IMPORT      4     // code[fixup] = &imported_thing[code[fixup]]
-#define FIXUP_DATADATA    5     // globaldata[fixup] += &globaldata[0]
-#define FIXUP_STACK       6     // code[fixup] += &stack[0]
 static int dump_fixups(AF* a, int fd, size_t start, size_t count) {
 	static const char* typenames[] = {
 		[FIXUP_GLOBALDATA] = "FIXUP_GLOBALDATA",
@@ -120,14 +110,6 @@ static int dump_import_export(AF* a, int fd, size_t start, size_t count, int imp
 	return 1;
 }
 
-#define EXPORT_FUNCTION 1
-#define EXPORT_DATA 2
-struct function_export {
-	char* fn;
-	unsigned instr;
-	unsigned type;
-};
-
 static struct function_export* get_exports(AF* a, size_t start, size_t count) {
 	if(!count) return 0;
 	struct function_export* fl = malloc(count * sizeof(struct function_export));
@@ -142,10 +124,6 @@ static struct function_export* get_exports(AF* a, size_t start, size_t count) {
 	}
 	return fl;
 }
-
-struct importlist {
-	char** names;
-};
 
 static struct importlist get_imports(AF* a, size_t start, size_t count) {
 	struct importlist ret = {0};
@@ -218,12 +196,6 @@ static struct labels get_labels(AF* a, size_t start, size_t count) {
 	return ret;
 }
 
-struct strings {
-	size_t count;
-	char ** strings;
-	char* data;
-};
-
 static struct strings get_strings(AF* a, size_t start, size_t size) {
 	struct strings ret = {0,0,0};
 	if(!size) return ret;
@@ -275,8 +247,6 @@ unsigned *get_code(AF *a, size_t start, size_t count) {
 	return ret;
 }
 
-enum varsize {vs0 = 0, vs1, vs2, vs4, vsmax};
-struct varinfo {size_t numrefs; enum varsize varsize;};
 struct varinfo find_fixup_for_globaldata(size_t offset, struct fixup_data *fxd, size_t fxcount, unsigned* code, size_t codecount) {
 	size_t i;
 	struct varinfo ret = {0,vs0};
@@ -420,7 +390,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 
 		regs = opcodes[op].regcount;
 		args = opcodes[op].argcount;
-		dprintf(fd, "%.12zu\t%s ", currInstr - 1, opcodes[op].mnemonic);
+		dprintf(fd, /*"%.12zu"*/"\t%s ", /*currInstr - 1, */opcodes[op].mnemonic);
 
 		if(insn == SCMD_REGTOREG) {
 			/* the "mov" instruction differs from all others in that the source comes first
@@ -466,6 +436,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 							dprintf(fd, ".stack + %d", insn);
 							break;
 						case FIXUP_STRING:
+							// FIXME add proper escaping for "
 							dprintf(fd, "\"%s\"", str.data + insn);
 						default:
 							break;
