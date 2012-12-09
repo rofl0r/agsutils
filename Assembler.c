@@ -83,7 +83,11 @@ static int add_fixup(AS *a, int type, size_t offset) {
 static int add_or_get_string(AS* a, char* str) {
 	/* return index of string in string table
 	 * add to string table if not yet existing */
-	struct string item = {.ptr = str, .len = strlen(str) }, iter;
+	str++; /* leading '"' */
+	size_t l = strlen(str);
+	l--;
+	str[l] = 0; /* trailing '"' */
+	struct string item = {.ptr = str, .len = l }, iter;
 	size_t i = 0;
 	for(; i < List_size(a->string_list); i++) {
 		assert(List_get(a->string_list, i, &iter));
@@ -107,7 +111,7 @@ static size_t get_string_section_length(AS* a) {
 }
 
 static int add_variable(AS *a, char* name, enum varsize vs, size_t offset) {
-	struct variable item = { .name = name, .vs = vs, .offset = offset };
+	struct variable item = { .name = strdup(name), .vs = vs, .offset = offset };
 	return List_add(a->variable_list, &item);
 }
 
@@ -173,6 +177,7 @@ static int asm_data(AS* a) {
 		int value;
 
 		if(*p == '.') {
+			p++;
 			if(memcmp(p, "data", 4) == 0) {
 				p += 4;
 				while(isspace(*p) && p < pend) p++;
@@ -184,6 +189,7 @@ static int asm_data(AS* a) {
 				goto write_var;
 			} else {
 				dprintf(2, "error: expected \"data\"\n");
+				return 0;
 			}
 		} else {
 			value = atoi(p);
@@ -281,11 +287,47 @@ static unsigned find_insn(char* sym) {
 	return 0;
 }
 
+#include "StringEscape.h"
+/* expects a pointer to the first char after a opening " in a string,
+ * converts the string into convbuf, and returns the length of that string */
+static size_t get_length_and_convert(char* x, char* end, char* convbuf, size_t convbuflen) {
+	size_t result = 0;
+	char* e = x + strlen(x);
+	assert(e > x && e < end && *e == 0);
+	e--;
+	while(isspace(*e)) e--;
+	if(*e != '"') abort();
+	*e = 0;
+	result = unescape(x, convbuf, convbuflen);
+	return result;
+}
+
+/* sets lets char in arg to 0, and advances pointer till the next argstart */
+static char* finalize_arg(char **p, char* pend, char* convbuf, size_t convbuflen) {
+	if(**p == '"') {
+		convbuf[0] = '"';
+		size_t l= get_length_and_convert(*p + 1, pend, convbuf+1, convbuflen - 1);
+		convbuf[l+1] = '"';
+		convbuf[l+2] = 0;
+		*p = 0; /* make it crash if its accessed again, since a string should always be the last arg */
+		return convbuf;
+	} else {
+		char* ret = *p;
+		while(*p < pend && **p != ',' && !isspace(**p)) (*p)++;
+		assert(*p < pend);
+		**p = 0; (*p)++;
+		while(*p < pend && isspace(**p)) (*p)++;
+		assert(*p < pend);
+		return ret;
+	}
+}
+
 static int asm_text(AS *a) {
 	ssize_t start = find_section(a->in, "text");
 	if(start == -1) return 0;
 	fseek(a->in, start, SEEK_SET);
 	char buf[1024];
+	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
 	size_t pos = 0;
 	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.') {
 		char* p = buf, *pend = buf + sizeof buf;
@@ -299,10 +341,10 @@ static int asm_text(AS *a) {
 		size_t l = strlen(sym);
 		if(l > 1 && sym[l-1] == ':') {
 			// functionstart or label
+			sym[l-1] = 0;
 			if(memcmp(sym, "label", 5) == 0)
-				add_label(a, p, pos);
+				add_label(a, sym, pos);
 			else {
-				sym[l-1] = 0;
 				add_export(a, EXPORT_FUNCTION, sym, pos);
 				ByteArray_writeUnsignedInt(a->code, SCMD_THISBASE);
 				ByteArray_writeUnsignedInt(a->code, pos);
@@ -321,12 +363,7 @@ static int asm_text(AS *a) {
 		pos++;
 		size_t arg;
 		for(arg = 0; arg < opcodes[instr].argcount; arg++) {
-			sym = p;
-			while(p < pend && *p != ',' && !isspace(*p)) p++; // FIXME could be a string with embedded whitespace
-			assert(p < pend);
-			*p = 0; p++;
-			while(p < pend && isspace(*p)) p++;
-			assert(p < pend);
+			sym = finalize_arg(&p, pend, convbuf, sizeof(convbuf));
 			int value = 0;
 			if(arg < opcodes[instr].regcount) {
 				value=get_reg(sym);
@@ -348,11 +385,13 @@ static int asm_text(AS *a) {
 					case SCMD_LITTOREG:
 						/* immediate can be function name, string, 
 							* variable name, stack fixup, or numeric value */
-						if(sym[0] == '"')
+						if(sym[0] == '"') {
 							value = add_or_get_string(a, sym);
-						else if(sym[0] == '@')
+							add_fixup(a, FIXUP_STRING, pos);
+						} else if(sym[0] == '@') {
 							value = get_variable_offset(a, sym+1);
-						else if(sym[0] == '.') {
+							add_fixup(a, FIXUP_GLOBALDATA, pos);
+						} else if(sym[0] == '.') {
 							if(memcmp(sym+1, "stack", 5)) {
 								dprintf(2, "error: expected stack\n");
 								return 0;

@@ -329,6 +329,7 @@ static int dump_globaldata(AF *a, int fd, size_t start, size_t size,
 	return 1;
 }
 
+#include "StringEscape.h"
 static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
@@ -404,6 +405,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 			continue;
 		}
 		for (size_t l = 0; l < args; l++) {
+			char escapebuf[4096];
 			if(l) dprintf(fd, ", ");
 			insn = AF_read_uint(a);
 			currInstr++;
@@ -436,8 +438,8 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 							dprintf(fd, ".stack + %d", insn);
 							break;
 						case FIXUP_STRING:
-							// FIXME add proper escaping for "
-							dprintf(fd, "\"%s\"", str.data + insn);
+							escape(str.data + insn, escapebuf, sizeof(escapebuf));
+							dprintf(fd, "\"%s\"", escapebuf);
 						default:
 							break;
 					}
