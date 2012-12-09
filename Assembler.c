@@ -408,8 +408,11 @@ static int asm_text(AS *a) {
 	
 	return 1;
 }
-
+#include "endianness.h"
 static void write_int(FILE* o, int val) {
+#ifndef IS_LITTLE_ENDIAN
+	val = byteswap32(val);
+#endif
 	fwrite(&val, 4, 1, o);
 }
 
