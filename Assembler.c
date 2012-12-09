@@ -163,7 +163,8 @@ static int asm_data(AS* a) {
 		enum varsize vs = vs0;
 		if(*p == '#') continue;
 		while(isspace(*p) && p < pend) p++;
-		if(memcmp(p, "export", 6) == 0) {
+		if(!memcmp(p, "export", 6) && isspace(p[6])) {
+			p += 7;
 			exportflag = 1;
 			while(isspace(*p) && p < pend) p++;
 		}
