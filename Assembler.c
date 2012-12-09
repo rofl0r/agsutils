@@ -455,6 +455,17 @@ static void write_int(FILE* o, int val) {
 	fwrite(&val, 4, 1, o);
 }
 
+int fixup_comparefunc(const void *a, const void* b) {
+	struct fixup* fa = a, *fb = b;
+	if(fa->offset < fb->offset) return -1;
+	if(fa->offset == fb->offset) return 0;
+	return 1;
+}
+
+static void sort_fixup_list(AS* a) {
+	List_sort(a->fixup_list, fixup_comparefunc);
+}
+
 static void write_fixup_list(AS* a, FILE *o) {
 	struct fixup item;
 	size_t i;
@@ -525,6 +536,7 @@ static int write_object(AS *a, char *out) {
 	}
 	write_string_section(a, o);
 	write_int(o, List_size(a->fixup_list));
+	sort_fixup_list(a);
 	write_fixup_list(a, o);
 	write_int(o, List_size(a->import_list));
 	write_import_section(a, o);

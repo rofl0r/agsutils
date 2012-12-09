@@ -27,3 +27,7 @@ int List_get(List *l, size_t index, void* item) {
 	memcpy(item, src, l->itemsize);
 	return 1;
 }
+
+void List_sort(List *l, int(*compar)(const void *, const void *)) {
+	qsort(mem_getptr(l->mem, 0, l->itemsize * l->count), l->count, l->itemsize, compar);
+}
