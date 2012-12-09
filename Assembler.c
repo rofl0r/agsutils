@@ -436,7 +436,9 @@ static int asm_text(AS *a) {
 	for(i = 0; i < List_size(a->label_ref_list); i++) {
 		assert(List_get(a->label_ref_list, i, &item));
 		ByteArray_set_position(a->code, item.insno * 4);
-		int label_insno = item.insno - get_label_offset(a, item.name);
+		int lbl = get_label_offset(a, item.name);
+		assert(lbl >= 0 && lbl < pos);
+		int label_insno = lbl - (item.insno+1); /* offset is calculated from next instruction */
 		ByteArray_writeInt(a->code, label_insno);
 	}
 	generate_import_table(a);
@@ -467,7 +469,7 @@ static void write_int(FILE* o, int val) {
 }
 
 int fixup_comparefunc(const void *a, const void* b) {
-	struct fixup* fa = a, *fb = b;
+	const struct fixup* fa = a, *fb = b;
 	if(fa->offset < fb->offset) return -1;
 	if(fa->offset == fb->offset) return 0;
 	return 1;
