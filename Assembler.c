@@ -100,6 +100,17 @@ static int add_or_get_string(AS* a, char* str) {
 	return List_size(a->string_list) -1;
 }
 
+static unsigned get_string_offset(AS *a, unsigned index) {
+	assert(index < List_size(a->string_list));
+	unsigned i = 0, ret = 0;
+	struct string item;
+	for(; i < index; i++) {
+		assert(List_get(a->string_list, i, &item));
+		ret += item.len + 1;
+	}
+	return ret;
+}
+
 static size_t get_string_section_length(AS* a) {
 	struct string item;;
 	size_t i = 0, l = 0;
@@ -386,7 +397,7 @@ static int asm_text(AS *a) {
 						/* immediate can be function name, string, 
 							* variable name, stack fixup, or numeric value */
 						if(sym[0] == '"') {
-							value = add_or_get_string(a, sym);
+							value = get_string_offset(a, add_or_get_string(a, sym));
 							add_fixup(a, FIXUP_STRING, pos);
 						} else if(sym[0] == '@') {
 							value = get_variable_offset(a, sym+1);
