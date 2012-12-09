@@ -155,14 +155,13 @@ static int sort_comp(const void* xp, const void *yp) {
 }
 
 #include "ags_cpu.h"
-static struct labels get_labels(AF* a, size_t start, size_t count) {
+static struct labels get_labels(unsigned *code, size_t count) {
 	struct labels ret = {0, 0};
 	if(!count) return ret;
 	size_t capa = 0;
 	unsigned *p = 0;
 	size_t insno = 0;
 	unsigned insn;
-	AF_set_pos(a, start);
 	while(insno < count) {
 		if(ret.count + 1 > capa) {
 			capa = capa ? capa * 2 : 16;
@@ -173,9 +172,10 @@ static struct labels get_labels(AF* a, size_t start, size_t count) {
 				return ret;
 			} else ret.insno = p;
 		}
-		insn = AF_read_uint(a) & 0x00ffffff;
+		insn = code[insno] & 0x00ffffff;
 		insno++;
 		int isjmp = 0;
+		assert(insn < SCMD_MAX);
 		switch(insn) {
 			case SCMD_JZ: case SCMD_JMP: case SCMD_JNZ:
 				isjmp = 1;
@@ -184,9 +184,14 @@ static struct labels get_labels(AF* a, size_t start, size_t count) {
 		}
 		size_t i = 0;
 		for(; i < opcodes[insn].argcount; i++) {
-			int val = AF_read_int(a);
+			int val = code[insno];
 			insno++;
 			if(isjmp) {
+				if((int) insno + val < 0 || insno + val >= count || code[insno + val] > SCMD_MAX) {
+					dprintf(2, "error: label referenced from jump at %zu is out of bounds\n"
+					"or points to non-instruction start code.\n", insno);
+					assert(0);
+				}
 				ret.insno[ret.count] = insno + val;
 				ret.count++;
 			}
@@ -331,6 +336,7 @@ static int dump_globaldata(AF *a, int fd, size_t start, size_t size,
 
 #include "StringEscape.h"
 static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
+	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
 	if(!len) return 0;
@@ -350,7 +356,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	
 	struct importlist il = get_imports(a, s->importstart, s->importcount);
 	
-	struct labels lbl = get_labels(a, s->codestart, s->codesize);
+	struct labels lbl = get_labels(code, s->codesize);
 	
 	struct strings str = get_strings(a, s->stringsstart, s->stringssize);
 	
@@ -363,6 +369,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA) currFixup++;
 	while(currInstr < s->codesize) {
 		unsigned regs, args, insn = AF_read_uint(a), op = insn & 0x00ffffff;
+		assert(op < SCMD_MAX);
 		while(currExp < s->exportcount && fl[currExp].type != EXPORT_FUNCTION)
 			currExp++;
 		if(currExp < s->exportcount && fl[currExp].instr == currInstr) {
@@ -391,7 +398,10 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 
 		regs = opcodes[op].regcount;
 		args = opcodes[op].argcount;
-		dprintf(fd, /*"%.12zu"*/"\t%s ", /*currInstr - 1, */opcodes[op].mnemonic);
+		if(debugmode)
+			dprintf(fd, "%.12zu""\t%s ", currInstr - 1, opcodes[op].mnemonic);
+		else
+			dprintf(fd, /*"%.12zu"*/"\t%s ", /*currInstr - 1, */opcodes[op].mnemonic);
 
 		if(insn == SCMD_REGTOREG) {
 			/* the "mov" instruction differs from all others in that the source comes first
