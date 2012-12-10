@@ -339,19 +339,17 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
-	if(!len) return 0;
 	
 	unsigned *code = get_code(a, s->codestart, s->codesize);
-	if(!code) return 0;
 	
 	struct function_export* fl = get_exports(a, s->exportstart, s->exportcount);
-	if(!fl) return 0;
 	
 	struct fixup_data fxd = get_fixups(a, s->fixupstart, s->fixupcount);
-	if(!fxd.types) return 0; //FIXME free fl and members.
+	//if(!fxd.types) return 0; //FIXME free fl and members.
 	
-	if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize, 
-		fl, s->exportcount, &fxd, s->fixupcount, code, s->codesize)) return 0;
+	dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize, fl, s->exportcount, &fxd, s->fixupcount, code, s->codesize);
+		
+	if(!len) return 1; /* its valid for a scriptfile to have no code at all */
 	
 	
 	struct importlist il = get_imports(a, s->importstart, s->importcount);
@@ -427,7 +425,10 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 				if(currFixup < s->fixupcount && fxd.codeindex[currFixup] == currInstr - 1) {
 					switch(fxd.types[currFixup]) {
 						case FIXUP_IMPORT:
-							dprintf(fd, "%s", il.names[insn]);
+							if(debugmode)
+								dprintf(fd, "IMP:%s", il.names[insn]);
+							else
+								dprintf(fd, "%s", il.names[insn]);
 							break;
 						case FIXUP_FUNCTION: {
 							size_t x = 0;
