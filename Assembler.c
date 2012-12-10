@@ -415,9 +415,10 @@ static int asm_text(AS *a) {
 							while(isspace(*sym) && sym < pend) sym++;
 							add_fixup(a, FIXUP_STACK, pos);
 							value = atoi(sym);
-						} else if(isdigit(sym[0]))
+						} else if(isdigit(sym[0]) || sym[0] == '-') {
+							if(sym[0] == '-') assert(isdigit(sym[1]));
 							value = atoi(sym);
-						else
+						} else
 							add_function_ref(a, sym, pos);
 						break;
 					case SCMD_JMP: case SCMD_JZ: case SCMD_JNZ:
