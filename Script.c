@@ -5,10 +5,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-static void dump_byte(int fd, unsigned char byte) {
-	dprintf(fd, "\\x%.2x", (int) byte);
-}
-
 static int dump_sections(AF* a, int fd, size_t start, size_t count) {
 	if(count) {
 		AF_set_pos(a, start);
@@ -85,7 +81,7 @@ static int dump_fixups(AF* a, int fd, size_t start, size_t count) {
 	dprintf(fd, ".%ss\n", "fixup");
 	size_t i;
 	for(i = 0; i < count; i++) {
-		dprintf(fd, "%s: %.12u\n", typenames[fxd.types[i]], fxd.codeindex[i]);
+		dprintf(fd, "%s: %.12u\n", typenames[(int)fxd.types[i]], fxd.codeindex[i]);
 	}
 	return 1;
 }
