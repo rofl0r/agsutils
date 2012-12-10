@@ -19,7 +19,7 @@ void usage(char *argv0) {
 	exit(1);
 }
 
-static void inject(char *o, char *inj, unsigned which) {
+static int inject(char *o, char *inj, unsigned which) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
 	size_t index = 0;
@@ -30,7 +30,7 @@ static void inject(char *o, char *inj, unsigned which) {
 		while(1) {
 			if((start = ARF_find_code_start(f, index)) == -1) {
 				dprintf(2, "error, only %zu scripts found\n", found);
-				exit(1);
+				return 0;
 			}
 			if(found == which) {
 				AF_dump_chunk(f, 0, isroom ? start -4 : start, "/tmp/ags_chunk1.chnk");
@@ -54,7 +54,7 @@ static void inject(char *o, char *inj, unsigned which) {
 				ASI s;
 				if(!ASI_read_script(f, &s)) {
 					dprintf(2, "trouble finding script in %s\n", inj);
-					exit(1);
+					return 0;
 				}
 				AF_dump_chunk(f, start + s.len, ByteArray_get_length(f->b) - (start + s.len),
 					      "/tmp/ags_chunk2.chnk");
@@ -68,7 +68,7 @@ static void inject(char *o, char *inj, unsigned which) {
 					 "cat /tmp/ags_chunk1.chnk %s /tmp/ags_chunk2.chnk > %s", o, inj);
 				system(buf);
 				
-				return;
+				return 1;
 			}
 			
 			found++;
@@ -77,6 +77,7 @@ static void inject(char *o, char *inj, unsigned which) {
 		
 	} else {
 		perror(inj);
+		return 0;
 	}
 }
 
@@ -84,6 +85,9 @@ int main(int argc, char**argv) {
 	if(argc != 4) usage(argv[0]);
 	char *o = argv[2], *inj = argv[3];
 	int which = atoi(argv[1]);
-	inject(o, inj, which);
-	return 0;
+	dprintf(1, "injecting %s into %s as %d'th script ...", o, inj, which);
+	int ret = inject(o, inj, which);
+	if(ret) dprintf(1, "OK\n");
+	else dprintf(1, "FAIL\n");
+	return !ret;
 }
