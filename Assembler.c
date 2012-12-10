@@ -336,7 +336,7 @@ static char* finalize_arg(char **p, char* pend, char* convbuf, size_t convbuflen
 
 static int asm_text(AS *a) {
 	ssize_t start = find_section(a->in, "text");
-	if(start == -1) return 0;
+	if(start == -1) return 1;
 	fseek(a->in, start, SEEK_SET);
 	char buf[1024];
 	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
