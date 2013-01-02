@@ -269,7 +269,10 @@ struct varinfo find_fixup_for_globaldata(size_t offset, struct fixup_data *fxd, 
 						ret.varsize = vs4;
 						break;
 					default:
-						assert(0); /* unexpected instruction */
+						ret.varsize = vs4;
+						dprintf(2, "warning %s globaldata fixup on insno %d offset %zu\n",
+							opcodes[code[x+1]].mnemonic, x+1, offset);
+						break;
 				}
 				if(oldvarsize != 0 && oldvarsize != ret.varsize)
 					assert(0);
