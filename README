@@ -93,6 +93,8 @@ compilation:
 
 needs RcB ( https://github.com/rofl0r/rcb )
 make the perl script rcb.pl available as "rcb" in your $PATH
+( that means you should either rename it, copy it, or symlink it as rcb,
+  i.e. without file extenstion )
 then run "make".
 
 License:
