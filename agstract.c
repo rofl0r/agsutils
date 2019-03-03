@@ -16,7 +16,7 @@ static void dump_exe(struct AgsFile *ags, const char *dir) {
 	if(ags->pack_off) {
 		char fnbuf[512];
 		snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.exestub", dir);
-		AgsFile_extract(ags, 0, ags->pack_off, fnbuf);
+		AgsFile_extract(ags, 0, 0, ags->pack_off, fnbuf);
 	}
 }
 

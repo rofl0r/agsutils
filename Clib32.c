@@ -197,7 +197,9 @@ static int read_new_format_clib(struct MultiFileLib * mfl, struct ByteArray * wo
 }
 
 void AgsFile_close(struct AgsFile *f) {
-	ByteArray_close_file(&f->f);
+	unsigned i;
+	for (i=0; i < AgsFile_getFileCount(f); i++)
+		ByteArray_close_file(&f->f[i]);
 }
 
 int AgsFile_getVersion(struct AgsFile *f) {
@@ -361,6 +363,19 @@ int AgsFile_write(struct AgsFile *f) {
 	return 1;
 }
 
+static int prep_multifiles(struct AgsFile *f) {
+	unsigned aa;
+	struct ByteArray *ba;
+	/* open each datafile as a byte array */
+	for (aa = 1; aa < f->mflib.num_data_files; aa++) {
+		ba = &f->f[aa];
+		ByteArray_ctor(ba);
+		if(!ByteArray_open_file(ba, f->mflib.data_filenames[aa])) return -1;
+		ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.
+	}
+	return 0;
+}
+
 static int csetlib(struct AgsFile* f, char *filename)  {
 	char clbuff[20];
 	if (!filename)
@@ -370,7 +385,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	size_t aa;
 	size_t cc, l;
 	
-	struct ByteArray *ba = &f->f;
+	struct ByteArray *ba = &f->f[0];
 	ByteArray_ctor(ba);
 	if(!ByteArray_open_file(ba, filename)) return -1;
 	ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.
@@ -440,7 +455,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 			if (f->mflib.file_datafile[aa] == 0)
 				f->mflib.offset[aa] += absoffs;
 		}
-		return 0;
+		return prep_multifiles(f);
 	}
 
 	passwmodifier = ByteArray_readUnsignedByte(ba);
@@ -472,7 +487,8 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 		f->mflib.file_datafile[aa] = 0;
 	}
 	f->mflib.file_datafile[0] = 0;
-	return 0;
+
+	return prep_multifiles(f);
 }
 
 static int checkIndex(struct AgsFile *f, size_t index) {
@@ -522,39 +538,38 @@ size_t AgsFile_getOffset(struct AgsFile *f, size_t index) {
 	return f->mflib.offset[index];
 }
 
-int AgsFile_seek(struct AgsFile *f, off_t pos) {
-	return ByteArray_set_position(&f->f, pos);
+static int AgsFile_seek(struct AgsFile *f, int multifileno, off_t pos) {
+	return ByteArray_set_position(&f->f[multifileno], pos);
 }
 
-ssize_t AgsFile_read(struct AgsFile *f, void* buf, size_t count) {
-	return ByteArray_readMultiByte(&f->f, buf, count);
+static ssize_t AgsFile_read(struct AgsFile *f, int multifileno, void* buf, size_t count) {
+	return ByteArray_readMultiByte(&f->f[multifileno], buf, count);
 }
 
-int AgsFile_extract(struct AgsFile* f, off_t start, size_t len, const char* outfn) {
+int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len, const char* outfn) {
 	int fd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, 0660);
 	if(fd == -1) return 0;
 	char buf[4096];
 	size_t written = 0, l = len;
-	off_t save_pos = ByteArray_get_position(&f->f);
-	AgsFile_seek(f, start);
+	off_t save_pos = ByteArray_get_position(&f->f[multifileno]);
+	AgsFile_seek(f, multifileno, start);
 	while(written < l) {
 		size_t togo = l - written;
 		if(togo > sizeof(buf)) togo = sizeof(buf);
 		if(togo == 0) break;
-		ssize_t ret = AgsFile_read(f, buf, togo);
+		ssize_t ret = AgsFile_read(f, multifileno, buf, togo);
 		if(ret <= 0) break;
 		write(fd, buf, togo);
 		written += togo;
 	}
 	close(fd);
-	AgsFile_seek(f, save_pos);
+	AgsFile_seek(f, multifileno, save_pos);
 	return written == l;
-
 }
 
 int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn) {
 	if (!checkIndex(f, index)) return 0;
-	return AgsFile_extract(f, AgsFile_getOffset(f, index), AgsFile_getFileSize(f, index), outfn);
+	return AgsFile_extract(f, AgsFile_getFileNumber(f, index), AgsFile_getOffset(f, index), AgsFile_getFileSize(f, index), outfn);
 }
 
 void AgsFile_init(struct AgsFile *buf, char* filename) {

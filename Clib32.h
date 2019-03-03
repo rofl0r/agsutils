@@ -28,7 +28,7 @@ struct MultiFileLibNew {
 };
 
 struct AgsFile {
-	struct ByteArray f;
+	struct ByteArray f[MAXMULTIFILES];
 	struct MultiFileLibNew mflib;
 	int libversion;
 	char* fn;
@@ -52,7 +52,7 @@ int AgsFile_getFileNumber(struct AgsFile *f, size_t index);
 size_t AgsFile_getDataFileCount(struct AgsFile *f);
 char *AgsFile_getDataFileName(struct AgsFile *f, size_t index);
 int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn);
-int AgsFile_extract(struct AgsFile* f, off_t start, size_t len, const char* outfn);
+int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len, const char* outfn);
 
 /* writer interface */
 // the directory containing the files passed via setFile
