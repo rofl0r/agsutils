@@ -91,16 +91,15 @@ agsinject:
 
 compilation:
 
-needs RcB ( https://github.com/rofl0r/rcb )
-make the perl script rcb.pl available as "rcb" in your $PATH
-( that means you should either rename it, copy it, or symlink it as rcb,
-  i.e. without file extenstion )
-then run "make".
+run `make`.
+if you need any special CFLAGS, LDFLAGS etc put them into config.mak
+or append them to the make command, i.e. `make CFLAGS="-O2 -g"`
 
 License:
 there is a tiny part of code left from the original AGS engine, about 150 LOC in CLib32.c.
 it is covered under the artistic license, see file header for details.
-all other code is (C) 2012 rofl0r and licensed under the LGPL 2.1+ with the "NO C++" exception.
+all other code is (C) 2012 rofl0r and licensed under the LGPL 2.1+ with the "NO C++"
+exception.
 the "NO C++" exception means that you are not allowed to convert the code into C++, but
 you can link it to C++ code.
 
