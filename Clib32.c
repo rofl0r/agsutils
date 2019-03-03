@@ -380,6 +380,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	uint32_t absoffs = 0; /* we read 4 bytes- so our datatype 
 	must be 4 bytes as well, since we use a pointer to it */
 
+	f->pack_off = 0;
 	if (strncmp(clbuff, "CLIB", 4) != 0) {
 		ByteArray_set_position(ba,  ba_len - 12);
 		ByteArray_readMultiByte(ba, clbuff, 12);
@@ -390,6 +391,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 		ByteArray_set_position(ba,  ba_len - 16);
 		absoffs = ByteArray_readUnsignedInt(ba);
 		ByteArray_set_position(ba, absoffs + 5);
+		f->pack_off = absoffs;
 	}
 
 	f->libversion = ByteArray_readUnsignedByte(ba);
@@ -528,13 +530,13 @@ ssize_t AgsFile_read(struct AgsFile *f, void* buf, size_t count) {
 	return ByteArray_readMultiByte(&f->f, buf, count);
 }
 
-int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn) {
-	if (!checkIndex(f, index)) return 0;
+int AgsFile_extract(struct AgsFile* f, off_t start, size_t len, const char* outfn) {
 	int fd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, 0660);
 	if(fd == -1) return 0;
 	char buf[4096];
-	size_t written = 0, l = AgsFile_getFileSize(f, index);
-	AgsFile_seek(f, AgsFile_getOffset(f, index));
+	size_t written = 0, l = len;
+	off_t save_pos = ByteArray_get_position(&f->f);
+	AgsFile_seek(f, start);
 	while(written < l) {
 		size_t togo = l - written;
 		if(togo > sizeof(buf)) togo = sizeof(buf);
@@ -545,7 +547,14 @@ int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn) {
 		written += togo;
 	}
 	close(fd);
+	AgsFile_seek(f, save_pos);
 	return written == l;
+
+}
+
+int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn) {
+	if (!checkIndex(f, index)) return 0;
+	return AgsFile_extract(f, AgsFile_getOffset(f, index), AgsFile_getFileSize(f, index), outfn);
 }
 
 void AgsFile_init(struct AgsFile *buf, char* filename) {

@@ -33,6 +33,7 @@ struct AgsFile {
 	int libversion;
 	char* fn;
 	char *dir;
+	off_t pack_off;
 };
 
 /* generic interface */
@@ -50,7 +51,8 @@ size_t AgsFile_getFileSize(struct AgsFile *f, size_t index);
 int AgsFile_getFileNumber(struct AgsFile *f, size_t index);
 size_t AgsFile_getDataFileCount(struct AgsFile *f);
 char *AgsFile_getDataFileName(struct AgsFile *f, size_t index);
-int AgsFile_dump(struct AgsFile* f, size_t index, char* outfn);
+int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn);
+int AgsFile_extract(struct AgsFile* f, off_t start, size_t len, const char* outfn);
 
 /* writer interface */
 // the directory containing the files passed via setFile

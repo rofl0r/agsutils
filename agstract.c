@@ -12,6 +12,14 @@ void usage(char *argv0) {
 	exit(1);
 }
 
+static void dump_exe(struct AgsFile *ags, const char *dir) {
+	if(ags->pack_off) {
+		char fnbuf[512];
+		snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.exestub", dir);
+		AgsFile_extract(ags, 0, ags->pack_off, fnbuf);
+	}
+}
+
 int main(int argc, char** argv) {
 	if(argc < 3) usage(argv[0]);
 	dprintf(1, ADS "\n");
@@ -33,6 +41,7 @@ int main(int argc, char** argv) {
 		dprintf(2, "error opening %s\n", fn);
 		return 1;
 	}
+	dump_exe(ags, dir);
 	size_t i, l = AgsFile_getFileCount(ags), ld =AgsFile_getDataFileCount(ags);
 	dprintf(1, "%s: version %d, containing %zu files.\n", fn, AgsFile_getVersion(ags), l);
 	dprintf(outfd, "agspackfile=%s\nagsversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
