@@ -65,6 +65,6 @@ void AgsFile_setFileNumber(struct AgsFile *f, size_t index, int number);
 int AgsFile_setDataFile(struct AgsFile *f, size_t index, char* fn);
 int AgsFile_write(struct AgsFile *f);
 
-//RcB: DEP "Clib32.c"
+#pragma RcB2 DEP "Clib32.c"
 
 #endif

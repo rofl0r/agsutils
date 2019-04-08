@@ -3,5 +3,5 @@
 #include <stddef.h>
 size_t   escape(char* in, char *out, size_t outsize);
 size_t unescape(char* in, char *out, size_t outsize);
-//RcB: DEP "StringEscape.c"
+#pragma RcB2 DEP "StringEscape.c"
 #endif

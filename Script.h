@@ -34,5 +34,6 @@ typedef struct AgsScriptInfo {
 int ASI_read_script(AF *a, ASI* s);
 int ASI_disassemble(AF* a, ASI* s, char *fn);
 
-//RcB: DEP "Script.c"
+#pragma RcB2 DEP "Script.c"
+
 #endif

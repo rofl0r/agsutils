@@ -114,5 +114,7 @@ void ByteArray_dump_to_file(struct ByteArray* self, char* filename);
 #ifdef __cplusplus
 }
 #endif
-//RcB: DEP "ByteArray.c"
+
+#pragma RcB2 DEP "ByteArray.c"
+
 #endif

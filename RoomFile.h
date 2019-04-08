@@ -7,6 +7,6 @@
 
 ssize_t ARF_find_code_start(AF* f, size_t start);
 
-//RcB: DEP "RoomFile.c"
+#pragma RcB2 DEP "RoomFile.c"
 
 #endif

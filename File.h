@@ -26,5 +26,6 @@ int AF_dump_chunk(AF* a, size_t start, size_t len, char* fn);
 /* "swallows" or skips l bytes, i.e. advances the offset */
 int AF_read_junk(AF* a, size_t l);
 
-//RcB: DEP "File.c"
+#pragma RcB2 DEP "File.c"
+
 #endif

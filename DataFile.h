@@ -39,6 +39,6 @@ ASI* ADF_get_global_script(ADF* a);
 ASI* ADF_get_dialog_script(ADF* a);
 size_t ADF_get_scriptcount(ADF* a);
 
+#pragma RcB2 DEP "DataFile.c"
 
-//RcB: DEP "DataFile.c"
 #endif

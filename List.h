@@ -18,6 +18,6 @@ int List_add(List *l, void* item);
 int List_get(List *l, size_t index, void* item);
 void List_sort(List *l, int(*compar)(const void *, const void *));
 
-//RcB: DEP "List.c"
+#pragma RcB2 DEP "List.c"
 
 #endif

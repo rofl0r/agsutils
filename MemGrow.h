@@ -17,5 +17,6 @@ void* mem_getptr(MG* mem, size_t offset, size_t byteswanted);
 void mem_set(MG* mem, void* data, size_t used, size_t allocated);
 int mem_write_file(MG* mem, char* fn);
 
-//RcB: DEP "MemGrow.c"
+#pragma RcB2 DEP "MemGrow.c"
+
 #endif

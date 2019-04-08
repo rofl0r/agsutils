@@ -25,5 +25,6 @@ int AS_open(AS* a, char* fn);
 void AS_close(AS* a);
 int AS_assemble(AS* a, char* out);
 
-//RcB: DEP "Assembler.c"
+#pragma RcB2 DEP "Assembler.c"
+
 #endif
