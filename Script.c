@@ -386,12 +386,14 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 		
 		currInstr++;
 		
+#if 0
 		if(insn == SCMD_LINENUM) {
 			insn = AF_read_uint(a);
 			dprintf(fd, "# line %u\n", insn);
 			currInstr++;
 			continue;
 		}
+#endif
 
 		regs = opcodes[op].regcount;
 		args = opcodes[op].argcount;
