@@ -12,7 +12,7 @@ void usage(char *argv0) {
 	exit(1);
 }
 
-static void disas(char *o) {
+static void disas(const char*inp, char *o) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
 	ASI sc;
@@ -22,7 +22,7 @@ static void disas(char *o) {
 		memcpy(s, o, l + 1);
 		s[l-1] = 's';
 		ASI *i = ASI_read_script(f, &sc) ? &sc : 0;
-		dprintf(1, "disassembling %s -> %s", o, s);
+		dprintf(1, "disassembling [%s] %s -> %s", inp, o, s);
 		if(!i || !ASI_disassemble(f, i, s)) dprintf(1, " FAIL");
 		dprintf(1, "\n");
 		AF_close(f);
@@ -56,7 +56,7 @@ static void dumprooms(char* dir) {
 			buf[l-3] = 'o';
 			buf[l-2] = 0;
 			AF_dump_chunk(&f, s.start, s.len, buf);
-			disas(buf);
+			disas(di->d_name, buf);
 		}
 	}
 	closedir(d);
@@ -65,7 +65,7 @@ static void dumprooms(char* dir) {
 void dump_script(AF* f, ASI* s, char* fn) {
 	if(!s->len) return;
 	AF_dump_chunk(f, s->start, s->len, fn);
-	disas(fn);
+	disas("game28.dta", fn);
 }
 
 int main(int argc, char**argv) {
