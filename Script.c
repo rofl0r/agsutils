@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "Script.h"
 #include "Script_internal.h"
+#include "endianness.h"
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -334,6 +335,8 @@ static int dump_globaldata(AF *a, int fd, size_t start, size_t size,
 }
 
 #include "StringEscape.h"
+#define DEBUG_OFFSETS 1
+#define DEBUG_BYTECODE 1
 static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
@@ -365,6 +368,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	 * they are the only entries not sorted by instrucion number */
 	while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA) currFixup++;
 	while(currInstr < s->codesize) {
+		if(DEBUG_OFFSETS) dprintf(fd, "# offset: %llu\n", (long long) AF_get_pos(a));
 		unsigned regs, args, insn = AF_read_uint(a), op = insn & 0x00ffffff;
 		assert(op < SCMD_MAX);
 		while(currExp < s->exportcount && fl[currExp].type != EXPORT_FUNCTION)
@@ -397,6 +401,30 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 
 		regs = opcodes[op].regcount;
 		args = opcodes[op].argcount;
+
+		if(DEBUG_BYTECODE) {
+			unsigned char insbuf[16];
+			unsigned iblen = 0, val;
+			val = end_htole32(insn);
+			memcpy(insbuf+iblen, &val, 4); iblen += 4;
+
+			off_t currpos = AF_get_pos(a);
+
+			for(size_t l = 0; l < args; l++) {
+				assert(iblen+4 <= sizeof(insbuf));
+				val = AF_read_uint(a);
+				val = end_htole32(val);
+				memcpy(insbuf+iblen, &val, 4); iblen += 4;
+			}
+
+			dprintf(fd, "# ");
+			for(size_t l = 0; l < iblen; l++)
+				dprintf(fd, "%02x", (int) insbuf[l]);
+			dprintf(fd, "\n");
+
+			AF_set_pos(a, currpos);
+		}
+
 		if(debugmode)
 			dprintf(fd, "%.12zu""\t%s ", currInstr - 1, opcodes[op].mnemonic);
 		else
