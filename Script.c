@@ -6,26 +6,26 @@
 #include <stdlib.h>
 #include <assert.h>
 
-static int dump_sections(AF* a, int fd, size_t start, size_t count) {
+static int dump_sections(AF* a, FILE *f, size_t start, size_t count) {
 	if(count) {
 		AF_set_pos(a, start);
-		dprintf(fd, ".sections\n");
+		fprintf(f, ".sections\n");
 		char buf[300];
 		size_t i = 0;
 		for(; i < count; i++) {
 			if(!AF_read_string(a, buf, sizeof(buf))) return 0;
 			int off = AF_read_int(a);
-			dprintf(fd, "\"%s\" = %d\n", buf, off);
+			fprintf(f, "\"%s\" = %d\n", buf, off);
 		}
-		dprintf(fd, "\n");
+		fprintf(f, "\n");
 	}
 	return 1;
 }
 
-static int dump_strings(AF* a, int fd, size_t start, size_t len) {
+static int dump_strings(AF* a, FILE *f, size_t start, size_t len) {
 	if(!len) return 1;
 	AF_set_pos(a, start);
-	dprintf(fd, ".%s\n\"", "strings");
+	fprintf(f, ".%s\n\"", "strings");
 	char buf[4096];
 	while(len) {
 		size_t togo = len > sizeof(buf) ? sizeof(buf) : len;
@@ -35,10 +35,10 @@ static int dump_strings(AF* a, int fd, size_t start, size_t len) {
 		for(i = 0; i < togo; i++) {
 			len --;
 			if(!buf[i]) {
-				dprintf(fd, "\"\n");
-				if(len) dprintf(fd, "\"");
+				fprintf(f, "\"\n");
+				if(len) fprintf(f, "\"");
 			} else 
-				dprintf(fd, "%c", buf[i]);
+				fprintf(f, "%c", buf[i]);
 		}
 	}
 	return 1;
@@ -67,7 +67,7 @@ static struct fixup_data get_fixups(AF* a, size_t start, size_t count) {
 	goto out;
 }
 
-static int dump_fixups(AF* a, int fd, size_t start, size_t count) {
+static int dump_fixups(AF* a, FILE *f, size_t start, size_t count) {
 	static const char* typenames[] = {
 		[FIXUP_GLOBALDATA] = "FIXUP_GLOBALDATA",
 		[FIXUP_FUNCTION] = "FIXUP_FUNCTION",
@@ -79,29 +79,29 @@ static int dump_fixups(AF* a, int fd, size_t start, size_t count) {
 	struct fixup_data fxd = get_fixups(a, start, count);
 	if(!fxd.types) return 0;
 	
-	dprintf(fd, ".%ss\n", "fixup");
+	fprintf(f, ".%ss\n", "fixup");
 	size_t i;
 	for(i = 0; i < count; i++) {
-		dprintf(fd, "%s: %.12u\n", typenames[(int)fxd.types[i]], fxd.codeindex[i]);
+		fprintf(f, "%s: %.12u\n", typenames[(int)fxd.types[i]], fxd.codeindex[i]);
 	}
 	return 1;
 }
 
 
-static int dump_import_export(AF* a, int fd, size_t start, size_t count, int import) {
+static int dump_import_export(AF* a, FILE *f, size_t start, size_t count, int import) {
 	static const char* secnames[2] = { "export", "import" };
 	const char* secname = secnames[import];
 	size_t i;
 	char buf[256]; /* arbitrarily chosen */
 	if(!count) return 1;
 	AF_set_pos(a, start);
-	dprintf(fd, ".%ss\n", secname);
+	fprintf(f, ".%ss\n", secname);
 	for(i = 0; i < count; i++) {
 		if(!AF_read_string(a, buf, sizeof(buf))) return 0;
-		dprintf(fd, "%.12zu\"%s\"\n", i, buf);
+		fprintf(f, "%.12zu\"%s\"\n", i, buf);
 		if(!import) {
 			unsigned int addr = AF_read_uint(a);
-			dprintf(fd, "%d:%.12u\n", addr >> 24, addr & 0x00FFFFFF);
+			fprintf(f, "%d:%.12u\n", addr >> 24, addr & 0x00FFFFFF);
 		}
 	}
 	return 1;
@@ -291,13 +291,13 @@ int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd, size_t fxcount
 	return 0;
 }
 
-static int dump_globaldata(AF *a, int fd, size_t start, size_t size, 
+static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 			   struct function_export* exp, size_t expcount,
 			   struct fixup_data *fxd, size_t fxcount,
 			   unsigned *code, size_t codesize) {
 	if(!size) return 1;
 	const char*typenames[vsmax] = {[vs0]="ERR", [vs1]="char", [vs2]="short", [vs4]="int"};
-	dprintf(fd, ".%s\n", "data");
+	fprintf(f, ".%s\n", "data");
 	AF_set_pos(a, start);
 	size_t i = 0, v = 0;
 	for(; i < size; v++) {
@@ -315,7 +315,7 @@ static int dump_globaldata(AF *a, int fd, size_t start, size_t size,
 				x = ByteArray_readByte(a->b);
 				break;
 			case vs0:
-				dprintf(fd, "# unreferenced variable, assuming int\n");
+				fprintf(f, "# unreferenced variable, assuming int\n");
 				vi.varsize = vs4;
 				goto sw;
 			case vsmax:
@@ -323,11 +323,11 @@ static int dump_globaldata(AF *a, int fd, size_t start, size_t size,
 		}
 		char* vn = get_varname(exp, expcount, i);
 		if(has_datadata_fixup(i, fxd, fxcount)) {
-			if(vn) dprintf(fd, "export %s %s = .data + %d\n", typenames[vi.varsize], vn, x);
-			else dprintf(fd, "%s var%.6zu = .data + %d\n", typenames[vi.varsize], i, x);
+			if(vn) fprintf(f, "export %s %s = .data + %d\n", typenames[vi.varsize], vn, x);
+			else fprintf(f, "%s var%.6zu = .data + %d\n", typenames[vi.varsize], i, x);
 		} else {
-			if(vn) dprintf(fd, "export %s %s = %d\n", typenames[vi.varsize], vn, x);
-			else dprintf(fd, "%s var%.6zu = %d\n", typenames[vi.varsize], i, x);
+			if(vn) fprintf(f, "export %s %s = %d\n", typenames[vi.varsize], vn, x);
+			else fprintf(f, "%s var%.6zu = %d\n", typenames[vi.varsize], i, x);
 		}
 		i += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4} [vi.varsize];
 	}
@@ -337,7 +337,7 @@ static int dump_globaldata(AF *a, int fd, size_t start, size_t size,
 #include "StringEscape.h"
 #define DEBUG_OFFSETS 1
 #define DEBUG_BYTECODE 1
-static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
+static int disassemble_code_and_data(AF* a, ASI* s, FILE *f) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
@@ -349,7 +349,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	struct fixup_data fxd = get_fixups(a, s->fixupstart, s->fixupcount);
 	//if(!fxd.types) return 0; //FIXME free fl and members.
 	
-	dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize, fl, s->exportcount, &fxd, s->fixupcount, code, s->codesize);
+	dump_globaldata(a, f, s->globaldatastart, s->globaldatasize, fl, s->exportcount, &fxd, s->fixupcount, code, s->codesize);
 		
 	if(!len) return 1; /* its valid for a scriptfile to have no code at all */
 	
@@ -361,21 +361,21 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 	struct strings str = get_strings(a, s->stringsstart, s->stringssize);
 	
 	AF_set_pos(a, start);
-	dprintf(fd, ".%s\n", "text");
+	fprintf(f, ".%s\n", "text");
 	
 	size_t currInstr = 0, currExp = 0, currFixup = 0, currLbl = 0;
 	/* the data_data fixups appear to be glued separately onto the fixup logic,
 	 * they are the only entries not sorted by instrucion number */
 	while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA) currFixup++;
 	while(currInstr < s->codesize) {
-		if(DEBUG_OFFSETS) dprintf(fd, "# offset: %llu\n", (long long) AF_get_pos(a));
+		if(DEBUG_OFFSETS) fprintf(f, "# offset: %llu\n", (long long) AF_get_pos(a));
 		unsigned regs, args, insn = AF_read_uint(a), op = insn & 0x00ffffff;
 		assert(op < SCMD_MAX);
 		while(currExp < s->exportcount && fl[currExp].type != EXPORT_FUNCTION)
 			currExp++;
 		if(currExp < s->exportcount && fl[currExp].instr == currInstr) {
 			/* new function starts here */
-			dprintf(fd, "\n%s:\n", fl[currExp].fn);
+			fprintf(f, "\n%s:\n", fl[currExp].fn);
 			currExp++;
 		}
 		if(currLbl < lbl.count) {
@@ -384,7 +384,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 				while(currLbl < lbl.count && lbl.insno[currLbl] == currInstr) {
 					currLbl++; numrefs++;
 				}
-				dprintf(fd, "label%.12zu: #referenced by %zu spots\n", currInstr, numrefs);
+				fprintf(f, "label%.12zu: #referenced by %zu spots\n", currInstr, numrefs);
 			}
 		}
 		
@@ -393,7 +393,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 #if 0
 		if(insn == SCMD_LINENUM) {
 			insn = AF_read_uint(a);
-			dprintf(fd, "# line %u\n", insn);
+			fprintf(f, "# line %u\n", insn);
 			currInstr++;
 			continue;
 		}
@@ -417,18 +417,18 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 				memcpy(insbuf+iblen, &val, 4); iblen += 4;
 			}
 
-			dprintf(fd, "# ");
+			fprintf(f, "# ");
 			for(size_t l = 0; l < iblen; l++)
-				dprintf(fd, "%02x", (int) insbuf[l]);
-			dprintf(fd, "\n");
+				fprintf(f, "%02x", (int) insbuf[l]);
+			fprintf(f, "\n");
 
 			AF_set_pos(a, currpos);
 		}
 
 		if(debugmode)
-			dprintf(fd, "%.12zu""\t%s ", currInstr - 1, opcodes[op].mnemonic);
+			fprintf(f, "%.12zu""\t%s ", currInstr - 1, opcodes[op].mnemonic);
 		else
-			dprintf(fd, /*"%.12zu"*/"\t%s ", /*currInstr - 1, */opcodes[op].mnemonic);
+			fprintf(f, /*"%.12zu"*/"\t%s ", /*currInstr - 1, */opcodes[op].mnemonic);
 
 		if(insn == SCMD_REGTOREG) {
 			/* the "mov" instruction differs from all others in that the source comes first
@@ -438,16 +438,16 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 			currInstr++;
 			dst = AF_read_uint(a);
 			currInstr++;
-			dprintf(fd, "%s, %s\n", regnames[dst], regnames[src]);
+			fprintf(f, "%s, %s\n", regnames[dst], regnames[src]);
 			continue;
 		}
 		for (size_t l = 0; l < args; l++) {
 			char escapebuf[4096];
-			if(l) dprintf(fd, ", ");
+			if(l) fprintf(f, ", ");
 			insn = AF_read_uint(a);
 			currInstr++;
 			if((!l && regs) || (l == 1 && regs == 2))
-				dprintf(fd, "%s", regnames[insn]);
+				fprintf(f, "%s", regnames[insn]);
 			else {
 				while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA)
 					currFixup++; /* DATADATA fixups are unrelated to the code */
@@ -455,15 +455,15 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 					switch(fxd.types[currFixup]) {
 						case FIXUP_IMPORT:
 							if(debugmode)
-								dprintf(fd, "IMP:%s", il.names[insn]);
+								fprintf(f, "IMP:%s", il.names[insn]);
 							else
-								dprintf(fd, "%s", il.names[insn]);
+								fprintf(f, "%s", il.names[insn]);
 							break;
 						case FIXUP_FUNCTION: {
 							size_t x = 0;
 							for(; x < s->exportcount; x++) {
 								if(fl[x].type == EXPORT_FUNCTION && fl[x].instr == insn) {
-									dprintf(fd, "%s", fl[x].fn);
+									fprintf(f, "%s", fl[x].fn);
 									break;
 								}
 							}
@@ -471,15 +471,15 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 						}
 						case FIXUP_GLOBALDATA: {
 							char *vn = get_varname(fl, s->exportcount, insn);
-							if(vn) dprintf(fd, "@%s", vn);
-							else dprintf(fd, "@var%.6u", insn);
+							if(vn) fprintf(f, "@%s", vn);
+							else fprintf(f, "@var%.6u", insn);
 							break; }
 						case FIXUP_STACK: /* it is unclear if and where those ever get generated */
-							dprintf(fd, ".stack + %d", insn);
+							fprintf(f, ".stack + %d", insn);
 							break;
 						case FIXUP_STRING:
 							escape(str.data + insn, escapebuf, sizeof(escapebuf));
-							dprintf(fd, "\"%s\"", escapebuf);
+							fprintf(f, "\"%s\"", escapebuf);
 						default:
 							break;
 					}
@@ -487,34 +487,35 @@ static int disassemble_code_and_data(AF* a, ASI* s, int fd) {
 				} else {
 					switch(op) {
 						case SCMD_JMP: case SCMD_JZ: case SCMD_JNZ:
-							dprintf(fd, "label%.12zu", currInstr + (int) insn);
+							fprintf(f, "label%.12zu", currInstr + (int) insn);
 							break;
 						default:
-							dprintf(fd, "%d", insn);
+							fprintf(f, "%d", insn);
 					}
 				}
 			}
 		}
-		dprintf(fd, "\n");
+		fprintf(f, "\n");
 	}
 	free (fl);
 	return 1;
 }
 
 int ASI_disassemble(AF* a, ASI* s, char *fn) {
-	int fd, ret = 1;
-	if((fd = open(fn, O_CREAT | O_TRUNC | O_WRONLY, 0660)) == -1)
+	FILE *f;
+	int ret = 1;
+	if((f = fopen(fn, "w")) == 0)
 		return 0;
 	AF_set_pos(a, s->start);
 	//if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize)) goto err_close;
-	if(!disassemble_code_and_data(a, s, fd)) goto err_close;
-	if(!dump_strings(a, fd, s->stringsstart, s->stringssize)) goto err_close;
-	if(!dump_fixups(a, fd, s->fixupstart, s->fixupcount)) goto err_close;
-	if(!dump_import_export(a, fd, s->importstart, s->importcount, 1)) goto err_close;
-	if(!dump_import_export(a, fd, s->exportstart, s->exportcount, 0)) goto err_close;
-	if(!dump_sections(a, fd, s->sectionstart, s->sectioncount)) goto err_close;
+	if(!disassemble_code_and_data(a, s, f)) goto err_close;
+	if(!dump_strings(a, f, s->stringsstart, s->stringssize)) goto err_close;
+	if(!dump_fixups(a, f, s->fixupstart, s->fixupcount)) goto err_close;
+	if(!dump_import_export(a, f, s->importstart, s->importcount, 1)) goto err_close;
+	if(!dump_import_export(a, f, s->exportstart, s->exportcount, 0)) goto err_close;
+	if(!dump_sections(a, f, s->sectionstart, s->sectioncount)) goto err_close;
 	ret:
-	close(fd);
+	fclose(f);
 	return ret;
 	err_close:
 	ret = 0;
