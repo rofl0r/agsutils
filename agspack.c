@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
-#define VERSION "0.0.1"
+#include "version.h"
 #define ADS ":::AGSpack " VERSION "by rofl0r:::"
 
 __attribute__((noreturn))

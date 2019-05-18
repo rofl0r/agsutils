@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#define VERSION "0.0.1"
+#include "version.h"
 #define ADS ":::AGSinject " VERSION " by rofl0r:::"
 
 __attribute__((noreturn))
