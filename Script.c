@@ -249,7 +249,27 @@ unsigned *get_code(AF *a, size_t start, size_t count) {
 	return ret;
 }
 
-struct varinfo find_fixup_for_globaldata(size_t offset, struct fixup_data *fxd, size_t fxcount, unsigned* code, size_t codecount) {
+static enum varsize get_varsize_from_instr(unsigned* code, size_t codecount, size_t index) {
+	assert(index < codecount);
+	switch(code[index]) {
+		case SCMD_MEMREADB: case SCMD_MEMWRITEB:
+			return vs1;
+		case SCMD_MEMREADW: case SCMD_MEMWRITEW:
+			return vs2;
+		case SCMD_MEMWRITEPTR:
+		case SCMD_MEMREADPTR:
+		case SCMD_MEMZEROPTR:
+		case SCMD_MEMINITPTR:
+		case SCMD_MEMREAD: case SCMD_MEMWRITE:
+			return vs4;
+		default:
+			return vs0;
+	}
+}
+
+struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_data *fxd, size_t fxcount, unsigned* code, size_t codecount) {
+	static enum varsize last_size = vs4;
+
 	size_t i;
 	struct varinfo ret = {0,vs0};
 	for(i = 0; i < fxcount; i++) {
@@ -259,27 +279,78 @@ struct varinfo find_fixup_for_globaldata(size_t offset, struct fixup_data *fxd, 
 			if(code[x] == offset) {
 				ret.numrefs++;
 				enum varsize oldvarsize = ret.varsize;
-				switch(code[x+1]) {
-					case SCMD_MEMREADB: case SCMD_MEMWRITEB:
-						ret.varsize = vs1;
-						break;
-					case SCMD_MEMREADW: case SCMD_MEMWRITEW:
-						ret.varsize = vs2;
-						break;
-					case SCMD_MEMREAD: case SCMD_MEMWRITE:
+				ret.varsize = get_varsize_from_instr(code, codecount, x+1);
+				if(!ret.varsize) switch(code[x+1]) {
+				case SCMD_MUL:
+					// muli is used as an array index like:
+					// muli REG, 4; add MAR, REG; PUSH/POP MAR; ...
+					if(x+11 < codecount) {
+						unsigned reg = code[x+2];
+						if(code[x+4] == SCMD_ADDREG &&
+						   code[x+5] == AR_MAR &&
+						   code[x+6] == reg &&
+						   code[x+7] == SCMD_PUSHREG &&
+						   code[x+8] == AR_MAR &&
+						   code[x+9] == SCMD_POPREG &&
+						   code[x+10] == AR_MAR)
+							ret.varsize = get_varsize_from_instr(code, codecount, x+11);
+					}
+					break;
+				case SCMD_ADDREG:
+					// addreg is typically used on an index register into an array
+					// followed by a byteread/store of the desired size
+					// the index register needs to be added to mar reg
+					assert(x+2 < codecount && code[x+2] == AR_MAR);
+					ret.varsize = get_varsize_from_instr(code, codecount, x+4);
+					// a typical method call
+					if(!ret.varsize && x+8 < codecount &&
+					   code[x+4] == SCMD_REGTOREG &&
+					   code[x+5] == AR_MAR &&
+					   code[x+7] == SCMD_CALLOBJ &&
+					   code[x+6] == code[x+8])
 						ret.varsize = vs4;
-						break;
-					default:
-						ret.varsize = vs4;
-						dprintf(2, "warning %s globaldata fixup on insno %d offset %zu\n",
+					break;
+				case SCMD_PUSHREG:
+					// ptrget and similar ops are typically preceded by push mar, pop mar
+					assert(x+4 < codecount);
+					if(code[x+2] == AR_MAR &&
+					   code[x+3] == SCMD_POPREG &&
+					   code[x+4] == AR_MAR) {
+						ret.varsize = get_varsize_from_instr(code, codecount, x+5);
+						if(!ret.varsize && x+7 < codecount &&
+						   code[x+5] == SCMD_ADDREG &&
+					           code[x+6] == AR_MAR)
+							ret.varsize = get_varsize_from_instr(code, codecount, x+8);
+					}
+					break;
+				}
+				if(!ret.varsize) {
+					if(oldvarsize) {
+						/* don't bother guessing the varsize if we already determined it */
+						ret.varsize = oldvarsize;
+					} else {
+						dprintf(2, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
 							opcodes[code[x+1]].mnemonic, x+1, offset);
-						break;
+						fprintf(f, "# warning: '%s' globaldata fixup on insno %zu offset %zu\n",
+							opcodes[code[x+1]].mnemonic, x+1, offset);
+					}
 				}
 				if(oldvarsize != 0 && oldvarsize != ret.varsize)
 					assert(0);
 			}
 		}
 	}
+	if(!ret.varsize) {
+		if(ret.numrefs) {
+			fprintf(f, "# warning: couldn't determine varsize, default to 4\n");
+			ret.varsize = vs4;
+		} else {
+			fprintf(f, "# unref'd, assuming array member with last known size\n");
+			ret.varsize = last_size;
+		}
+	}
+	last_size = ret.varsize;
+
 	return ret;
 }
 
@@ -301,7 +372,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	AF_set_pos(a, start);
 	size_t i = 0, v = 0;
 	for(; i < size; v++) {
-		struct varinfo vi = find_fixup_for_globaldata(i, fxd, fxcount, code, codesize);
+		struct varinfo vi = find_fixup_for_globaldata(f, i, fxd, fxcount, code, codesize);
 		int x;
 		sw:
 		switch(vi.varsize) {
