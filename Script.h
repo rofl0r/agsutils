@@ -31,8 +31,14 @@ typedef struct AgsScriptInfo {
 	int version;
 } ASI;
 
+enum DisasmFlags {
+	DISAS_DEBUG_BYTECODE = 1 << 0,
+	DISAS_DEBUG_OFFSETS = 1 << 1,
+	DISAS_SKIP_LINENO = 1 << 2,
+};
+
 int ASI_read_script(AF *a, ASI* s);
-int ASI_disassemble(AF* a, ASI* s, char *fn);
+int ASI_disassemble(AF* a, ASI* s, char *fn, int flags);
 
 #pragma RcB2 DEP "Script.c"
 

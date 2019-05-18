@@ -408,7 +408,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 #include "StringEscape.h"
 #define DEBUG_OFFSETS 1
 #define DEBUG_BYTECODE 1
-static int disassemble_code_and_data(AF* a, ASI* s, FILE *f) {
+static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
@@ -439,7 +439,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f) {
 	 * they are the only entries not sorted by instrucion number */
 	while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA) currFixup++;
 	while(currInstr < s->codesize) {
-		if(DEBUG_OFFSETS) fprintf(f, "# offset: %llu\n", (long long) AF_get_pos(a));
+		if(flags & DISAS_DEBUG_OFFSETS) fprintf(f, "# offset: %llu\n", (long long) AF_get_pos(a));
 		unsigned regs, args, insn = AF_read_uint(a), op = insn & 0x00ffffff;
 		assert(op < SCMD_MAX);
 		while(currExp < s->exportcount && fl[currExp].type != EXPORT_FUNCTION)
@@ -461,19 +461,17 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f) {
 
 		currInstr++;
 
-#if 0
-		if(insn == SCMD_LINENUM) {
+		regs = opcodes[op].regcount;
+		args = opcodes[op].argcount;
+
+		if(insn == SCMD_LINENUM && (flags & DISAS_SKIP_LINENO)) {
 			insn = AF_read_uint(a);
 			fprintf(f, "# line %u\n", insn);
 			currInstr++;
 			continue;
 		}
-#endif
 
-		regs = opcodes[op].regcount;
-		args = opcodes[op].argcount;
-
-		if(DEBUG_BYTECODE) {
+		if(flags & DISAS_DEBUG_BYTECODE) {
 			unsigned char insbuf[16];
 			unsigned iblen = 0, val;
 			val = end_htole32(insn);
@@ -572,14 +570,14 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f) {
 	return 1;
 }
 
-int ASI_disassemble(AF* a, ASI* s, char *fn) {
+int ASI_disassemble(AF* a, ASI* s, char *fn, int flags) {
 	FILE *f;
 	int ret = 1;
 	if((f = fopen(fn, "w")) == 0)
 		return 0;
 	AF_set_pos(a, s->start);
 	//if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize)) goto err_close;
-	if(!disassemble_code_and_data(a, s, f)) goto err_close;
+	if(!disassemble_code_and_data(a, s, f, flags)) goto err_close;
 	if(!dump_strings(a, f, s->stringsstart, s->stringssize)) goto err_close;
 	if(!dump_fixups(a, f, s->fixupstart, s->fixupcount)) goto err_close;
 	if(!dump_import_export(a, f, s->importstart, s->importcount, 1)) goto err_close;

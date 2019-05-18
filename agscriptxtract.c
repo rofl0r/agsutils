@@ -6,13 +6,18 @@
 #include "version.h"
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
-__attribute__((noreturn))
-void usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s dir\npass a directory with extracted game files.\n", argv0);
-	exit(1);
+static int usage(char *argv0) {
+	dprintf(2, ADS "\nusage:\n%s [-obl] dir\n"
+		   "pass a directory with extracted game files.\n"
+		   "options:\n"
+		   "-o : dump offset comments in disassembly\n"
+		   "-b : dump hexadecimal bytecode comments in disassembly\n"
+		   "-l : remove linenumber debug assembly directives [produces smaller files]\n"
+		   , argv0);
+	return 1;
 }
 
-static void disas(const char*inp, char *o) {
+static void disas(const char*inp, char *o, int flags) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
 	ASI sc;
@@ -23,7 +28,7 @@ static void disas(const char*inp, char *o) {
 		s[l-1] = 's';
 		ASI *i = ASI_read_script(f, &sc) ? &sc : 0;
 		dprintf(1, "disassembling [%s] %s -> %s", inp, o, s);
-		if(!i || !ASI_disassemble(f, i, s)) dprintf(1, " FAIL");
+		if(!i || !ASI_disassemble(f, i, s, flags)) dprintf(1, " FAIL");
 		dprintf(1, "\n");
 		AF_close(f);
 	}
@@ -31,11 +36,11 @@ static void disas(const char*inp, char *o) {
 
 #include "RoomFile.h"
 #include <dirent.h>
-static void dumprooms(char* dir) {
+static void dumprooms(char* dir, int flags) {
 	DIR* d = opendir(dir);
 	if(!d) return;
 	struct dirent* di = 0;
-	
+
 	while((di = readdir(d))) {
 		size_t l = strlen(di->d_name);
 		if(l > 4 + 4 && !memcmp(di->d_name, "room", 4) && !memcmp(di->d_name + l - 4, ".crm", 4)) {
@@ -56,38 +61,45 @@ static void dumprooms(char* dir) {
 			buf[l-3] = 'o';
 			buf[l-2] = 0;
 			AF_dump_chunk(&f, s.start, s.len, buf);
-			disas(di->d_name, buf);
+			disas(di->d_name, buf, flags);
 		}
 	}
 	closedir(d);
 }
 
-void dump_script(AF* f, ASI* s, char* fn) {
+void dump_script(AF* f, ASI* s, char* fn, int flags) {
 	if(!s->len) return;
 	AF_dump_chunk(f, s->start, s->len, fn);
-	disas("game28.dta", fn);
+	disas("game28.dta", fn, flags);
 }
 
 int main(int argc, char**argv) {
-	char *dir = argv[1];
-	if(argc != 2) usage(argv[0]);
+	int flags = 0, c;
+	while ((c = getopt(argc, argv, "obl")) != EOF) switch(c) {
+		case 'o': flags |= DISAS_DEBUG_OFFSETS; break;
+		case 'b': flags |= DISAS_DEBUG_BYTECODE; break;
+		case 'l': flags |= DISAS_SKIP_LINENO; break;
+		default: return usage(argv[0]);
+	}
+	if(!argv[optind]) return usage(argv[0]);
+	char *dir = argv[optind];
 	ADF a_b, *a = &a_b;
 	ADF_init(a, dir);
 	if(!ADF_open(a)) return 1;
 	ASI* s;
 	s = ADF_get_global_script(a);
-	dump_script(a->f, s, "globalscript.o");
+	dump_script(a->f, s, "globalscript.o", flags);
 	s = ADF_get_dialog_script(a);
-	dump_script(a->f, s, "dialogscript.o");
+	dump_script(a->f, s, "dialogscript.o", flags);
 	size_t i, l = ADF_get_scriptcount(a);
 	for(i = 0; i < l; i++) {
 		char fnbuf[32];
 		s = ADF_get_script(a, i);
 		snprintf(fnbuf, sizeof(fnbuf), "gamescript%zu.o", i);
-		dump_script(a->f, s, fnbuf);
+		dump_script(a->f, s, fnbuf, flags);
 	}
 	ADF_close(a);
-	dumprooms(dir);
+	dumprooms(dir, flags);
 
 	return 0;
 }
