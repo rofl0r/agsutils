@@ -8,7 +8,7 @@
 
 __attribute__((noreturn))
 void usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s file.s file.o\npass input and output filename.\n", argv0);
+	dprintf(2, ADS "\nusage:\n%s file.o file.s\npass input and output filename.\n", argv0);
 	exit(1);
 }
 
