@@ -8,7 +8,8 @@
 
 __attribute__((noreturn))
 void usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s file.o file.s\npass input and output filename.\n", argv0);
+	dprintf(2, ADS "\nusage:\n%s file.o [file.s]\n"
+		       "pass input and optionally output filename.\n", argv0);
 	exit(1);
 }
 
@@ -26,8 +27,14 @@ static void disas(char *o, char *s) {
 }
 
 int main(int argc, char**argv) {
-	if(argc != 3) usage(argv[0]);
-	char *o = argv[1], *s = argv[2];
+	if(argc != 3 && argc != 2) usage(argv[0]);
+	char *o = argv[1], *s, out[256];
+	if(argc == 2) {
+		size_t l = strlen(o);
+		snprintf(out, 256, "%s", o);
+		out[l-1] = 's'; // overflow me!
+		s = out;
+	} else s = argv[2];
 	disas(o, s);
 	return 0;
 }
