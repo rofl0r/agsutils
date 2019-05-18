@@ -37,7 +37,7 @@ static int dump_strings(AF* a, FILE *f, size_t start, size_t len) {
 			if(!buf[i]) {
 				fprintf(f, "\"\n");
 				if(len) fprintf(f, "\"");
-			} else 
+			} else
 				fprintf(f, "%c", buf[i]);
 		}
 	}
@@ -49,7 +49,7 @@ static struct fixup_data get_fixups(AF* a, size_t start, size_t count) {
 	size_t i;
 	if(!(ret.types = malloc(count))) goto out;
 	if(!(ret.codeindex = malloc(count * sizeof(unsigned)))) goto err1;
-	
+
 	AF_set_pos(a, start);
 
 	if(count != (size_t) AF_read(a, ret.types, count)) goto err2;
@@ -78,7 +78,7 @@ static int dump_fixups(AF* a, FILE *f, size_t start, size_t count) {
 	};
 	struct fixup_data fxd = get_fixups(a, start, count);
 	if(!fxd.types) return 0;
-	
+
 	fprintf(f, ".%ss\n", "fixup");
 	size_t i;
 	for(i = 0; i < count; i++) {
@@ -217,7 +217,7 @@ static struct strings get_strings(AF* a, size_t start, size_t size) {
 	char* p = ret.data;
 	size_t l = 0;
 	strcnt = 0;
-	
+
 	for(i = 0; i < size; i++) {
 		if(!ret.data[i]) {
 			ret.strings[strcnt] = p;
@@ -376,7 +376,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 		int x;
 		sw:
 		switch(vi.varsize) {
-			case vs4: 
+			case vs4:
 				x = AF_read_int(a);
 				break;
 			case vs2:
@@ -412,28 +412,28 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
-	
+
 	unsigned *code = get_code(a, s->codestart, s->codesize);
-	
+
 	struct function_export* fl = get_exports(a, s->exportstart, s->exportcount);
-	
+
 	struct fixup_data fxd = get_fixups(a, s->fixupstart, s->fixupcount);
 	//if(!fxd.types) return 0; //FIXME free fl and members.
-	
+
 	dump_globaldata(a, f, s->globaldatastart, s->globaldatasize, fl, s->exportcount, &fxd, s->fixupcount, code, s->codesize);
-		
+
 	if(!len) return 1; /* its valid for a scriptfile to have no code at all */
-	
-	
+
+
 	struct importlist il = get_imports(a, s->importstart, s->importcount);
-	
+
 	struct labels lbl = get_labels(code, s->codesize);
-	
+
 	struct strings str = get_strings(a, s->stringsstart, s->stringssize);
-	
+
 	AF_set_pos(a, start);
 	fprintf(f, ".%s\n", "text");
-	
+
 	size_t currInstr = 0, currExp = 0, currFixup = 0, currLbl = 0;
 	/* the data_data fixups appear to be glued separately onto the fixup logic,
 	 * they are the only entries not sorted by instrucion number */
@@ -458,9 +458,9 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f) {
 				fprintf(f, "label%.12zu: #referenced by %zu spots\n", currInstr, numrefs);
 			}
 		}
-		
+
 		currInstr++;
-		
+
 #if 0
 		if(insn == SCMD_LINENUM) {
 			insn = AF_read_uint(a);
