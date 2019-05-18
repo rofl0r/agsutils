@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "version.h"
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
@@ -20,6 +22,10 @@ static void dump_exe(struct AgsFile *ags, const char *dir) {
 	}
 }
 
+static int open_packfile(const char* fn) {
+	return open(fn, O_WRONLY | O_CREAT | O_TRUNC, 0660);
+}
+
 int main(int argc, char** argv) {
 	if(argc < 3) usage(argv[0]);
 	dprintf(1, ADS "\n");
@@ -28,8 +34,13 @@ int main(int argc, char** argv) {
 	char *dir = argv[2];
 	char fnbuf[512];
 	snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.info", dir);
-	int outfd = open(fnbuf, O_WRONLY | O_CREAT | O_TRUNC, 0660);
+	int outfd = open_packfile(fnbuf);
+	if(outfd == -1 && errno == ENOENT) {
+		mkdir(dir,  S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+		outfd = open_packfile(fnbuf);
+	}
 	if(outfd == -1) {
+		perror("open");
 		dprintf(2, "did you forget to create %s?\n", dir);
 		perror(fnbuf);
 		return 1;
