@@ -114,6 +114,7 @@ static int ADF_read_gamebase(ADF *a) {
 	/* acroom.h: 2881. void ReadFile() */
 	int option;
 	size_t l;
+	unsigned x;
 	l = 50 /* game name */ + 2 /*padding*/;
 	if(!AF_read_junk(a->f, l)) return 0;
 	for(l = 0; l < 100; l++)
@@ -139,7 +140,11 @@ static int ADF_read_gamebase(ADF *a) {
 	AF_read_uint(a->f);/* uniqueid */
 	AF_read_uint(a->f);/* numgui */
 	a->game.cursorcount = AF_read_uint(a->f);
-	AF_read_uint(a->f);/* default_resolution */
+	x = AF_read_uint(a->f);/* default_resolution */
+	if(a->version >= 44 /* 3.3.1 */ && x == 8 /* custom resolution */) {
+		/* 2 ints with the custom width and height */
+		if(!AF_read_junk(a->f, 8)) return 0;
+	}
 	AF_read_uint(a->f);/* default_lipsync_frame */
 	AF_read_uint(a->f);/* invhotdotsprite */
 	l = 4 * 17; /* reserved */
@@ -204,9 +209,21 @@ int ADF_open(ADF* a) {
 		l = 40 /* guid */ + 20 /*savegame extension*/ + 50 /*savegame dir*/;
 		if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
 	}
-	l = a->game.fontcount * 2; /* fontflags and fontoutline */
-	assert(l < sizeof(fnbuf));
-	if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
+	if(a->version < 50 /* 3.5.0 */) {
+		l = a->game.fontcount * 2; /* fontflags and fontoutline arrays [each 1b/font] */
+		if(!AF_read_junk(a->f, l)) goto err_close;
+		if(a->version >= 48) {
+			/* version == 3.4.1 have YOffset and versions >= 3.4.1.2 < 3.5.0 have YOffeset and LineSpacing ints */
+			l = a->game.fontcount * 4;
+			if(a->version == 49) l*=2;
+			if(!AF_read_junk(a->f, l)) goto err_close;
+		}
+	} else {
+		/* 3.5.0 has 5 ints per font, see gamesetupstruct.cpp */
+		l = a->game.fontcount * 4 * 5;
+		if(!AF_read_junk(a->f, l)) goto err_close;
+	}
+	// number of sprites
 	l = (a->version < 24) ? 6000 : AF_read_uint(a->f);
 	if(!AF_read_junk(a->f, l)) goto err_close;
 	l = 68 * a->game.inventorycount; /* sizeof(InventoryItemInfo) */
