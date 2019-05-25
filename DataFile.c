@@ -141,7 +141,7 @@ static int ADF_read_gamebase(ADF *a) {
 	AF_read_uint(a->f);/* numgui */
 	a->game.cursorcount = AF_read_uint(a->f);
 	x = AF_read_uint(a->f);/* default_resolution */
-	if(a->version >= 44 /* 3.3.1 */ && x == 8 /* custom resolution */) {
+	if(a->version >= 43 /* 3.3.0 */ && x == 8 /* custom resolution */) {
 		/* 2 ints with the custom width and height */
 		if(!AF_read_junk(a->f, 8)) return 0;
 	}
