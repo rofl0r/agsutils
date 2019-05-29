@@ -325,8 +325,8 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 					break;
 				case SCMD_PUSHREG:
 					// ptrget and similar ops are typically preceded by push mar, pop mar
-					assert(x+4 < codecount);
-					if(code[x+2] == AR_MAR &&
+					if(x+4 < codecount &&
+					   code[x+2] == AR_MAR &&
 					   code[x+3] == SCMD_POPREG &&
 					   code[x+4] == AR_MAR) {
 						ret.varsize = get_varsize_from_instr(code, codecount, x+5);
