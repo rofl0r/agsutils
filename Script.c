@@ -299,17 +299,15 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 						ret.varsize = vs4;
 					// muli is used as an array index like:
 					// muli REG, 4; add MAR, REG; PUSH/POP MAR; ...
-					else if(x+11 < codecount) {
-						unsigned reg = code[x+2];
-						if(code[x+4] == SCMD_ADDREG &&
-						   code[x+5] == AR_MAR &&
-						   code[x+6] == reg &&
-						   code[x+7] == SCMD_PUSHREG &&
-						   code[x+8] == AR_MAR &&
-						   code[x+9] == SCMD_POPREG &&
-						   code[x+10] == AR_MAR)
+					else if(x+11 < codecount &&
+						code[x+4] == SCMD_ADDREG &&
+						code[x+5] == AR_MAR &&
+						code[x+6] == code[x+2] &&
+						code[x+7] == SCMD_PUSHREG &&
+						code[x+8] == AR_MAR &&
+						code[x+9] == SCMD_POPREG &&
+						code[x+10] == AR_MAR)
 							ret.varsize = get_varsize_from_instr(code, codecount, x+11);
-					}
 					break;
 				case SCMD_ADDREG:
 					// addreg is typically used on an index register into an array
