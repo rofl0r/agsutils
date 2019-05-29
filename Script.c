@@ -291,9 +291,15 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 					}
 					break;
 				case SCMD_MUL:
+					// li mar, @var; muli dx, 4; ptrget mar; ptrassert; dynamicbounds dx
+					if(x+5 < codecount &&
+						code[x+2] != AR_MAR &&
+						code[x+4] == SCMD_MEMREADPTR &&
+						code[x+5] == AR_MAR)
+						ret.varsize = vs4;
 					// muli is used as an array index like:
 					// muli REG, 4; add MAR, REG; PUSH/POP MAR; ...
-					if(x+11 < codecount) {
+					else if(x+11 < codecount) {
 						unsigned reg = code[x+2];
 						if(code[x+4] == SCMD_ADDREG &&
 						   code[x+5] == AR_MAR &&
