@@ -281,6 +281,15 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 				enum varsize oldvarsize = ret.varsize;
 				ret.varsize = get_varsize_from_instr(code, codecount, x+1);
 				if(!ret.varsize) switch(code[x+1]) {
+				case SCMD_REGTOREG:
+					// li mar, @Obj; mr ax, mar; callobj ax
+					if(x+5 < codecount &&
+						code[x+2] == AR_MAR &&
+						code[x+4] == SCMD_CALLOBJ &&
+						code[x+3] == code[x+5]) {
+						ret.varsize = vs4;
+					}
+					break;
 				case SCMD_MUL:
 					// muli is used as an array index like:
 					// muli REG, 4; add MAR, REG; PUSH/POP MAR; ...
