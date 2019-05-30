@@ -553,6 +553,10 @@ static int write_object(AS *a, char *out) {
 	write_int(o, List_size(a->fixup_list));
 	sort_fixup_list(a);
 	write_fixup_list(a, o);
+	if(!List_size(a->import_list)) {
+		/* AGS declares object files with 0 imports as invalid */
+		add_import(a, "");
+	}
 	write_int(o, List_size(a->import_list));
 	write_import_section(a, o);
 	write_int(o, List_size(a->export_list));
