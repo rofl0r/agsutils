@@ -334,6 +334,24 @@ static char* finalize_arg(char **p, char* pend, char* convbuf, size_t convbuflen
 	}
 }
 
+static int asm_strings(AS *a) {
+	/* add strings in .strings section, even when they're not used from .text */
+	ssize_t start = find_section(a->in, "strings");
+	if(start == -1) return 1;
+	fseek(a->in, start, SEEK_SET);
+	char buf[1024];
+	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.') {
+		char* p = buf;
+		if(*p == '#') continue;
+		assert(*p == '"');
+		size_t l = strlen(p);
+		assert(l>1 && p[l-1] == '\n' && p[l-2] == '"');
+		p[l-1] = 0;
+		add_or_get_string(a, p);
+	}
+	return 1;
+}
+
 static int asm_text(AS *a) {
 	ssize_t start = find_section(a->in, "text");
 	if(start == -1) return 1;
@@ -571,6 +589,7 @@ static int write_object(AS *a, char *out) {
 int AS_assemble(AS* a, char* out) {
 	if(!asm_data(a)) return 0;
 	if(!asm_text(a)) return 0;
+	// if(!asm_strings(a)) return 0;  // emitting unneeded strings is not necessary
 	if(!write_object(a, out)) return 0;
 	return 1;
 }
