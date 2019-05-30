@@ -83,7 +83,11 @@ static int inject(char *o, char *inj, unsigned which) {
 
 int main(int argc, char**argv) {
 	if(argc != 4) usage(argv[0]);
-	char *o = argv[2], *inj = argv[3];
+	char *o = argv[2], *inj = argv[3], *p;
+	if(!(p = strrchr(o, '.')) || strcmp(p, ".o")) {
+		dprintf(2, "error: object file has no .o extension\n");
+		return 1;
+	}
 	int which = atoi(argv[1]);
 	dprintf(1, "injecting %s into %s as %d'th script ...", o, inj, which);
 	int ret = inject(o, inj, which);
