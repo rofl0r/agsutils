@@ -10,7 +10,7 @@
 
 __attribute__((noreturn))
 void usage(char *argv0) {
-	dprintf(2, 
+	dprintf(2,
 	ADS "\nusage:\n%s index input.o inject_to.crm\n"
 	"index is the number of script to replace, i.e. 0 for first script\n"
 	"only relevant if the output file is a gamefile which contains multiple scripts\n"
@@ -61,20 +61,20 @@ static int inject(char *o, char *inj, unsigned which) {
 				AF_close(f);
 				char buf[1024];
 				if(isroom)
-					snprintf(buf, sizeof(buf), 
+					snprintf(buf, sizeof(buf),
 						 "cat /tmp/ags_chunk1.chnk /tmp/ags_size.chunk %s /tmp/ags_chunk2.chnk > %s", o, inj);
-				else 
-					snprintf(buf, sizeof(buf), 
+				else
+					snprintf(buf, sizeof(buf),
 					 "cat /tmp/ags_chunk1.chnk %s /tmp/ags_chunk2.chnk > %s", o, inj);
 				system(buf);
-				
+
 				return 1;
 			}
-			
+
 			found++;
 			index = start + 4;
 		}
-		
+
 	} else {
 		perror(inj);
 		return 0;
