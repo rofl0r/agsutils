@@ -301,7 +301,7 @@ static int copy_into_file(int fd, char *dir, char *fn, size_t filesize) {
 static size_t write_header(struct AgsFile *f, int fd) {
 	int myversion = 20; //f->libversion;
 	unsigned char version = myversion;
-	write(fd, "CLIB", 5);
+	write(fd, "CLIB\x1a", 5);
 	write(fd, &version, 1);
 	version = 0;
 	if(myversion >= 10) write(fd, &version, 1);
@@ -411,6 +411,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 
 	f->libversion = ByteArray_readUnsignedByte(ba);
 	switch (f->libversion) {
+		/* enum MFLVersion (kMFLVersion_MultiV21 ...)  in newer AGS */
 		case 6: case 10: case 11: case 15: case 20: case 21:
 			break;
 		default:
