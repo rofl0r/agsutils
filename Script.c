@@ -306,8 +306,17 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 						code[x+7] == SCMD_PUSHREG &&
 						code[x+8] == AR_MAR &&
 						code[x+9] == SCMD_POPREG &&
-						code[x+10] == AR_MAR)
+						code[x+10] == AR_MAR) {
 							ret.varsize = get_varsize_from_instr(code, codecount, x+11);
+							if(!ret.varsize &&
+							    x+14 < codecount &&
+							    code[x+11] == SCMD_ADDREG &&
+							    code[x+12] == AR_MAR &&
+							    code[x+13] != code[x+2]
+							)
+							/* this variation adds another reg to mar before calling ptrget */
+								ret.varsize = get_varsize_from_instr(code, codecount, x+14);
+						}
 					break;
 				case SCMD_ADDREG:
 					// addreg is typically used on an index register into an array
