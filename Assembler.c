@@ -161,7 +161,7 @@ static int asm_data(AS* a) {
 		char* p = buf, *pend = buf + sizeof buf, *var;
 		int exportflag = 0;
 		enum varsize vs = vs0;
-		if(*p == '#') continue;
+		if(*p == '#' || *p == ';') continue;
 		while(isspace(*p) && p < pend) p++;
 		if(!memcmp(p, "export", 6) && isspace(p[6])) {
 			p += 7;
@@ -342,7 +342,7 @@ static int asm_strings(AS *a) {
 	char buf[1024];
 	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.') {
 		char* p = buf;
-		if(*p == '#') continue;
+		if(*p == '#' || *p == ';') continue;
 		assert(*p == '"');
 		size_t l = strlen(p);
 		assert(l>1 && p[l-1] == '\n' && p[l-2] == '"');
@@ -361,7 +361,7 @@ static int asm_text(AS *a) {
 	size_t pos = 0;
 	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.') {
 		char* p = buf, *pend = buf + sizeof buf;
-		if(*p == '#') continue;
+		if(*p == '#' || *p == ';') continue;
 		while(isspace(*p) && p < pend) p++;
 		assert(p < pend);
 		if(!*p) continue;

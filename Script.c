@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define COMMENT(F, FMT, ...) fprintf(F, "# " FMT, ##__VA_ARGS__)
+#define COMMENT(F, FMT, ...) fprintf(F, "; " FMT, ##__VA_ARGS__)
 
 static int dump_sections(AF* a, FILE *f, size_t start, size_t count) {
 	if(count) {
