@@ -139,11 +139,13 @@ static int get_variable_offset(AS* a, char* name) {
 	return 0;
 }
 
-static ssize_t find_section(FILE* in, char* name) {
+static ssize_t find_section(FILE* in, char* name, size_t *lineno) {
 	char buf[1024];
 	size_t off = 0, l = strlen(name);
+	*lineno = 0;
 	fseek(in, 0, SEEK_SET);
 	while(fgets(buf, sizeof buf, in)) {
+		*lineno = *lineno +1;
 		off += strlen(buf);
 		if(buf[0] == '.' && memcmp(name, buf + 1, l) == 0)
 			return off;
@@ -152,7 +154,8 @@ static ssize_t find_section(FILE* in, char* name) {
 }
 
 static int asm_data(AS* a) {
-	ssize_t start = find_section(a->in, "data");
+	size_t lineno;
+	ssize_t start = find_section(a->in, "data", &lineno);
 	if(start == -1) return 1; // it is valid for .s file to only have .text
 	fseek(a->in, start, SEEK_SET);
 	char buf[1024];
@@ -308,7 +311,7 @@ static size_t get_length_and_convert(char* x, char* end, char* convbuf, size_t c
 	assert(e > x && e < end && *e == 0);
 	e--;
 	while(isspace(*e)) e--;
-	if(*e != '"') abort();
+	if(*e != '"') return (size_t) -1;
 	*e = 0;
 	result = unescape(x, convbuf, convbuflen);
 	return result;
@@ -319,6 +322,7 @@ static char* finalize_arg(char **p, char* pend, char* convbuf, size_t convbuflen
 	if(**p == '"') {
 		convbuf[0] = '"';
 		size_t l= get_length_and_convert(*p + 1, pend, convbuf+1, convbuflen - 1);
+		if(l == (size_t) -1) return 0;
 		convbuf[l+1] = '"';
 		convbuf[l+2] = 0;
 		*p = 0; /* make it crash if its accessed again, since a string should always be the last arg */
@@ -336,7 +340,8 @@ static char* finalize_arg(char **p, char* pend, char* convbuf, size_t convbuflen
 
 static int asm_strings(AS *a) {
 	/* add strings in .strings section, even when they're not used from .text */
-	ssize_t start = find_section(a->in, "strings");
+	size_t lineno;
+	ssize_t start = find_section(a->in, "strings", &lineno);
 	if(start == -1) return 1;
 	fseek(a->in, start, SEEK_SET);
 	char buf[1024];
@@ -353,13 +358,15 @@ static int asm_strings(AS *a) {
 }
 
 static int asm_text(AS *a) {
-	ssize_t start = find_section(a->in, "text");
+	size_t lineno;
+	ssize_t start = find_section(a->in, "text", &lineno);
 	if(start == -1) return 1;
 	fseek(a->in, start, SEEK_SET);
 	char buf[1024];
 	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
 	size_t pos = 0;
 	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.') {
+		lineno++;
 		char* p = buf, *pend = buf + sizeof buf;
 		if(*p == '#' || *p == ';') continue;
 		while(isspace(*p) && p < pend) p++;
@@ -394,6 +401,10 @@ static int asm_text(AS *a) {
 		size_t arg;
 		for(arg = 0; arg < opcodes[instr].argcount; arg++) {
 			sym = finalize_arg(&p, pend, convbuf, sizeof(convbuf));
+			if(sym == 0) {
+				dprintf(2, "line %zu: error: expected \"\n", lineno);
+				return 0;
+			}
 			int value = 0;
 			if(arg < opcodes[instr].regcount) {
 				value=get_reg(sym);
