@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#define COMMENT(F, FMT, ...) fprintf(F, "# " FMT, ##__VA_ARGS__)
+
 static int dump_sections(AF* a, FILE *f, size_t start, size_t count) {
 	if(count) {
 		AF_set_pos(a, start);
@@ -353,7 +355,7 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 					} else {
 						dprintf(2, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
 							opcodes[code[x+1]].mnemonic, x+1, offset);
-						fprintf(f, "# warning: '%s' globaldata fixup on insno %zu offset %zu\n",
+						COMMENT(f, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
 							opcodes[code[x+1]].mnemonic, x+1, offset);
 					}
 				}
@@ -364,10 +366,10 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 	}
 	if(!ret.varsize) {
 		if(ret.numrefs) {
-			fprintf(f, "# warning: couldn't determine varsize, default to 4\n");
+			COMMENT(f, "warning: couldn't determine varsize, default to 4\n");
 			ret.varsize = vs4;
 		} else {
-			fprintf(f, "# unref'd, assuming array member with last known size\n");
+			COMMENT(f, "unref'd, assuming array member with last known size\n");
 			ret.varsize = last_size;
 		}
 	}
@@ -408,7 +410,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 				x = ByteArray_readByte(a->b);
 				break;
 			case vs0:
-				fprintf(f, "# unreferenced variable, assuming int\n");
+				COMMENT(f, "unreferenced variable, assuming int\n");
 				vi.varsize = vs4;
 				goto sw;
 			case vsmax:
@@ -461,7 +463,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 	 * they are the only entries not sorted by instrucion number */
 	while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA) currFixup++;
 	while(currInstr < s->codesize) {
-		if(flags & DISAS_DEBUG_OFFSETS) fprintf(f, "# offset: %llu\n", (long long) AF_get_pos(a));
+		if(flags & DISAS_DEBUG_OFFSETS) COMMENT(f, "offset: %llu\n", (long long) AF_get_pos(a));
 		unsigned regs, args, insn = AF_read_uint(a), op = insn & 0x00ffffff;
 		assert(op < SCMD_MAX);
 		while(currExp < s->exportcount && fl[currExp].type != EXPORT_FUNCTION)
@@ -477,7 +479,8 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 				while(currLbl < lbl.count && lbl.insno[currLbl] == currInstr) {
 					currLbl++; numrefs++;
 				}
-				fprintf(f, "label%.12zu: #referenced by %zu spots\n", currInstr, numrefs);
+				fprintf(f, "label%.12zu: ", currInstr);
+				COMMENT(f, "referenced by %zu spots\n", numrefs);
 			}
 		}
 
@@ -488,7 +491,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 
 		if(insn == SCMD_LINENUM && (flags & DISAS_SKIP_LINENO)) {
 			insn = AF_read_uint(a);
-			fprintf(f, "# line %u\n", insn);
+			COMMENT(f, "line %u\n", insn);
 			currInstr++;
 			continue;
 		}
@@ -508,10 +511,10 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 				memcpy(insbuf+iblen, &val, 4); iblen += 4;
 			}
 
-			fprintf(f, "# ");
-			for(size_t l = 0; l < iblen; l++)
-				fprintf(f, "%02x", (int) insbuf[l]);
-			fprintf(f, "\n");
+			char printbuf[sizeof(insbuf)*2 + 1], *pb = printbuf;
+			for(size_t l = 0; l < iblen; l++, pb+=2)
+				sprintf(pb, "%02x", (int) insbuf[l]);
+			COMMENT(f, "%s\n", printbuf);
 
 			AF_set_pos(a, currpos);
 		}
