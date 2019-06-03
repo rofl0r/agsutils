@@ -391,7 +391,7 @@ static int asm_text(AS *a) {
 		}
 		unsigned instr = find_insn(sym);
 		if(!instr) {
-			dprintf(2, "error: unknown instruction %s\n", sym);
+			dprintf(2, "line %zu: error: unknown instruction '%s'\n", lineno, sym);
 			return 0;
 		}
 		if(instr == SCMD_THISBASE) continue; /* we emit this instruction ourselves when a new function starts. */
