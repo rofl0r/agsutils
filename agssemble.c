@@ -22,8 +22,13 @@ int main(int argc, char** argv) {
 	char out [256], *outn;
 	if(argc == 2) {
 		size_t l = strlen(file);
+		char *p;
 		snprintf(out, 256, "%s", file);
-		out[l-1] = 'o'; // overflow me!
+		p = strrchr(out, '.');
+		if(!p) p = out + l;
+		*(p++) = '.';
+		*(p++) = 'o';
+		*p = 0;
 		outn = out;
 	} else outn = argv[2];
 	dprintf(1, "assembling %s -> %s ... ", file, outn);
