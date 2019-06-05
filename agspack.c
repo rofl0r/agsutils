@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
 	AgsFile_init(ags, pack);
 	AgsFile_setSourceDir(ags, dir);
 	AgsFile_setDataFileCount(ags, 1); //TODO
-	if(!AgsFile_setDataFile(ags, 0, "AGSPACKv0.0.1")) {
+	if(!AgsFile_setDataFile(ags, 0, "AGSPACKv" VERSION)) {
 		dprintf(2, "error: packname exceeds 20 chars");
 		return 1;
 	}
