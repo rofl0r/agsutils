@@ -286,7 +286,7 @@ int get_reg(char* regname) {
 static size_t mnemolen[SCMD_MAX];
 static int mnemolen_initdone = 0;
 
-void init_mnemolen(void) {
+static void init_mnemolen(void) {
 	size_t i = 0;
 	for(; i< SCMD_MAX; i++)
 		mnemolen[i] = strlen(opcodes[i].mnemonic);
