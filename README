@@ -4,9 +4,9 @@ tools for (un)packing, disassembling, modifying and recompiling ags games.
 
 agstract:
   extracts the files a game "pack" (.exe) consists of.
-  creates a file agspack.info which contains metadata about the 
+  creates a file agspack.info which contains metadata about the
   files included in the pack.
-  example: 
+  example:
 	mkdir 252test ; cd 252test
 	agstract.out ~/srv/install/252test.exe .
 	:::AGStract 0.0.1 by rofl0r:::
@@ -69,10 +69,9 @@ agssemble:
   example:
 	agssemble.out room1.s
 	creates a new room1.o (you will notice filesize/date has changed)
-	
-  the compiled object file will miss debug info (line numbers) and thus be smaller than the original.
-  also imports cover only really used ones. it needs to be investigated whether this is compatible
-  with the ags engine, but seemed to work in a quick test.
+
+  the compiled object file will miss unused strings and thus be smaller than the original.
+  also imports and exports cover only really used ones.
 
 agsinject:
   once you have recompiled an .o file with agssemble, you can inject it into the original
@@ -87,6 +86,10 @@ agsinject:
 
   after you injected your .o file, the next thing you want to do is agspack it all up again.
   then you can test your changes in the ags engine.
+
+agssim:
+  a simple simulator for ags assembly instructions.
+  run agssim --help for more info.
 
 
 compilation:
