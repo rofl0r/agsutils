@@ -20,6 +20,7 @@
   
 */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -198,7 +199,7 @@ static int read_new_format_clib(struct MultiFileLib * mfl, struct ByteArray * wo
 
 void AgsFile_close(struct AgsFile *f) {
 	unsigned i;
-	for (i=0; i < AgsFile_getFileCount(f); i++)
+	for (i=0; i < AgsFile_getDataFileCount(f); i++)
 		ByteArray_close_file(&f->f[i]);
 }
 
@@ -367,6 +368,7 @@ static int prep_multifiles(struct AgsFile *f) {
 	unsigned aa;
 	struct ByteArray *ba;
 	/* open each datafile as a byte array */
+	assert(MAXMULTIFILES >= f->mflib.num_data_files);
 	for (aa = 1; aa < f->mflib.num_data_files; aa++) {
 		ba = &f->f[aa];
 		ByteArray_ctor(ba);
@@ -444,6 +446,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 			memcpy(f->mflib.offset, mflibOld->offset, sizeof(int) * f->mflib.num_files);
 			memcpy(f->mflib.length, mflibOld->length, sizeof(int) * f->mflib.num_files);
 			memcpy(f->mflib.file_datafile, mflibOld->file_datafile, sizeof(char) * f->mflib.num_files);
+			assert(MAXMULTIFILES >= f->mflib.num_data_files);
 			for (aa = 0; aa < f->mflib.num_data_files; aa++)
 				strcpy(f->mflib.data_filenames[aa], mflibOld->data_filenames[aa]);
 			for (aa = 0; aa < f->mflib.num_files; aa++)
