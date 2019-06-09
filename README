@@ -7,21 +7,40 @@ agstract:
   creates a file agspack.info which contains metadata about the
   files included in the pack.
   example:
-	mkdir 252test ; cd 252test
-	agstract.out ~/srv/install/252test.exe .
-	:::AGStract 0.0.1 by rofl0r:::
-	~/srv/install/252test.exe: version 10, containing 6 files.
-	ac2game.dta -> ./ac2game.dta
-	acsprset.spr -> ./acsprset.spr
-	agsfnt0.wfn -> ./agsfnt0.wfn
-	agsfnt1.wfn -> ./agsfnt1.wfn
-	agsfnt2.wfn -> ./agsfnt2.wfn
-	room1.crm -> ./room1.crm
+
+	agstract 252test.exe FILES
+	:::AGStract 0.9.1 by rofl0r:::
+	252test.exe: version 10, containing 6 files.
+	ac2game.dta -> FILES/ac2game.dta
+	acsprset.spr -> FILES/acsprset.spr
+	agsfnt0.wfn -> FILES/agsfnt0.wfn
+	agsfnt1.wfn -> FILES/agsfnt1.wfn
+	agsfnt2.wfn -> FILES/agsfnt2.wfn
+	room1.crm -> FILES/room1.crm
+
+  agstract can also extract speech.vox and audio.vox files.
+  make sure to use a different output directory, otherwise your
+  agspack.info will be overwritten.
+
+  in some games, speech.vox is insanely big because the speech files are
+  saved in studio quality.
+
+  i achieved good results by converting them to 16Khz via ffmpeg:
+
+      for i in SPEECH/*.ogg ; do
+        ffmpeg -i "$i" -c:a libvorbis -ar 16384 tmp.oga && mv tmp.oga "$i"
+      done
+
+  then repacking it with agspack, which results in about 6x space improvement.
+
+  for audio.vox, you might want to use -b:a 80k instead of -ar 16384.
+  this shrinks input files by about 400% with almost CD-like quality.
 
 agspack:
   takes the files created by agstract and makes a new bundle out of it.
   example:
-	agspack.out . ../252mytest.exe
+
+	agspack FILES/ 252mytest.exe
 
   the new "exe" will miss the original windows exe stub, but is
   compatible with the opensource AGS engine, as well as with scummvm ags port.
@@ -31,7 +50,9 @@ agscriptxtract:
   detects and unpacks all binary scripts embedded in room and game files.
   the compiled scripts are stored with a .o extension, the disassembled files with .s.
   example:
-	agscriptxtract.out .
+
+        mkdir OBJ ; cd OBJ
+	agscriptxtract ../FILES
 	disassembling globalscript.o -> globalscript.s
 	disassembling room1.o -> room1.s
 
@@ -61,13 +82,15 @@ agscriptxtract:
 agsdisas:
   disassembles a single .o file to .s. useful to compare a re-assembled file with the original.
   example:
-	../agsdisas.out room1.o room1.s
+
+	agsdisas room1.o room1.s
 	disassembling room1.o -> room1.s
 
 agssemble:
   creates a compiled object file from a .s assembly file.
   example:
-	agssemble.out room1.s
+
+	agssemble room1.s
 	creates a new room1.o (you will notice filesize/date has changed)
 
   the compiled object file will miss unused strings and thus be smaller than the original.
@@ -77,7 +100,8 @@ agsinject:
   once you have recompiled an .o file with agssemble, you can inject it into the original
   container file (either a .crm room file or a game file like "ac2game.dta")
   example:
-	agsinject.out 0 room1.o room1.crm
+
+	agsinject 0 OBJ/room1.o FILES/room1.crm
 
 	injects room1.o at the first found script (0) in room1.crm.
 	rooms have only 1 script so you must always use 0.
