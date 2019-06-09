@@ -4,6 +4,7 @@ PROGS_SRCS = \
 	agscriptxtract.c \
 	agssemble.c \
 	agsdisas.c \
+	agssim.c \
 	agsinject.c
 
 PROGS_OBJS =  $(PROGS_SRCS:.c=.o)
@@ -44,6 +45,7 @@ rcb:
 	make -f Makefile.binary FNAME=agssemble
 	make -f Makefile.binary FNAME=agsdisas
 	make -f Makefile.binary FNAME=agsinject
+	make -f Makefile.binary FNAME=agssim
 
 clean:
 	rm -f $(PROGS) $(LIB_OBJS) $(PROGS_OBJS)
