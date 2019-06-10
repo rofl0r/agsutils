@@ -112,13 +112,13 @@ static int ADF_read_interaction2x(ADF *a, interaction_type t) {
 
 static int ADF_read_gamebase(ADF *a) {
 	/* acroom.h: 2881. void ReadFile() */
-	int option;
 	size_t l;
 	unsigned x;
+	char game_name[52];
 	l = 50 /* game name */ + 2 /*padding*/;
-	if(!AF_read_junk(a->f, l)) return 0;
-	for(l = 0; l < 100; l++)
-		option = AF_read_int(a->f);
+	if(!AF_read(a->f, game_name, l)) return 0;
+	/* 100 options */
+	if(!AF_read_junk(a->f, 100*4)) return 0;
 	l = 256; /* 256 "paluses", unsigned char*/
 	if(!AF_read_junk(a->f, l)) return 0;
 	l = 256 * 4; /*sizeof color, read into defpal*/
@@ -183,7 +183,7 @@ static int ADF_read_view2x(ADF *a) {
 
 int ADF_open(ADF* a) {
 	char fnbuf[512];
-	size_t l = strlen(a->dir);
+	size_t l = strlen(a->dir), i;
 	if(l >= sizeof(fnbuf) - 20) return 0;
 	memcpy(fnbuf, a->dir, l);
 	char* p = fnbuf + l;
@@ -193,17 +193,31 @@ int ADF_open(ADF* a) {
 		memcpy(p, "ac2game.dta", sizeof("ac2game.dta"));
 		if(!AF_open(a->f, fnbuf)) return 0;
 	}
-	
+
 	if(30 != AF_read(a->f, fnbuf, 30)) {
 		err_close:
 		AF_close(a->f);
 		return 0;
 	}
+	if(memcmp("Adventure Creator Game File v2", fnbuf, 30)) goto err_close;
 	a->version = AF_read_int(a->f);
 	/* here comes some version string with minor, major - we dont need it */
+	/* FIXME? newer ags does this only with version >= 12 */
+	/* 4 bytes containing the length of the string, followed by the string */
 	l = AF_read_uint(a->f);
 	if(l > 20) goto err_close;
 	if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
+
+	/* main_game_file.cpp:OpenMainGameFileBase */
+	if(a->version >= 48 /* kGameVersion_341 */) {
+		/* latest ags now has placed an int here: number of required capabilities */
+		l = AF_read_uint(a->f);
+		/* followed by l int/string pairs */
+		for(i=0; i<l; i++) {
+			size_t len = AF_read_uint(a->f);
+			if(!AF_read_junk(a->f, len)) goto err_close;
+		}
+	}
 	if(!ADF_read_gamebase(a)) goto err_close;
 	if(a->version > 32) {
 		l = 40 /* guid */ + 20 /*savegame extension*/ + 50 /*savegame dir*/;
