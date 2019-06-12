@@ -325,6 +325,18 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 							/* this variation pushes ax on the stack before doing a ptrget ax, which overwrites ax */
 								ret.varsize = get_varsize_from_instr(code, codecount, x+13);
 						}
+					else if(x+7 < codecount &&
+						code[x+4] == SCMD_ADDREG &&
+						code[x+5] == AR_MAR &&
+						code[x+6] == code[x+2]) {
+						ret.varsize = get_varsize_from_instr(code, codecount, x+7);
+						if(!ret.varsize &&
+						   x + 9 < codecount &&
+						   code[x+7] == SCMD_PUSHREG &&
+						   code[x+8] == AR_AX)
+							ret.varsize = get_varsize_from_instr(code, codecount, x+9);
+					}
+
 					break;
 				case SCMD_ADDREG:
 					// addreg is typically used on an index register into an array
