@@ -291,21 +291,29 @@ static int copy_into_file(int fd, char *dir, char *fn, size_t filesize) {
 	do {
 		size_t togo = filesize > sizeof(readbuf) ? sizeof(readbuf) : filesize;
 		if((size_t) read(f, readbuf, togo) != togo) { ret = 0; goto end; }
-		if((size_t) write(fd, readbuf, togo) != togo) { ret = 0; goto end; }
 		filesize -= togo;
+		ssize_t wret;
+		size_t nwritten = 0;
+		while(togo) {
+			wret = write(fd, readbuf + nwritten, togo);
+			if(wret <= 0) { ret = 0; goto end; }
+			nwritten += wret;
+			togo -= wret;
+		}
 	} while(filesize);
 	end:
 	close(f);
 	return ret;
 }
 
+#define WH_EWRITE(X,Y,Z) do {if(Z != write(X, Y, Z)) return 0;} while(0)
 static size_t write_header(struct AgsFile *f, int fd) {
 	int myversion = 20; //f->libversion;
 	unsigned char version = myversion;
-	write(fd, "CLIB\x1a", 5);
-	write(fd, &version, 1);
+	WH_EWRITE(fd, "CLIB\x1a", 5);
+	WH_EWRITE(fd, &version, 1);
 	version = 0;
-	if(myversion >= 10) write(fd, &version, 1);
+	if(myversion >= 10) WH_EWRITE(fd, &version, 1);
 	size_t written = 7;
 	size_t i,l;
 	write_int(fd, f->mflib.num_data_files);
@@ -316,7 +324,7 @@ static size_t write_header(struct AgsFile *f, int fd) {
 		if(l != (size_t) write(fd, f->mflib.data_filenames[i], l))
 			return 0;
 	}
-	
+
 	write_int(fd, f->mflib.num_files);
 	written += sizeof(int);
 	unsigned char encbuf[100];

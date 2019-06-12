@@ -22,10 +22,12 @@ static void dump_exe(struct AgsFile *ags, const char *dir) {
 	}
 }
 
-static int open_packfile(const char* fn) {
-	return open(fn, O_WRONLY | O_CREAT | O_TRUNC, 0660);
+static FILE* open_packfile(const char* fn) {
+	return fopen(fn, "w");
 }
 
+#define EFPRINTF(F, FMT, ARGS...) \
+	do{if(fprintf(F, FMT, ## ARGS) < 0) {perror("fprintf"); return 1;}}while(0)
 int main(int argc, char** argv) {
 	if(argc < 3) usage(argv[0]);
 	dprintf(1, ADS "\n");
@@ -34,18 +36,18 @@ int main(int argc, char** argv) {
 	char *dir = argv[2];
 	char fnbuf[512];
 	snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.info", dir);
-	int outfd = open_packfile(fnbuf);
-	if(outfd == -1 && errno == ENOENT) {
+	FILE *outf = open_packfile(fnbuf);
+	if(outf == 0 && errno == ENOENT) {
 		mkdir(dir,  S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-		outfd = open_packfile(fnbuf);
+		outf = open_packfile(fnbuf);
 	}
-	if(outfd == -1) {
-		perror("open");
+	if(outf == 0) {
+		perror("fopen");
 		dprintf(2, "did you forget to create %s?\n", dir);
 		perror(fnbuf);
 		return 1;
 	}
-	dprintf(outfd, "info=infofile created by %s\n"
+	EFPRINTF(outf, "info=infofile created by %s\n"
 	        "info=this file is needed to reconstruct the packfile with AGSpack\n", ADS);
 	AgsFile_init(ags, fn);
 	if(!AgsFile_open(ags)) {
@@ -56,26 +58,26 @@ int main(int argc, char** argv) {
 	int ec = 0;
 	size_t i, l = AgsFile_getFileCount(ags), ld =AgsFile_getDataFileCount(ags);
 	dprintf(1, "%s: version %d, containing %zu files.\n", fn, AgsFile_getVersion(ags), l);
-	dprintf(outfd, "agspackfile=%s\nagsversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
-	dprintf(outfd, "datafilecount=%zu\n", ld);
+	EFPRINTF(outf, "agspackfile=%s\nagsversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
+	EFPRINTF(outf, "datafilecount=%zu\n", ld);
 	for(i = 0; i < ld; i++) {
-		dprintf(outfd, "df%zu=%s\n", i, AgsFile_getDataFileName(ags, i));
+		EFPRINTF(outf, "df%zu=%s\n", i, AgsFile_getDataFileName(ags, i));
 	}
 	for(i = 0; i < l; i++) {
 		char buf[16];
 		snprintf(buf, sizeof(buf), "%d", AgsFile_getFileNumber(ags, i));
-		dprintf(outfd, "fileno%zu=%s\n", i, buf);
+		EFPRINTF(outf, "fileno%zu=%s\n", i, buf);
 	}
 	for(i = 0; i < l; i++) {
 		char *currfn = AgsFile_getFileName(ags, i);
 		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, currfn);
 		dprintf(1, "%s -> %s\n", currfn, fnbuf);
-		dprintf(outfd, "%zu=%s\n", i, currfn);
+		EFPRINTF(outf, "%zu=%s\n", i, currfn);
 		if(!AgsFile_dump(ags, i, fnbuf)) ec++;
 	}
 
 	AgsFile_close(ags);
-	close(outfd);
+	fclose(outf);
 	ec = !!ec;
 	return ec;
 }

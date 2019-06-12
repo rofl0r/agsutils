@@ -57,8 +57,9 @@ int main(int argc, char** argv) {
 		// TODO read from input file, but it seems to be all 0 for some games.
 		AgsFile_setFileNumber(ags, index, 0);
 	}
-	int ret = !AgsFile_write(ags);
+	int ret = AgsFile_write(ags);
+	if(!ret) perror("write");
 	AgsFile_close(ags);
-	return ret;
+	return !ret;
 }
 
