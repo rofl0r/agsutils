@@ -24,7 +24,7 @@ LIB_SRCS = \
 
 LIB_OBJS =  $(LIB_SRCS:.c=.o)
 
-CFLAGS_WARN = -Wall -Wextra -Wno-unknown-pragmas
+CFLAGS_WARN = -Wall -Wextra -Wno-unknown-pragmas -Wno-sign-compare
 
 -include config.mak
 
