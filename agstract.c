@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 	dump_exe(ags, dir);
+	int ec = 0;
 	size_t i, l = AgsFile_getFileCount(ags), ld =AgsFile_getDataFileCount(ags);
 	dprintf(1, "%s: version %d, containing %zu files.\n", fn, AgsFile_getVersion(ags), l);
 	dprintf(outfd, "agspackfile=%s\nagsversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
@@ -70,11 +71,11 @@ int main(int argc, char** argv) {
 		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, currfn);
 		dprintf(1, "%s -> %s\n", currfn, fnbuf);
 		dprintf(outfd, "%zu=%s\n", i, currfn);
-		AgsFile_dump(ags, i, fnbuf);
+		if(!AgsFile_dump(ags, i, fnbuf)) ec++;
 	}
-	
+
 	AgsFile_close(ags);
 	close(outfd);
-	
-	return 0;
+	ec = !!ec;
+	return ec;
 }

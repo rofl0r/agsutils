@@ -563,7 +563,14 @@ int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len,
 		if(togo == 0) break;
 		ssize_t ret = AgsFile_read(f, multifileno, buf, togo);
 		if(ret <= 0) break;
-		write(fd, buf, togo);
+		ret = write(fd, buf, togo);
+		if(ret == -1) {
+			perror("write");
+			break;
+		} else if(ret != togo) {
+			dprintf(2, "short write\n");
+			break;
+		}
 		written += togo;
 	}
 	close(fd);
