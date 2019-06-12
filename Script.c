@@ -318,6 +318,12 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 							)
 							/* this variation adds another reg to mar before calling ptrget */
 								ret.varsize = get_varsize_from_instr(code, codecount, x+14);
+							else if(!ret.varsize &&
+							        x+13 < codecount &&
+							        code[x+11] == SCMD_PUSHREG &&
+							        code[x+12] == AR_AX)
+							/* this variation pushes ax on the stack before doing a ptrget ax, which overwrites ax */
+								ret.varsize = get_varsize_from_instr(code, codecount, x+13);
 						}
 					break;
 				case SCMD_ADDREG:
