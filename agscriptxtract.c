@@ -7,7 +7,8 @@
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s [-obl] dir\n"
+	dprintf(2, ADS "\nusage:\n%s [-obl] dir [outdir]\n"
+		   "extract all scripts from game files in dir\n"
 		   "pass a directory with extracted game files.\n"
 		   "options:\n"
 		   "-o : dump offset comments in disassembly\n"
@@ -22,7 +23,7 @@ static void disas(const char*inp, char *o, int flags) {
 	AF f_b, *f = &f_b;
 	ASI sc;
 	if(AF_open(f, o)) {
-		char s[32];
+		char s[256];
 		size_t l = strlen(o);
 		memcpy(s, o, l + 1);
 		s[l-1] = 's';
@@ -34,9 +35,14 @@ static void disas(const char*inp, char *o, int flags) {
 	}
 }
 
+static char *filename(const char *dir, const char *fn, char *buf, size_t bsize) {
+	snprintf(buf, bsize, "%s/%s", dir, fn);
+	return buf;
+}
+
 #include "RoomFile.h"
 #include <dirent.h>
-static void dumprooms(char* dir, int flags) {
+static void dumprooms(const char* dir, const char* out, int flags) {
 	DIR* d = opendir(dir);
 	if(!d) return;
 	struct dirent* di = 0;
@@ -54,14 +60,15 @@ static void dumprooms(char* dir, int flags) {
 				dprintf(2, "trouble finding script in %s\n", di->d_name);
 				continue;
 			}
-			char buf[512];
+			char buf[256];
 			assert(l < sizeof(buf));
 			memcpy(buf, di->d_name, l - 4);
 			buf[l-4] = '.';
 			buf[l-3] = 'o';
 			buf[l-2] = 0;
-			AF_dump_chunk(&f, s.start, s.len, buf);
-			disas(di->d_name, buf, flags);
+			char outbuf[256];
+			AF_dump_chunk(&f, s.start, s.len, filename(out, buf, outbuf, sizeof outbuf));
+			disas(di->d_name, outbuf, flags);
 		}
 	}
 	closedir(d);
@@ -83,23 +90,28 @@ int main(int argc, char**argv) {
 	}
 	if(!argv[optind]) return usage(argv[0]);
 	char *dir = argv[optind];
+	char *out = argv[optind+1];
+	if(!out) out = ".";
+	else mkdir(out, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+
 	ADF a_b, *a = &a_b;
 	ADF_init(a, dir);
 	if(!ADF_open(a)) return 1;
 	ASI* s;
 	s = ADF_get_global_script(a);
-	dump_script(a->f, s, "globalscript.o", flags);
+	char buf[256];
+	dump_script(a->f, s, filename(out, "globalscript.o", buf, sizeof buf), flags);
 	s = ADF_get_dialog_script(a);
-	dump_script(a->f, s, "dialogscript.o", flags);
+	dump_script(a->f, s, filename(out, "dialogscript.o", buf, sizeof buf), flags);
 	size_t i, l = ADF_get_scriptcount(a);
 	for(i = 0; i < l; i++) {
 		char fnbuf[32];
 		s = ADF_get_script(a, i);
 		snprintf(fnbuf, sizeof(fnbuf), "gamescript%zu.o", i);
-		dump_script(a->f, s, fnbuf, flags);
+		dump_script(a->f, s, filename(out, fnbuf, buf, sizeof buf), flags);
 	}
 	ADF_close(a);
-	dumprooms(dir, flags);
+	dumprooms(dir, out, flags);
 
 	return 0;
 }
