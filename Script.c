@@ -46,30 +46,46 @@ static int dump_strings(AF* a, FILE *f, size_t start, size_t len) {
 	return 1;
 }
 
-static struct fixup_data get_fixups(AF* a, size_t start, size_t count) {
-	struct fixup_data ret = {0,0};
+static void free_fixup_data(struct fixup_data *ret) {
 	size_t i;
-	if(!(ret.types = malloc(count))) goto out;
-	if(!(ret.codeindex = malloc(count * sizeof(unsigned)))) goto err1;
+	for(i = 0; i <= FIXUP_MAX; i++) {
+		free(ret->codeindex_per[i]);
+	}
+	free(ret->codeindex);
+	free(ret->types);
+}
+
+/* fixup_data needs to be zeroed */
+static int get_fixups(AF* a, size_t start, size_t count, struct fixup_data *ret) {
+	size_t i;
+	if(!(ret->types = malloc(count))) goto err;
+	if(!(ret->codeindex = malloc(count * sizeof(unsigned)))) goto err;
 
 	AF_set_pos(a, start);
 
-	if(count != (size_t) AF_read(a, ret.types, count)) goto err2;
-	for(i = 0; i < count; i++)
-		ret.codeindex[i] = AF_read_uint(a);
+	if(count != (size_t) AF_read(a, ret->types, count)) goto err;
+	for(i = 0; i < count; i++) {
+		assert(ret->types[i]>=0 && ret->types[i]<=FIXUP_MAX);
+		ret->count[ret->types[i]]++;
+		ret->codeindex[i] = AF_read_uint(a);
+	}
+	for(i = 0; i <= FIXUP_MAX; i++) {
+		ret->codeindex_per[i] = malloc(ret->count[i] * sizeof(unsigned));
+		if(!ret->codeindex_per[i]) goto err;
+		ret->count[i] = 0; /* reset to 0 to use as index i.t. next loop */
+	}
 
-	out:
-	return ret;
-	err2:
-	free(ret.codeindex);
-	ret.codeindex = 0;
-	err1:
-	free(ret.types);
-	ret.types = 0;
-	goto out;
+	for(i = 0; i < count; i++) {
+		ret->codeindex_per[ret->types[i]][ret->count[ret->types[i]]++] = ret->codeindex[i];
+	}
+
+	return 1;
+err:
+	free_fixup_data(ret);
+	return 0;
 }
 
-static int dump_fixups(AF* a, FILE *f, size_t start, size_t count) {
+static int dump_fixups(FILE *f, size_t count, struct fixup_data *fxd) {
 	static const char* typenames[] = {
 		[FIXUP_GLOBALDATA] = "FIXUP_GLOBALDATA",
 		[FIXUP_FUNCTION] = "FIXUP_FUNCTION",
@@ -78,13 +94,11 @@ static int dump_fixups(AF* a, FILE *f, size_t start, size_t count) {
 		[FIXUP_DATADATA] = "FIXUP_DATADATA",
 		[FIXUP_STACK] = "FIXUP_STACK",
 	};
-	struct fixup_data fxd = get_fixups(a, start, count);
-	if(!fxd.types) return 0;
 
 	fprintf(f, ".%ss\n", "fixup");
 	size_t i;
 	for(i = 0; i < count; i++) {
-		fprintf(f, "%s: %.12u\n", typenames[(int)fxd.types[i]], fxd.codeindex[i]);
+		fprintf(f, "%s: %.12u\n", typenames[(int)fxd->types[i]], fxd->codeindex[i]);
 	}
 	return 1;
 }
@@ -269,14 +283,14 @@ static enum varsize get_varsize_from_instr(unsigned* code, size_t codecount, siz
 	}
 }
 
-struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_data *fxd, size_t fxcount, unsigned* code, size_t codecount) {
+struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_data *fxd, unsigned* code, size_t codecount) {
 	static enum varsize last_size = vs4;
 
 	size_t i;
 	struct varinfo ret = {0,vs0};
-	for(i = 0; i < fxcount; i++) {
-		if(fxd->types[i] == FIXUP_GLOBALDATA) {
-			size_t x = fxd->codeindex[i];
+	for(i = 0; i < fxd->count[FIXUP_GLOBALDATA]; i++) {
+		if(1) {
+			size_t x = fxd->codeindex_per[FIXUP_GLOBALDATA][i];
 			assert(x + 1 < codecount);
 			if(code[x] == offset) {
 				ret.numrefs++;
@@ -396,17 +410,17 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset, struct fixup_da
 	return ret;
 }
 
-int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd, size_t fxcount) {
+int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd) {
 	size_t i;
-	for(i = 0; i < fxcount; i++)
-		if(fxd->types[i] == FIXUP_DATADATA && fxd->codeindex[i] == gdoffset)
+	for(i = 0; i < fxd->count[FIXUP_DATADATA]; i++)
+		if(fxd->codeindex_per[FIXUP_DATADATA][i] == gdoffset)
 			return 1;
 	return 0;
 }
 
 static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 			   struct function_export* exp, size_t expcount,
-			   struct fixup_data *fxd, size_t fxcount,
+			   struct fixup_data *fxd,
 			   unsigned *code, size_t codesize) {
 	if(!size) return 1;
 	const char*typenames[vsmax] = {[vs0]="ERR", [vs1]="char", [vs2]="short", [vs4]="int"};
@@ -414,7 +428,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	AF_set_pos(a, start);
 	size_t i = 0, v = 0;
 	for(; i < size; v++) {
-		struct varinfo vi = find_fixup_for_globaldata(f, i, fxd, fxcount, code, codesize);
+		struct varinfo vi = find_fixup_for_globaldata(f, i, fxd, code, codesize);
 		int x;
 		sw:
 		switch(vi.varsize) {
@@ -435,7 +449,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 				assert(0);
 		}
 		char* vn = get_varname(exp, expcount, i);
-		if(has_datadata_fixup(i, fxd, fxcount)) {
+		if(has_datadata_fixup(i, fxd)) {
 			if(vn) fprintf(f, "export %s %s = .data + %d\n", typenames[vi.varsize], vn, x);
 			else fprintf(f, "%s var%.6zu = .data + %d\n", typenames[vi.varsize], i, x);
 		} else {
@@ -450,7 +464,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 #include "StringEscape.h"
 #define DEBUG_OFFSETS 1
 #define DEBUG_BYTECODE 1
-static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
+static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct fixup_data *fxd) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
@@ -459,10 +473,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 
 	struct function_export* fl = get_exports(a, s->exportstart, s->exportcount);
 
-	struct fixup_data fxd = get_fixups(a, s->fixupstart, s->fixupcount);
-	//if(!fxd.types) return 0; //FIXME free fl and members.
-
-	dump_globaldata(a, f, s->globaldatastart, s->globaldatasize, fl, s->exportcount, &fxd, s->fixupcount, code, s->codesize);
+	dump_globaldata(a, f, s->globaldatastart, s->globaldatasize, fl, s->exportcount, fxd, code, s->codesize);
 
 	if(!len) return 1; /* its valid for a scriptfile to have no code at all */
 
@@ -479,7 +490,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 	size_t currInstr = 0, currExp = 0, currFixup = 0, currLbl = 0;
 	/* the data_data fixups appear to be glued separately onto the fixup logic,
 	 * they are the only entries not sorted by instrucion number */
-	while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA) currFixup++;
+	while(currFixup < s->fixupcount && fxd->types[currFixup] == FIXUP_DATADATA) currFixup++;
 	while(currInstr < s->codesize) {
 		if(flags & DISAS_DEBUG_OFFSETS) COMMENT(f, "offset: %llu\n", (long long) AF_get_pos(a));
 		unsigned regs, args, insn = AF_read_uint(a), op = insn & 0x00ffffff;
@@ -561,10 +572,10 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags) {
 			if((!l && regs) || (l == 1 && regs == 2))
 				fprintf(f, "%s", regnames[insn]);
 			else {
-				while(currFixup < s->fixupcount && fxd.types[currFixup] == FIXUP_DATADATA)
+				while(currFixup < s->fixupcount && fxd->types[currFixup] == FIXUP_DATADATA)
 					currFixup++; /* DATADATA fixups are unrelated to the code */
-				if(currFixup < s->fixupcount && fxd.codeindex[currFixup] == currInstr - 1) {
-					switch(fxd.types[currFixup]) {
+				if(currFixup < s->fixupcount && fxd->codeindex[currFixup] == currInstr - 1) {
+					switch(fxd->types[currFixup]) {
 						case FIXUP_IMPORT:
 							if(debugmode)
 								fprintf(f, "IMP:%s", il.names[insn]);
@@ -619,14 +630,18 @@ int ASI_disassemble(AF* a, ASI* s, char *fn, int flags) {
 	if((f = fopen(fn, "w")) == 0)
 		return 0;
 	AF_set_pos(a, s->start);
+	struct fixup_data fxd = {0};
+	if(!get_fixups(a, s->fixupstart, s->fixupcount, &fxd)) return 0;
+
 	//if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize)) goto err_close;
-	if(!disassemble_code_and_data(a, s, f, flags)) goto err_close;
+	if(!disassemble_code_and_data(a, s, f, flags, &fxd)) goto err_close;
 	if(!dump_strings(a, f, s->stringsstart, s->stringssize)) goto err_close;
-	if(!dump_fixups(a, f, s->fixupstart, s->fixupcount)) goto err_close;
+	if(!dump_fixups(f, s->fixupcount, &fxd)) goto err_close;
 	if(!dump_import_export(a, f, s->importstart, s->importcount, 1)) goto err_close;
 	if(!dump_import_export(a, f, s->exportstart, s->exportcount, 0)) goto err_close;
 	if(!dump_sections(a, f, s->sectionstart, s->sectioncount)) goto err_close;
 	ret:
+	free_fixup_data(&fxd);
 	fclose(f);
 	return ret;
 	err_close:

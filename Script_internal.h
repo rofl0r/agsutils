@@ -27,9 +27,12 @@ struct function_export {
 #define FIXUP_IMPORT      4     // code[fixup] = &imported_thing[code[fixup]]
 #define FIXUP_DATADATA    5     // globaldata[fixup] += &globaldata[0]
 #define FIXUP_STACK       6     // code[fixup] += &stack[0]
+#define FIXUP_MAX         FIXUP_STACK
 struct fixup_data {
-	char *types;
+	unsigned count[FIXUP_MAX+1];
 	unsigned *codeindex;
+	unsigned *codeindex_per[FIXUP_MAX+1];
+	unsigned char *types;
 };
 
 enum varsize {vs0 = 0, vs1, vs2, vs4, vsmax};
