@@ -373,6 +373,15 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 							/* this variation pushes ax on the stack before doing a ptrget ax, which overwrites ax */
 								ret.varsize = get_varsize_from_instr(code, codecount, x+13);
 						}
+					/* muli dx, 4; add mar, dx; add mar, cx; ptr... */
+					else if(x+10 < codecount &&
+						code[x+4] == SCMD_ADDREG &&
+						code[x+5] == AR_MAR &&
+						(code[x+6] == AR_CX || code[x+6] == AR_DX) &&
+						code[x+7] == SCMD_ADDREG &&
+						code[x+8] == AR_MAR &&
+						(code[x+9] == AR_CX || code[x+9] == AR_DX))
+							ret.varsize = get_varsize_from_instr(code, codecount, x+10);
 					else if(x+7 < codecount &&
 						code[x+4] == SCMD_ADDREG &&
 						code[x+5] == AR_MAR &&
