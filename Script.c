@@ -420,7 +420,10 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 						   code[x+5] == SCMD_ADDREG &&
 					           code[x+6] == AR_MAR)
 							ret.varsize = get_varsize_from_instr(code, codecount, x+8);
-					}
+					} else if(x+2 < codecount &&
+						  code[x+2] == AR_AX)
+						/* ptrget is sometimes preceded by push ax */
+						ret.varsize = get_varsize_from_instr(code, codecount, x+3);
 					break;
 				}
 				if(!ret.varsize) {
