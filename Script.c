@@ -695,7 +695,7 @@ int ASI_disassemble(AF* a, ASI* s, char *fn, int flags) {
 	//if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize)) goto err_close;
 	if(!disassemble_code_and_data(a, s, f, flags, &fxd)) goto err_close;
 	if(!dump_strings(a, f, s->stringsstart, s->stringssize)) goto err_close;
-	if(!dump_fixups(f, s->fixupcount, &fxd)) goto err_close;
+	if((flags & DISAS_DEBUG_FIXUPS) && !dump_fixups(f, s->fixupcount, &fxd)) goto err_close;
 	if(!dump_import_export(a, f, s->importstart, s->importcount, 1)) goto err_close;
 	if(!dump_import_export(a, f, s->exportstart, s->exportcount, 0)) goto err_close;
 	if(!dump_sections(a, f, s->sectionstart, s->sectioncount)) goto err_close;

@@ -35,6 +35,7 @@ enum DisasmFlags {
 	DISAS_DEBUG_BYTECODE = 1 << 0,
 	DISAS_DEBUG_OFFSETS = 1 << 1,
 	DISAS_SKIP_LINENO = 1 << 2,
+	DISAS_DEBUG_FIXUPS = 1 << 3,
 };
 
 int ASI_read_script(AF *a, ASI* s);

@@ -7,11 +7,12 @@
 #define ADS ":::AGSdisas " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s [-obl] file.o [file.s]\n"
+	dprintf(2, ADS "\nusage:\n%s [-oblf] file.o [file.s]\n"
 		   "pass input and optionally output filename.\n"
 		   "options:\n"
 		   "-o : dump offset comments in disassembly\n"
 		   "-b : dump hexadecimal bytecode comments in disassembly\n"
+		   "-f : dump informative original fixups section\n"
 		   "-l : remove linenumber debug assembly directives [produces smaller files]\n"
 		   , argv0);
 	exit(1);
@@ -32,10 +33,11 @@ static void disas(char *o, char *s, int flags) {
 
 int main(int argc, char**argv) {
 	int flags = 0, c;
-	while ((c = getopt(argc, argv, "obl")) != EOF) switch(c) {
+	while ((c = getopt(argc, argv, "oblf")) != EOF) switch(c) {
 		case 'o': flags |= DISAS_DEBUG_OFFSETS; break;
 		case 'b': flags |= DISAS_DEBUG_BYTECODE; break;
 		case 'l': flags |= DISAS_SKIP_LINENO; break;
+		case 'f': flags |= DISAS_DEBUG_FIXUPS; break;
 		default: return usage(argv[0]);
 	}
 	if(!argv[optind]) return usage(argv[0]);
