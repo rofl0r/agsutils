@@ -540,7 +540,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 	 * they are the only entries not sorted by instrucion number */
 	while(currFixup < s->fixupcount && fxd->types[currFixup] == FIXUP_DATADATA) currFixup++;
 	while(currInstr < s->codesize) {
-		if(flags & DISAS_DEBUG_OFFSETS) COMMENT(f, "offset: %llu\n", (long long) AF_get_pos(a));
+		if(flags & DISAS_DEBUG_OFFSETS) COMMENT(f, "offset: %llu (insno %zu)\n", (long long) AF_get_pos(a), currInstr);
 		unsigned regs, args, insn = AF_read_uint(a), op = insn & 0x00ffffff;
 		assert(op < SCMD_MAX);
 		while(currExp < s->exportcount && fl[currExp].type != EXPORT_FUNCTION)
