@@ -418,12 +418,11 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 					if(oldvarsize) {
 						/* don't bother guessing the varsize if we already determined it */
 						ret.varsize = oldvarsize;
-					} else {
-						dprintf(2, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
-							opcodes[code[x+1]].mnemonic, x+1, offset);
-						COMMENT(f, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
-							opcodes[code[x+1]].mnemonic, x+1, offset);
 					}
+					dprintf(2, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
+						opcodes[code[x+1]].mnemonic, x+1, offset);
+					COMMENT(f, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
+						opcodes[code[x+1]].mnemonic, x+1, offset);
 				}
 				if(oldvarsize != 0 && oldvarsize != ret.varsize)
 					assert(0);
