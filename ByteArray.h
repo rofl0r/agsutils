@@ -37,7 +37,7 @@ struct ByteArray {
 	enum ByteArray_Endianess sys_endian;
 	off_t pos;
 	off_t size;
-	union {
+	struct {
 		MG mem;
 		int fd;
 	} source;

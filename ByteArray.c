@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "endianness.h"
 #include <stdlib.h>
+#include <sys/mman.h>
 
 void ByteArray_defaults(struct ByteArray* self) {
 	memset(self, 0, sizeof(*self));
@@ -151,7 +152,13 @@ int ByteArray_open_file(struct ByteArray* self, char* filename) {
 	if(stat(filename, &st) == -1) return 0;
 	self->size = st.st_size;
 	self->source.fd = open(filename, O_RDONLY);
-	return (self->source.fd != -1);
+	if (self->source.fd == -1) return 0;
+	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source.fd, 0);
+	if(addr == MAP_FAILED) {
+		perror("mmap");
+		return 1;
+	}
+	return ByteArray_open_mem(self, addr, self->size);
 }
 
 void ByteArray_close_file(struct ByteArray *self) {
