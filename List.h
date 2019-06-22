@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 typedef struct List {
-	MG* mem, mem_b;
+	MG mem;
 	size_t count;
 	size_t itemsize;
 } List;
