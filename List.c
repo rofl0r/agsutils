@@ -28,6 +28,10 @@ int List_get(List *l, size_t index, void* item) {
 	return 1;
 }
 
+void* List_getptr(List *l, size_t index) {
+	return mem_getptr(l->mem, index * l->itemsize, l->itemsize);
+}
+
 void List_sort(List *l, int(*compar)(const void *, const void *)) {
 	qsort(mem_getptr(l->mem, 0, l->itemsize * l->count), l->count, l->itemsize, compar);
 }

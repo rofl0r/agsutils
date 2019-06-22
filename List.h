@@ -16,6 +16,7 @@ void List_init(List *l, size_t itemsize);
 void List_free(List *l);
 int List_add(List *l, void* item);
 int List_get(List *l, size_t index, void* item);
+void* List_getptr(List *l, size_t index);
 void List_sort(List *l, int(*compar)(const void *, const void *));
 
 #pragma RcB2 DEP "List.c"
