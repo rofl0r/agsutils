@@ -48,6 +48,10 @@ int mem_write(MG *mem, size_t offset, void* data, size_t size) {
 	return ret;
 }
 
+int mem_append(MG *mem, void* data, size_t size) {
+	return mem_write(mem, mem->used, data, size);
+}
+
 void* mem_getptr(MG* mem, size_t offset, size_t byteswanted) {
 	if(!mem->mem || offset + byteswanted > mem->used) return 0;
 	return (char*)mem->mem + offset;
