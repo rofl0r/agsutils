@@ -39,25 +39,32 @@ int AF_set_pos(AF* f, off_t x) {
 	return ByteArray_set_position(f->b, x);
 }
 
-
-int AF_dump_chunk(AF* a, size_t start, size_t len, char* fn) {
-	int fd;
-	if((fd = open(fn, O_CREAT | O_TRUNC | O_WRONLY, 0660)) == -1)
-		return 0;
+int AF_dump_chunk_stream(AF* a, size_t start, size_t len, FILE* out) {
 	char buf[4096];
 	ByteArray_set_position(a->b, start);
 	while(len) {
 		size_t togo = len > sizeof(buf) ? sizeof(buf) : len;
 		if(togo != (size_t) ByteArray_readMultiByte(a->b, buf, togo)) {
-			err_close:
-			close(fd);
 			return 0;
 		}
 		len -= togo;
-		if(togo != (size_t) write(fd, buf, togo)) goto err_close;
+		char *p = buf;
+		while (togo) {
+			size_t n = fwrite(p, 1, togo, out);
+			if(!n) return 0;
+			p += n;
+			togo -= n;
+		}
 	}
-	close(fd);
 	return 1;
+}
+
+int AF_dump_chunk(AF* a, size_t start, size_t len, char* fn) {
+	FILE *out = fopen(fn, "w");
+	if(!out) return 0;
+	int ret = AF_dump_chunk_stream(a, start, len, out);
+	fclose(out);
+	return ret;
 }
 
 int AF_read_junk(AF* a, size_t l) {
