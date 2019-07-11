@@ -10,7 +10,7 @@ usage() {
 	exit 1
 }
 
-OPTIMIZER="python2 $BINDIR/optimizer.py"
+OPTIMIZER="$BINDIR"/agsoptimize
 do_optimize_real() {
 	echo "optimizing $1..."
 	tmp=ags.optimizer.tmp.$$
