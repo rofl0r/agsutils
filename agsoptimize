@@ -18,13 +18,14 @@
 import sys, re
 
 class MultiLineMatcher():
-	def __init__(self, regexes, matchfn, nomatchfn):
+	def __init__(self, regexes, matchfn, nomatchfn, fout=sys.stdout):
 		self.matchfn = matchfn
 		self.nomatchfn = nomatchfn
 		self.regexes = regexes
 		self.line_matches = 0
 		self.saved_lines = None
 		self.matches = None
+		self.fout = fout
 
 	def feed(self, line):
 		line = line.rstrip('\n')
@@ -56,11 +57,11 @@ def push_pop_matchfn(matcher, matches, lines):
 	ws2, reg2 = matches[1].groups(0)
 	global removed
 	if reg1 == reg2: removed += 1
-	else: print "%smr %s, %s"%(ws, reg2, reg1)
+	else: matcher.fout.write("%smr %s, %s\n"%(ws, reg2, reg1))
 	removed += 1
 
 def output_fn(matcher, line):
-	print line
+	matcher.fout.write( "%s\n" %  line)
 
 def sourceline_matchfn(matcher, matches, lines):
 	global removed
@@ -69,7 +70,7 @@ def sourceline_matchfn(matcher, matches, lines):
 def cmp_mr_matchfn(matcher, matches, lines):
 	global removed
 	ws, op = matches[0].groups(0)
-	print "%s%s ax, bx"%(ws, op)
+	matcher.fout.write( "%s%s ax, bx\n"%(ws, op))
 	removed += 1
 
 def cmp2_matchfn(matcher, matches, lines):
@@ -81,68 +82,83 @@ def cmp2_matchfn(matcher, matches, lines):
 	global removed
 	ws, val = matches[1].groups(0)
 	ws2, op = matches[2].groups(0)
-	print "%sli bx, %s"%(ws, val)
-	print "%s%s ax, bx"%(ws, op) # since we already switched registers, we don't need to switch the op too
+	matcher.fout.write("%sli bx, %s\n"%(ws, val))
+	matcher.fout.write("%s%s ax, bx\n"%(ws, op)) # since we already switched registers, we don't need to switch the op too
 	removed += 2
 
 def load_negative_literal_matchfn(matcher, matches, lines):
 	global removed
 	ws, val = matches[1].groups(0)
-	print "%smr bx, ax"%(ws)
-	print "%sli ax, -%s"%(ws, val)
+	matcher.fout.write( "%smr bx, ax\n"%(ws))
+	matcher.fout.write( "%sli ax, -%s\n"%(ws, val))
 	removed += 4
 
 def load_literal_matchfn(matcher, matches, lines):
 	global removed
 	ws, val = matches[1].groups(0)
-	print "%smr bx, ax"%(ws)
-	print "%sli ax, %s"%(ws, val)
+	matcher.fout.write( "%smr bx, ax\n"%(ws))
+	matcher.fout.write( "%sli ax, %s\n"%(ws, val))
 	removed += 1
 
 def axmar_matchfn(matcher, matches, lines):
 	global removed
 	ws, val = matches[0].groups(0)
-	print "%sli bx, %s"%(ws, val)
-	print lines[2]
-	print lines[3]
+	matcher.fout.write( "%sli bx, %s\n"%(ws, val))
+	matcher.fout.write( "%s\n" % lines[2])
+	matcher.fout.write( "%s\n" % lines[3])
 	removed += 1
 
 def mr_swap_matchfn(matcher, matches, lines):
 	global removed
-	print lines[0]
+	matcher.fout.write( "%s\n" % lines[0])
 	removed += 1
-
 
 def eprint(text): sys.stderr.write("%s\n"%text)
 
 def usage():
-	eprint("usage: %s -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap"%sys.argv[0])
+	eprint("usage: %s [options] infile outfile"%sys.argv[0])
 	eprint("")
+	eprint("options: -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap")
+	eprint("at least one option required.\n")
 	eprint("cmp: optimize cmp/mr")
 	eprint("cmp2: optimize gt/gte/lt/lte (requires prev -ll pass)")
 	eprint("pushpop: optimize push/pop")
 	eprint("sourceline: remove sourceline statements")
 	eprint("lnl: optimize negative literal loads")
 	eprint("ll: optimize literal loads")
-	eprint("only one option can be used at a time")
-	eprint("input is taken from stdin")
 
-def main():
-	pushpop_matcher = MultiLineMatcher([
+def optimize(matcher, fin):
+	global lineno
+	while True:
+		lineno = lineno + 1
+		s = fin.readline()
+		if s == '': break
+		matcher.feed(s)
+	mn = ''
+	for i in all_matchers.keys():
+		if all_matchers[i] == matcher:
+			mn = i
+			break
+	sys.stderr.write( "%s: removed %d lines\n"%(mn, removed))
+
+all_matchers = {}
+def prep_matchers():
+	global all_matchers
+	all_matchers['pushpop_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)push ([a-z]+)'),
 		re.compile('(\s+)pop ([a-z]+)'),
 	], push_pop_matchfn, output_fn)
 
-	sourceline_matcher = MultiLineMatcher([
+	all_matchers['sourceline_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)sourceline ([0-9]+)'),
 	], sourceline_matchfn, output_fn)
 
-	cmp_mr_matcher = MultiLineMatcher([
+	all_matchers['cmp_mr_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)(cmpeq|cmpne|lor|land) bx, ax'),
 		re.compile('(\s+)mr ax, bx'),
 	], cmp_mr_matchfn, output_fn)
 
-	load_negative_literal_matcher = MultiLineMatcher([
+	all_matchers['load_negative_literal_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)push ax$'),
 		re.compile('(\s+)li ax, ([0-9]+)$'),
 		re.compile('(\s+)li bx, 0$'),
@@ -151,48 +167,61 @@ def main():
 		re.compile('(\s+)pop bx$'),
 	], load_negative_literal_matchfn, output_fn)
 
-	load_literal_matcher = MultiLineMatcher([
+	all_matchers['load_literal_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)push ax$'),
 		re.compile('(\s+)li ax, ([0-9]+)$'),
 		re.compile('(\s+)pop bx$'),
 	], load_literal_matchfn, output_fn)
 
-	cmp2_matcher = MultiLineMatcher([
+	all_matchers['cmp2_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)mr bx, ax'),
 		re.compile('(\s+)li ax, ([0-9]+)'),
 		re.compile('(\s+)(gt|gte|lt|lte) bx, ax'),
 		re.compile('(\s+)mr ax, bx'),
 	], cmp2_matchfn, output_fn)
 
-	axmar_matcher = MultiLineMatcher([
+	all_matchers['axmar_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)li ax, ([0-9]+)$'),
 		re.compile('(\s+)mr bx, ax$'),
 		re.compile('(\s+)li mar, (.+)$'),
 		re.compile('(\s+)mr ax, mar$'),
 	], axmar_matchfn, output_fn)
 
-	mr_swap_matcher = MultiLineMatcher([
+	all_matchers['mr_swap_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)mr ax, bx'),
 		re.compile('(\s+)mr bx, ax'),
 	], mr_swap_matchfn, output_fn)
 
-	global lineno
-	if len(sys.argv) != 2: return usage()
-	if sys.argv[1] == "-cmp": matcher = cmp_mr_matcher
-	elif sys.argv[1] == "-cmp2": matcher = cmp2_matcher
-	elif sys.argv[1] == "-pushpop": matcher = pushpop_matcher
-	elif sys.argv[1] == "-sourceline": matcher = sourceline_matcher
-	elif sys.argv[1] == "-lnl": matcher = load_negative_literal_matcher
-	elif sys.argv[1] == "-ll": matcher = load_literal_matcher
-	elif sys.argv[1] == "-axmar": matcher = axmar_matcher
-	elif sys.argv[1] == "-mrswap": matcher = mr_swap_matcher
-	else: return usage()
-	while True:
-		lineno = lineno + 1
-		s = sys.stdin.readline()
-		if s == '': break
-		matcher.feed(s)
+def main():
+	matcher_names = []
+	if len(sys.argv) < 4: return usage()
+	# -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap
+	for i in xrange(1, len(sys.argv)-2):
+		if sys.argv[i] == "-cmp": matcher_names.append( 'cmp_mr_matcher')
+		elif sys.argv[i] == "-pushpop": matcher_names.append( 'pushpop_matcher')
+		elif sys.argv[i] == "-sourceline": matcher_names.append( 'sourceline_matcher')
+		elif sys.argv[i] == "-lnl": matcher_names.append( 'load_negative_literal_matcher')
+		elif sys.argv[i] == "-ll": matcher_names.append( 'load_literal_matcher')
+		elif sys.argv[i] == "-cmp2": matcher_names.append( 'cmp2_matcher')
+		elif sys.argv[i] == "-axmar": matcher_names.append( 'axmar_matcher')
+		elif sys.argv[i] == "-mrswap": matcher_names.append( 'mr_swap_matcher')
+		else: return usage()
 
-	sys.stderr.write( "removed %d lines\n"%removed)
+	fin = open(sys.argv[len(sys.argv)-2], "r")
+	fout = open(sys.argv[len(sys.argv)-1], "w")
+
+	prep_matchers()
+	import tempfile
+	for mn in matcher_names:
+		tmp = tempfile.TemporaryFile()
+		m = all_matchers[mn]
+		m.fout = tmp
+		optimize(m, fin)
+		tmp.seek(0)
+		fin = tmp
+	while 1:
+		chunk = fin.read(4096)
+		if chunk == '': break
+		fout.write(chunk)
 
 if __name__ == "__main__": main()
