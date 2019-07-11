@@ -1,3 +1,6 @@
+prefix=/usr/local
+bindir=$(prefix)/bin
+
 PROGS_SRCS = \
 	agstract.c \
 	agspack.c \
@@ -52,5 +55,10 @@ clean:
 	rm -f *.out
 	rm -f *.o
 	rm -f *.rcb
+
+install: $(PROGS:%=$(DESTDIR)$(bindir)/%)
+
+$(DESTDIR)$(bindir)/%: %
+	install -D -m 755 $< $@
 
 .PHONY: all clean
