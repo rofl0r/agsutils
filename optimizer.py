@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # the AGS script compiler basically doesn't optimize at all,
 # and the code it emits is super-naive and redundant.
 # the register bx is most often used only as a temporary
