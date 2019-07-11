@@ -77,6 +77,7 @@ int ByteArray_open_file(struct ByteArray* self, char* filename);
 void ByteArray_close_file(struct ByteArray *self);
 int ByteArray_open_mem(struct ByteArray* self, char* data, size_t size);
 void ByteArray_clear(struct ByteArray* self);
+void ByteArray_close(struct ByteArray* self);
 
 void ByteArray_set_length(struct ByteArray* self, off_t len);
 off_t ByteArray_get_length(struct ByteArray* self);

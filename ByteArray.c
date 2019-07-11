@@ -77,6 +77,11 @@ void ByteArray_clear(struct ByteArray* self) {
 	if(p) memset(p, 0, self->size);
 }
 
+void ByteArray_close(struct ByteArray* self) {
+	assert_op(self->type, ==, BAT_MEMSTREAM);
+	mem_free(&self->source.mem);
+}
+
 off_t ByteArray_get_position(struct ByteArray* self) {
 	return self->pos;
 }
