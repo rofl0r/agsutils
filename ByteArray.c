@@ -418,9 +418,13 @@ off_t ByteArray_writeFloat(struct ByteArray* self, float what) {
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
 
+void ByteArray_dump_to_stream(struct ByteArray* self, FILE *out) {
+	assert_op(self->type, ==, BAT_MEMSTREAM);
+	mem_write_stream(&self->source.mem, out);
+}
+
 void ByteArray_dump_to_file(struct ByteArray* self, char* filename) {
 	assert_op(self->type, ==, BAT_MEMSTREAM);
 	mem_write_file(&self->source.mem, filename);
 }
-
 
