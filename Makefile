@@ -11,7 +11,7 @@ PROGS_SRCS = \
 	agsinject.c
 
 PROGS_OBJS =  $(PROGS_SRCS:.c=.o)
-PROGS = $(PROGS_SRCS:.c=)
+PROGS = $(PROGS_SRCS:.c=) agsoptimize
 
 LIB_SRCS = \
 	Assembler.c \
