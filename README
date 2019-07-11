@@ -1,6 +1,13 @@
 agsutils by rofl0r
+==================
 
 tools for (un)packing, disassembling, modifying and recompiling ags games.
+
+agsex:
+  runs agstract and agscriptxtract, then creates a Makefile with rules
+  to quickly and automatically repack a pack with changed asm files.
+  this basically does everything for you automatically.
+  can also use `make optimize` to run agsoptimize on all asm files.
 
 agstract:
   extracts the files a game "pack" (.exe) consists of.
@@ -114,6 +121,14 @@ agsinject:
 agssim:
   a simple simulator for ags assembly instructions.
   run agssim --help for more info.
+
+agsoptimize:
+  a python script which is run on some .s asm files, detecting common inefficient
+  patterns emitted by the AGS compiler, and replacing them with more efficient
+  versions. using all preset optimization patterns, this improves speed of the
+  CPU-heavy (because of a lots of scripts) game "Operation Forklift" by ~15-20%,
+  which is almost identical to the number of asm statements it removes.
+  another advantage is that the script files become smaller.
 
 
 compilation:
