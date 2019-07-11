@@ -63,11 +63,16 @@ void mem_set(MG* mem, void* data, size_t used, size_t allocated) {
 	mem->capa = allocated;
 }
 
-int mem_write_file(MG* mem, char* fn) {
+int mem_write_stream(MG* mem, FILE* out) {
 	if(!mem->mem || !mem->used) return 0;
-	int fd = open(fn, O_CREAT | O_TRUNC | O_WRONLY, 0660);
-	if(fd == -1) return 0;
-	int ret = (write(fd, mem->mem, mem->used) == (ssize_t) mem->used);
-	close(fd);
+	int ret = (fwrite(mem->mem, 1, mem->used, out) == mem->used);
+	return ret;
+}
+
+int mem_write_file(MG* mem, char* fn) {
+	FILE *out = fopen(fn, "w");
+	if(!out) return 0;
+	int ret = mem_write_stream(mem, out);
+	fclose(out);
 	return ret;
 }

@@ -2,6 +2,7 @@
 #define MEMGROW_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 typedef struct MemGrow {
 	void* mem;
@@ -17,6 +18,7 @@ int mem_append(MG *mem, void* data, size_t size);
 void* mem_getptr(MG* mem, size_t offset, size_t byteswanted);
 void mem_set(MG* mem, void* data, size_t used, size_t allocated);
 int mem_write_file(MG* mem, char* fn);
+int mem_write_stream(MG* mem, FILE* out);
 
 #pragma RcB2 DEP "MemGrow.c"
 
