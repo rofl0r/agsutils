@@ -1,0 +1,95 @@
+#!/bin/sh
+
+usage() {
+	echo "$0 game.exe FILES OBJ"
+	echo "extracts ags game files into FILES and script files into OBJ"
+	echo "also a Makefile is created which automatically recompiles"
+	echo "and reinjects changed asm (.s) files into 'game.ags'"
+	exit 1
+}
+
+test $# -ne 3 && usage
+
+BINDIR=$(dirname $(readlink -f "$0"))
+
+GAME="$1"
+FILES="$2"
+OBJS="$3"
+
+set -e
+
+$BINDIR/agstract "$GAME" "$FILES"
+$BINDIR/agscriptxtract "$FILES" "$OBJS"
+
+DATAFILE="$FILES"/game28.dta
+test -e "$DATAFILE" || DATAFILE="$FILES"/ac2game.dta
+test -e "$DATAFILE" || { echo "error: none of datafiles game28.dta/ac2game.dta found" 2>&1; exit 1; }
+
+# fix timestamps of object files so they're newer than .s
+for i in "$OBJS"/*.o ; do touch "$i" ; done
+
+# fix timestamps of game files so they're newer than .o
+for i in "$FILES"/* ; do touch "$i" ; done
+
+MAKEFILE=$PWD/Makefile
+cat << EOF > "$MAKEFILE"
+.PHONY: all optimize
+
+FILES_DIR=$FILES
+FILES = \$(sort \$(wildcard \$(FILES_DIR)/*))
+OBJS_DIR=$OBJS
+OBJS = \$(sort \$(wildcard \$(OBJS_DIR)/*.o))
+SRCS = \$(OBJS:%.o=%.s)
+OPT_FILES = \$(SRCS:%.s=%.sopt)
+
+GAME_DATA=$DATAFILE
+GAME=game.ags
+
+-include config.mak
+
+all: \$(GAME)
+	agspack \$(FILES_DIR) \$(GAME)
+
+optimize: \$(OPT_FILES)
+	\$(foreach file, \$(OPT_FILES), mv \$(file) \$(file:%.sopt=%.s) ; )
+
+\$(GAME): \$(FILES)
+
+\$(FILES_DIR)/%.crm: \$(OBJS_DIR)/%.o
+	agsinject 0 \$< \$@
+
+\$(OBJS_DIR)/%.sopt: \$(OBJS_DIR)/%.s
+	agsoptimize  -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap \$< \$@
+
+\$(OBJS_DIR)/%.o: \$(OBJS_DIR)/%.s
+	agssemble \$(AS_FLAGS) \$< \$@
+
+GAME_DATA_FILES= \\
+EOF
+(cd "$OBJS"
+for i in globalscript.o dialogscript.o gamescript*.o ; do
+	test -e "$i" && printf '\t$(OBJS_DIR)/%s \\\n' "$i" >> "$MAKEFILE" || true
+done)
+
+cat << EOF >> "$MAKEFILE"
+
+\$(GAME_DATA): \$(GAME_DATA_FILES)
+	agsinject 0 \$(OBJS_DIR)/globalscript.o \$(GAME_DATA) && \\
+EOF
+(cd "$OBJS"
+cnt=1
+i=dialogscript.o
+test -e "$i" && {
+	printf '\tagsinject %d $(OBJS_DIR)/%s $(GAME_DATA) && \\\n' $cnt "$i" >> "$MAKEFILE"
+	cnt=2
+} || true
+ocnt=0
+while test -e gamescript${ocnt}.o ; do
+	i=gamescript${ocnt}.o
+	printf '\tagsinject %d $(OBJS_DIR)/%s $(GAME_DATA) && \\\n' $cnt "$i" >> "$MAKEFILE"
+	ocnt=$(($ocnt + 1))
+	cnt=$(($cnt + 1))
+done)
+printf '\ttrue\n' >> "$MAKEFILE"
+
+
