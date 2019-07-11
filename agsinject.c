@@ -41,31 +41,30 @@ static int inject(char *o, char *inj, unsigned which) {
 				/* 1) dump header */
 				AF_dump_chunk_stream(f, 0, isroom ? start -4 : start, out);
 				AF_set_pos(f, start);
+
+				/* open replacement object file */
+				struct ByteArray b;
+				ByteArray_ctor(&b);
+				ByteArray_open_file(&b, o);
+
 				if(isroom) {
 					/* 2a) if room, write length */
 					/* room files, unlike game files, have a length field of size 4 before
 					 * the compiled script starts. */
-					struct ByteArray b;
-					ByteArray_ctor(&b);
-					ByteArray_open_file(&b, o);
 					unsigned l = ByteArray_get_length(&b);
-					ByteArray_close_file(&b);
-					ByteArray_ctor(&b);
-					ByteArray_open_mem(&b, 0, 0);
-					ByteArray_set_flags(&b, BAF_CANGROW);
-					ByteArray_set_endian(&b, BAE_LITTLE);
-					ByteArray_writeInt(&b, l);
-					ByteArray_dump_to_stream(&b, out);
-					// TODO close/free b
+					struct ByteArray c;
+					ByteArray_ctor(&c);
+					ByteArray_open_mem(&c, 0, 0);
+					ByteArray_set_flags(&c, BAF_CANGROW);
+					ByteArray_set_endian(&c, BAE_LITTLE);
+					ByteArray_writeInt(&c, l);
+					ByteArray_dump_to_stream(&c, out);
+					ByteArray_close(&c);
 				}
-				{
-					/* 2b) dump object file */
-					struct ByteArray b;
-					ByteArray_ctor(&b);
-					ByteArray_open_file(&b, o);
-					ByteArray_dump_to_stream(&b, out);
-					ByteArray_close_file(&b);
-				}
+				/* 2b) dump object file */
+				ByteArray_dump_to_stream(&b, out);
+				ByteArray_close_file(&b);
+
 				ASI s;
 				if(!ASI_read_script(f, &s)) {
 					dprintf(2, "trouble finding script in %s\n", inj);
