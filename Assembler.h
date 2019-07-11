@@ -21,6 +21,7 @@ typedef struct AgsAssembler {
 	FILE* in;
 } AS;
 
+void AS_open_stream(AS* a, FILE* f);
 int AS_open(AS* a, char* fn);
 void AS_close(AS* a);
 int AS_assemble(AS* a, char* out);

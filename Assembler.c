@@ -605,7 +605,7 @@ int AS_assemble(AS* a, char* out) {
 	return 1;
 }
 
-int AS_open(AS* a, char* fn) {
+void AS_open_stream(AS* a, FILE* f) {
 	memset(a, 0, sizeof *a);
 	a->obj = &a->obj_b;
 	a->data = &a->data_b;
@@ -620,7 +620,7 @@ int AS_open(AS* a, char* fn) {
 	ByteArray_set_endian(a->code, BAE_LITTLE);
 	ByteArray_set_flags(a->code, BAF_CANGROW);
 	ByteArray_open_mem(a->code, 0, 0);
-	
+
 	a->export_list = &a->export_list_b;
 	a->fixup_list  = &a->fixup_list_b;
 	a->string_list = &a->string_list_b;
@@ -629,7 +629,7 @@ int AS_open(AS* a, char* fn) {
 	a->function_ref_list = &a->function_ref_list_b;
 	a->variable_list = &a->variable_list_b;
 	a->import_list = &a->import_list_b;
-	
+
 	List_init(a->export_list, sizeof(struct function_export));
 	List_init(a->fixup_list , sizeof(struct fixup));
 	List_init(a->string_list, sizeof(struct string));
@@ -639,8 +639,16 @@ int AS_open(AS* a, char* fn) {
 	List_init(a->variable_list, sizeof(struct variable));
 	List_init(a->import_list, sizeof(struct string));
 
-	return (a->in = fopen(fn, "r")) != 0;
+	a->in = f;
 }
+
+int AS_open(AS* a, char* fn) {
+	FILE *f = fopen(fn, "r");
+	if(!f) return 0;
+	AS_open_stream(a, f);
+	return 1;
+}
+
 
 void AS_close(AS* a) {
 	fclose(a->in);
