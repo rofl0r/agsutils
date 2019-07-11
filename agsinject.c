@@ -19,6 +19,7 @@ void usage(char *argv0) {
 	exit(1);
 }
 
+/* inj = filename of file to inject in */
 static int inject(char *o, char *inj, unsigned which) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
@@ -33,9 +34,15 @@ static int inject(char *o, char *inj, unsigned which) {
 				return 0;
 			}
 			if(found == which) {
-				AF_dump_chunk(f, 0, isroom ? start -4 : start, "/tmp/ags_chunk1.chnk");
+				char *tmp = tempnam(".", "agsinject.tmp");
+				FILE *out = fopen(tmp, "w");
+				if(!out) return 0;
+
+				/* 1) dump header */
+				AF_dump_chunk_stream(f, 0, isroom ? start -4 : start, out);
 				AF_set_pos(f, start);
 				if(isroom) {
+					/* 2a) if room, write length */
 					/* room files, unlike game files, have a length field of size 4 before
 					 * the compiled script starts. */
 					struct ByteArray b;
@@ -48,27 +55,27 @@ static int inject(char *o, char *inj, unsigned which) {
 					ByteArray_set_flags(&b, BAF_CANGROW);
 					ByteArray_set_endian(&b, BAE_LITTLE);
 					ByteArray_writeInt(&b, l);
-					ByteArray_dump_to_file(&b, "/tmp/ags_size.chunk");
+					ByteArray_dump_to_stream(&b, out);
 					// TODO close/free b
+				}
+				{
+					/* 2b) dump object file */
+					struct ByteArray b;
+					ByteArray_ctor(&b);
+					ByteArray_open_file(&b, o);
+					ByteArray_dump_to_stream(&b, out);
+					ByteArray_close_file(&b);
 				}
 				ASI s;
 				if(!ASI_read_script(f, &s)) {
 					dprintf(2, "trouble finding script in %s\n", inj);
 					return 0;
 				}
-				AF_dump_chunk(f, start + s.len, ByteArray_get_length(f->b) - (start + s.len),
-					      "/tmp/ags_chunk2.chnk");
+				/* 3) dump rest of file */
+				AF_dump_chunk_stream(f, start + s.len, ByteArray_get_length(f->b) - (start + s.len), out);
 				AF_close(f);
-				char buf[1024];
-				if(isroom)
-					snprintf(buf, sizeof(buf),
-						 "cat /tmp/ags_chunk1.chnk /tmp/ags_size.chunk %s /tmp/ags_chunk2.chnk > %s", o, inj);
-				else
-					snprintf(buf, sizeof(buf),
-					 "cat /tmp/ags_chunk1.chnk %s /tmp/ags_chunk2.chnk > %s", o, inj);
-				system(buf);
-
-				return 1;
+				fclose(out);
+				return !rename(tmp, inj);
 			}
 
 			found++;
@@ -76,7 +83,6 @@ static int inject(char *o, char *inj, unsigned which) {
 		}
 
 	} else {
-		perror(inj);
 		return 0;
 	}
 }
@@ -92,6 +98,9 @@ int main(int argc, char**argv) {
 	dprintf(1, "injecting %s into %s as %d'th script ...", o, inj, which);
 	int ret = inject(o, inj, which);
 	if(ret) dprintf(1, "OK\n");
-	else dprintf(1, "FAIL\n");
+	else {
+		dprintf(1, "FAIL\n");
+		perror("error:");
+	}
 	return !ret;
 }
