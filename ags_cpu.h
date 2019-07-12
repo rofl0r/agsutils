@@ -74,8 +74,9 @@
 #define SCMD_JNZ          70    // jump to arg1 if ax!=0
 #define SCMD_DYNAMICBOUNDS 71   // check reg1 is between 0 and m[MAR-4]
 #define SCMD_NEWARRAY     72    // reg1 = new array of reg1 elements, each of size arg2 (arg3=managed type?)
+#define SCMD_NEWUSEROBJECT 73   // reg1 = new user object of arg1 size
 
-#define SCMD_MAX 73
+#define SCMD_MAX 74
 
 struct opcode_info {
 	const char* mnemonic;
@@ -157,6 +158,7 @@ static const struct opcode_info opcodes[] = {
 	[SCMD_JNZ] = {"jnzi", 1, 0},
 	[SCMD_DYNAMICBOUNDS] = {"dynamicbounds", 1, 1},
 	[SCMD_NEWARRAY] = {"newarr", 3, 1},
+	[SCMD_NEWUSEROBJECT] = {"newuserobject", 2, 1},
 };
 
 enum ags_reg {
