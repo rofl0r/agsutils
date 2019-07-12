@@ -11,7 +11,8 @@ PROGS_SRCS = \
 	agsinject.c
 
 PROGS_OBJS =  $(PROGS_SRCS:.c=.o)
-PROGS = $(PROGS_SRCS:.c=) agsoptimize agsex
+CPROGS = $(PROGS_SRCS:.c=)
+PROGS = $(CPROGS) agsoptimize agsex
 
 LIB_SRCS = \
 	Assembler.c \
@@ -51,7 +52,7 @@ rcb:
 	make -f Makefile.binary FNAME=agssim
 
 clean:
-	rm -f $(PROGS) $(LIB_OBJS) $(PROGS_OBJS)
+	rm -f $(CPROGS) $(LIB_OBJS) $(PROGS_OBJS)
 	rm -f *.out
 	rm -f *.o
 	rm -f *.rcb
