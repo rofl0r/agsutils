@@ -45,6 +45,8 @@ OPT_FILES = \$(SRCS:%.s=%.sopt)
 GAME_DATA=$DATAFILE
 GAME=game.ags
 
+OPT_FLAGS=-cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap
+
 -include config.mak
 
 all: \$(GAME)
@@ -59,7 +61,7 @@ optimize: \$(OPT_FILES)
 	agsinject 0 \$< \$@
 
 \$(OBJS_DIR)/%.sopt: \$(OBJS_DIR)/%.s
-	agsoptimize  -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap \$< \$@
+	agsoptimize  \$(OPT_FLAGS) \$< \$@
 
 \$(OBJS_DIR)/%.o: \$(OBJS_DIR)/%.s
 	agssemble \$(AS_FLAGS) \$< \$@
