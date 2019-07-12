@@ -113,12 +113,26 @@ def mr_swap_matchfn(matcher, matches, lines):
 	matcher.fout.write( "%s\n" % lines[0])
 	removed += 1
 
+def memread4_swap_matchfn(matcher, matches, lines):
+	global removed
+	# # memread4 ax; mr bx, ax; li ax, 1
+	ws, reg1 = matches[0].groups(0)
+	ws, reg2a, reg2b = matches[1].groups(0)
+	ws, reg3, val = matches[2].groups(0)
+	if reg1 == reg2b and reg1 == reg3:
+		matcher.fout.write("%smemread4 %s\n"%(ws, reg2a))
+		matcher.fout.write("%sli %s, %s\n"%(ws, reg1, val))
+		removed += 1
+	else:
+		for line in lines: matcher.fout.write("%s\n"%line)
+
+
 def eprint(text): sys.stderr.write("%s\n"%text)
 
 def usage():
 	eprint("usage: %s [options] infile outfile"%sys.argv[0])
 	eprint("")
-	eprint("options: -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap")
+	eprint("options: -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap -m4s")
 	eprint("at least one option required.\n")
 	eprint("cmp: optimize cmp/mr")
 	eprint("cmp2: optimize gt/gte/lt/lte (requires prev -ll pass)")
@@ -126,6 +140,7 @@ def usage():
 	eprint("sourceline: remove sourceline statements")
 	eprint("lnl: optimize negative literal loads")
 	eprint("ll: optimize literal loads")
+	eprint("m4s: optimize register swap after memread")
 
 def optimize(matcher, fin):
 	global lineno
@@ -192,6 +207,13 @@ def prep_matchers():
 		re.compile('(\s+)mr bx, ax'),
 	], mr_swap_matchfn, output_fn)
 
+	all_matchers['memread4_swap_matcher'] = MultiLineMatcher([
+	# memread4 ax; mr bx, ax; li ax, 1
+		re.compile('(\s+)memread4 ([a-d]x)'),
+		re.compile('(\s+)mr ([a-d]x), ([a-d]x)'),
+		re.compile('(\s+)li ([a-d]x), ([0-9]+)$'),
+	], memread4_swap_matchfn, output_fn)
+
 def main():
 	matcher_names = []
 	if len(sys.argv) < 4: return usage()
@@ -205,6 +227,7 @@ def main():
 		elif sys.argv[i] == "-cmp2": matcher_names.append( 'cmp2_matcher')
 		elif sys.argv[i] == "-axmar": matcher_names.append( 'axmar_matcher')
 		elif sys.argv[i] == "-mrswap": matcher_names.append( 'mr_swap_matcher')
+		elif sys.argv[i] == "-m4s": matcher_names.append( 'memread4_swap_matcher')
 		else: return usage()
 
 	fin = open(sys.argv[len(sys.argv)-2], "r")
