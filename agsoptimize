@@ -142,23 +142,28 @@ def usage():
 	eprint("ll: optimize literal loads")
 	eprint("m4s: optimize register swap after memread")
 
+def get_matcher_name(matcher):
+	return matcher_names[matcher]
+
+removed_per_matcher = {}
 def optimize(matcher, fin):
 	global lineno
+	global removed
+	removed = 0
 	while True:
 		lineno = lineno + 1
 		s = fin.readline()
 		if s == '': break
 		matcher.feed(s)
-	mn = ''
-	for i in all_matchers.keys():
-		if all_matchers[i] == matcher:
-			mn = i
-			break
-	sys.stderr.write( "%s: removed %d lines\n"%(mn, removed))
+	mn = get_matcher_name(matcher)
+	global removed_per_matcher
+	removed_per_matcher[mn] = removed
 
 all_matchers = {}
+matcher_names = {}
 def prep_matchers():
 	global all_matchers
+	global matcher_names
 	all_matchers['pushpop_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)push ([a-z]+)'),
 		re.compile('(\s+)pop ([a-z]+)'),
@@ -214,6 +219,10 @@ def prep_matchers():
 		re.compile('(\s+)li ([a-d]x), ([0-9]+)$'),
 	], memread4_swap_matchfn, output_fn)
 
+	for i in all_matchers.keys():
+		matcher_names[all_matchers[i]] = i
+
+
 def main():
 	matcher_names = []
 	if len(sys.argv) < 4: return usage()
@@ -230,7 +239,8 @@ def main():
 		elif sys.argv[i] == "-m4s": matcher_names.append( 'memread4_swap_matcher')
 		else: return usage()
 
-	fin = open(sys.argv[len(sys.argv)-2], "r")
+	fn = sys.argv[len(sys.argv)-2]
+	fin = open(fn, "r")
 	fout = open(sys.argv[len(sys.argv)-1], "w")
 
 	prep_matchers()
@@ -246,5 +256,15 @@ def main():
 		chunk = fin.read(4096)
 		if chunk == '': break
 		fout.write(chunk)
+
+	s = ''
+	total_removed = 0
+	for i in removed_per_matcher.keys():
+		if removed_per_matcher[i] == 0: continue
+		total_removed += removed_per_matcher[i]
+		s += "[%s:%d] " %(i[:len(i)-len("_matcher")], removed_per_matcher[i])
+	if total_removed:
+		sys.stdout.write( "%s: removed %d lines %s\n"%(fn, total_removed, s))
+
 
 if __name__ == "__main__": main()
