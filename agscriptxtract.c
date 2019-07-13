@@ -43,9 +43,10 @@ static char *filename(const char *dir, const char *fn, char *buf, size_t bsize) 
 
 #include "RoomFile.h"
 #include <dirent.h>
-static void dumprooms(const char* dir, const char* out, int flags) {
+static int dumprooms(const char* dir, const char* out, int flags) {
 	DIR* d = opendir(dir);
-	if(!d) return;
+	if(!d) return 1;
+	int errors = 0;
 	struct dirent* di = 0;
 
 	while((di = readdir(d))) {
@@ -54,10 +55,10 @@ static void dumprooms(const char* dir, const char* out, int flags) {
 			char fnbuf[512];
 			snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, di->d_name);
 			AF f; ssize_t off; ASI s;
-			if(!AF_open(&f, fnbuf)) continue;
+			if(!AF_open(&f, fnbuf)) goto extract_error;
 			struct RoomFile rinfo = {0};
-			if(!RoomFile_read(&f, &rinfo)) continue;
-			if((off = ARF_find_code_start(&f, 0)) == -1) continue;
+			if(!RoomFile_read(&f, &rinfo)) goto extract_error;
+			if((off = ARF_find_code_start(&f, 0)) == -1) goto extract_error;
 			assert(off == rinfo.blockpos[BLOCKTYPE_COMPSCRIPT3]);
 			AF_set_pos(&f, off);
 			if(!ASI_read_script(&f, &s)) {
@@ -88,9 +89,14 @@ static void dumprooms(const char* dir, const char* out, int flags) {
 				}
 				free(source);
 			}
+			continue;
+			extract_error:
+			dprintf(2, "warning: extraction of file %s failed\n", di->d_name);
+			++errors;
 		}
 	}
 	closedir(d);
+	return errors;
 }
 
 void dump_script(AF* f, ASI* s, char* fn, int flags) {
@@ -114,6 +120,7 @@ int main(int argc, char**argv) {
 	if(!out) out = ".";
 	else mkdir(out, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
+	int errors = 0;
 	ADF a_b, *a = &a_b;
 	ADF_init(a, dir);
 	if(!ADF_open(a)) return 1;
@@ -131,7 +138,8 @@ int main(int argc, char**argv) {
 		dump_script(a->f, s, filename(out, fnbuf, buf, sizeof buf), flags);
 	}
 	ADF_close(a);
-	dumprooms(dir, out, flags);
+	errors += dumprooms(dir, out, flags);
+	if(errors) dprintf(2, "agscriptxtract: got %d errors\n", errors);
 
-	return 0;
+	return !!errors;
 }
