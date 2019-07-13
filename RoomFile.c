@@ -33,6 +33,7 @@ ssize_t ARF_find_code_start(AF* f, size_t start) {
 
 enum BlockType {
 	BLOCKTYPE_MAIN = 1,
+	BLOCKTYPE_MIN = BLOCKTYPE_MAIN,
 	BLOCKTYPE_SCRIPT = 2,
 	BLOCKTYPE_COMPSCRIPT = 3,
 	BLOCKTYPE_COMPSCRIPT2 = 4,
@@ -41,6 +42,7 @@ enum BlockType {
 	BLOCKTYPE_COMPSCRIPT3 = 7, /* only bytecode script type supported by released engine code */
 	BLOCKTYPE_PROPERTIES = 8,
 	BLOCKTYPE_OBJECTSCRIPTNAMES = 9,
+	BLOCKTYPE_MAX = BLOCKTYPE_OBJECTSCRIPTNAMES,
 	BLOCKTYPE_EOF = 0xFF
 };
 
@@ -61,12 +63,14 @@ int RoomFile_read(AF *f, struct RoomFile *r, int flags) {
 		unsigned char blocktype;
 		if((size_t) -1 == AF_read(f, &blocktype, 1)) return 0;
 		if(blocktype == BLOCKTYPE_EOF) break;
+		if(blocktype < BLOCKTYPE_MIN || blocktype > BLOCKTYPE_MAX) return 0;
 		int blocklen = AF_read_int(f);
 		off_t curr_pos = AF_get_pos(f), next_block = curr_pos + blocklen;
 		switch(blocktype) {
 			case BLOCKTYPE_SCRIPT:
 				if(flags & RF_FLAGS_EXTRACT_CODE) {
 					int scriptlen = AF_read_int(f);
+					assert(blocklen == scriptlen + 4);
 					r->sourcecode = malloc(scriptlen+1);
 					if((size_t) -1 == AF_read(f, r->sourcecode, scriptlen)) return 0;
 					roomfile_decrypt_text(r->sourcecode, scriptlen);
