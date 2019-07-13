@@ -499,8 +499,12 @@ static void write_int(FILE* o, int val) {
 	fwrite(&val, 4, 1, o);
 }
 
-int fixup_comparefunc(const void *a, const void* b) {
+static int fixup_comparefunc(const void *a, const void* b) {
 	const struct fixup* fa = a, *fb = b;
+	if(fa->type == FIXUP_DATADATA && fb->type != FIXUP_DATADATA)
+		return -1;
+	if(fb->type == FIXUP_DATADATA && fa->type != FIXUP_DATADATA)
+		return 1;
 	if(fa->offset < fb->offset) return -1;
 	if(fa->offset == fb->offset) return 0;
 	return 1;
