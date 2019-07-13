@@ -56,9 +56,9 @@ static void dumprooms(const char* dir, const char* out, int flags) {
 			AF f; ssize_t off; ASI s;
 			if(!AF_open(&f, fnbuf)) continue;
 			struct RoomFile rinfo = {0};
-			if(!RoomFile_read(&f, &rinfo, RF_FLAGS_EXTRACT_CODE)) continue;
+			if(!RoomFile_read(&f, &rinfo)) continue;
 			if((off = ARF_find_code_start(&f, 0)) == -1) continue;
-			assert(off == rinfo.scriptpos);
+			assert(off == rinfo.blockpos[BLOCKTYPE_COMPSCRIPT3]);
 			AF_set_pos(&f, off);
 			if(!ASI_read_script(&f, &s)) {
 				dprintf(2, "trouble finding script in %s\n", di->d_name);
@@ -73,7 +73,9 @@ static void dumprooms(const char* dir, const char* out, int flags) {
 			char outbuf[256];
 			AF_dump_chunk(&f, s.start, s.len, filename(out, buf, outbuf, sizeof outbuf));
 			disas(di->d_name, outbuf, flags);
-			if(rinfo.sourcecode) {
+			size_t sourcelen;
+			char *source = RoomFile_extract_source(&f, &rinfo, &sourcelen);
+			if(source) {
 				buf[l-3] = 'a';
 				buf[l-2] = 's';
 				buf[l-1] = 'c';
@@ -81,9 +83,10 @@ static void dumprooms(const char* dir, const char* out, int flags) {
 				FILE *f = fopen(filename(out, buf, outbuf, sizeof outbuf), "w");
 				if(f) {
 					dprintf(1, "extracting room source %s -> %s\n", di->d_name, outbuf);
-					fwrite(rinfo.sourcecode, 1, rinfo.sourcecode_len, f);
+					fwrite(source, 1, sourcelen, f);
 					fclose(f);
 				}
+				free(source);
 			}
 		}
 	}
