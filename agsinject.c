@@ -15,7 +15,7 @@ void usage(char *argv0) {
 	"index is the number of script to replace, i.e. 0 for first script\n"
 	"only relevant if the output file is a gamefile which contains multiple scripts\n"
 	"for example gamescript is 0, dialogscript is 1 (if existing), etc\n"
-	"a room file (.crm) only has one script so you can pass 0.\n", argv0);
+	"a room file (.crm) only has one script so you must pass 0.\n", argv0);
 	exit(1);
 }
 
@@ -24,7 +24,8 @@ static int inject(char *o, char *inj, unsigned which) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
 	size_t index, found;
-	int isroom = (which == 0 && !strcmp(".crm", inj + strlen(inj) - 4));
+	int isroom = !strcmp(".crm", inj + strlen(inj) - 4);
+	if(isroom && which != 0) return -1;
 	if(!AF_open(f, inj)) return 0;
 	ssize_t start;
 	for(index = found = 0; 1 ; found++, index = start + 4) {
@@ -88,10 +89,13 @@ int main(int argc, char**argv) {
 	int which = atoi(argv[1]);
 	dprintf(1, "injecting %s into %s as %d'th script ...", o, inj, which);
 	int ret = inject(o, inj, which);
-	if(ret) dprintf(1, "OK\n");
+	if(ret >= 0) dprintf(1, "OK\n");
 	else {
 		dprintf(1, "FAIL\n");
-		perror("error:");
+		if(ret == -1) {
+			dprintf(2, "invalid index %d for roomfile, only 0 possible\n", which);
+			ret = 0;
+		} else perror("error:");
 	}
 	return !ret;
 }
