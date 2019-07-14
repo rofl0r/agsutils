@@ -324,9 +324,8 @@ static int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd) {
 
 struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 		struct fixup_resolved *fxlist_resolved, size_t fxlist_cnt,
-		unsigned* code, size_t codecount, struct fixup_data *fxd)
+		unsigned* code, size_t codecount)
 {
-	static enum varsize last_size = vs4;
 
 	size_t iter = (size_t)-1, x;
 	struct varinfo ret = {0,vs0};
@@ -449,24 +448,6 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 			}
 		}
 	}
-	if(!ret.varsize) {
-		if(ret.numrefs) {
-			COMMENT(f, "warning: couldn't determine varsize, default to 4\n");
-			ret.varsize = vs4;
-		} else if(has_datadata_fixup(offset+200, fxd)) {
-			// there's a datadata fixup 200 bytes from here.
-			// so chances are good we're looking at a string buffer.
-			// whether that's really the case is decided by the caller
-			ret.varsize = vs200;
-			/* skip assignment of last_size on loop-end */
-			return ret;
-		} else {
-			COMMENT(f, "unref'd, assuming array member with last known size\n");
-			ret.varsize = last_size;
-		}
-	}
-	last_size = ret.varsize;
-
 	return ret;
 }
 
@@ -501,7 +482,14 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	AF_set_pos(a, start);
 
 	for(i = 0; i < size; ) {
-		struct varinfo vi = find_fixup_for_globaldata(f, i, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize, fxd);
+		struct varinfo vi;
+		if(has_datadata_fixup(i, fxd))
+			vi = (struct varinfo){0,vs4};
+		else {
+			vi = find_fixup_for_globaldata(f, i, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize);
+			if(vi.varsize == 0 && has_datadata_fixup(i+200, fxd))
+				vi.varsize = vs200;
+		}
 		int x;
 		sw:
 		switch(vi.varsize) {
@@ -533,8 +521,11 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 				x = ByteArray_readByte(a->b);
 				break;
 			case vs0:
-				COMMENT(f, "unreferenced variable, assuming int\n");
-				vi.varsize = vs4;
+				if(vi.numrefs)
+					COMMENT(f, "warning: couldn't determine varsize, default to 1\n");
+				else
+					COMMENT(f, "unreferenced variable, assuming char\n");
+				vi.varsize = vs1;
 				goto sw;
 			case vsmax:
 				assert(0);
