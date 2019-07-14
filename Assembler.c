@@ -160,7 +160,8 @@ static int asm_data(AS* a) {
 	fseek(a->in, start, SEEK_SET);
 	char buf[1024];
 	size_t data_pos = 0;
-	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.' && buf[0] != '\n') {
+	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.') {
+		if(buf[0] == '\n') continue;
 		char* p = buf, *pend = buf + sizeof buf, *var;
 		int exportflag = 0;
 		enum varsize vs = vs0;
