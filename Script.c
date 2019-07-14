@@ -491,6 +491,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 				vi.varsize = vs200;
 		}
 		int x;
+		char *comment = "";
 		sw:
 		switch(vi.varsize) {
 			case vs200:
@@ -521,10 +522,8 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 				x = ByteArray_readByte(a->b);
 				break;
 			case vs0:
-				if(vi.numrefs)
-					COMMENT(f, "warning: couldn't determine varsize, default to 1\n");
-				else
-					COMMENT(f, "unreferenced variable, assuming char\n");
+				if(vi.numrefs) comment = " ; warning: couldn't determine varsize, default to 1";
+				else comment = " ; unreferenced variable, assuming char";
 				vi.varsize = vs1;
 				goto sw;
 			case vsmax:
@@ -532,11 +531,11 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 		}
 		char* vn = get_varname(exp, expcount, i);
 		if(has_datadata_fixup(i, fxd)) {
-			if(vn) fprintf(f, "export %s %s = .data + %d\n", typenames[vi.varsize], vn, x);
-			else fprintf(f, "%s var%.6zu = .data + %d\n", typenames[vi.varsize], i, x);
+			if(vn) fprintf(f, "export %s %s = .data + %d%s\n", typenames[vi.varsize], vn, x, comment);
+			else fprintf(f, "%s var%.6zu = .data + %d%s\n", typenames[vi.varsize], i, x, comment);
 		} else {
-			if(vn) fprintf(f, "export %s %s = %d\n", typenames[vi.varsize], vn, x);
-			else fprintf(f, "%s var%.6zu = %d\n", typenames[vi.varsize], i, x);
+			if(vn) fprintf(f, "export %s %s = %d%s\n", typenames[vi.varsize], vn, x, comment);
+			else fprintf(f, "%s var%.6zu = %d%s\n", typenames[vi.varsize], i, x, comment);
 		}
 		i += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4, [vs200]=200} [vi.varsize];
 	}
