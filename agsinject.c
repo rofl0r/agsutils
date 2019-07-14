@@ -29,9 +29,14 @@ static int inject(char *o, char *inj, unsigned which) {
 	if(!AF_open(f, inj)) return 0;
 	ssize_t start;
 	for(index = found = 0; 1 ; found++, index = start + 4) {
-		if((start = ARF_find_code_start(f, index)) == -1) {
+		if(!isroom && (start = ARF_find_code_start(f, index)) == -1) {
 			dprintf(2, "error, only %zu scripts found\n", found);
 			return 0;
+		} else if(isroom) {
+			/* use roomfile specific script lookup, as it's faster */
+			struct RoomFile rinfo = {0};
+			if(!RoomFile_read(f, &rinfo)) return 0;
+			start = rinfo.blockpos[BLOCKTYPE_COMPSCRIPT3];
 		}
 		if(found != which) continue;
 		char *tmp = tempnam(".", "agsinject.tmp");
