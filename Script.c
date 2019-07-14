@@ -571,6 +571,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 	fprintf(f, ".%s\n", "text");
 
 	size_t currInstr = 0, currExp = 0, currFixup = 0, currLbl = 0;
+	char *curr_func = 0;
 	/* the data_data fixups appear to be glued separately onto the fixup logic,
 	 * they are the only entries not sorted by instrucion number */
 	while(currFixup < s->fixupcount && fxd->types[currFixup] == FIXUP_DATADATA) currFixup++;
@@ -582,6 +583,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 			currExp++;
 		if(currExp < s->exportcount && fl[currExp].instr == currInstr) {
 			/* new function starts here */
+			curr_func = fl[currExp].fn;
 			char comment[64], *p = strrchr(fl[currExp].fn, '$');
 			comment[0] = 0;
 			if(p) {
@@ -591,7 +593,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 				else
 					sprintf(comment, " ; %d args", n);
 			}
-			fprintf(f, "\n%s:%s\n", fl[currExp].fn, comment);
+			fprintf(f, "\n%s:%s\n", curr_func, comment);
 			currExp++;
 		}
 		if(currLbl < lbl.count) {
@@ -601,6 +603,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 					currLbl++; numrefs++;
 				}
 				fprintf(f, "label%.12zu: ", currInstr);
+				COMMENT(f, "inside %s, ", curr_func ? curr_func : "???");
 				COMMENT(f, "referenced by %zu spots\n", numrefs);
 			}
 		}
