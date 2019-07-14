@@ -582,7 +582,16 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 			currExp++;
 		if(currExp < s->exportcount && fl[currExp].instr == currInstr) {
 			/* new function starts here */
-			fprintf(f, "\n%s:\n", fl[currExp].fn);
+			char comment[64], *p = strrchr(fl[currExp].fn, '$');
+			comment[0] = 0;
+			if(p) {
+				int n;
+				if((n = atoi(p+1)) >= 100)
+					sprintf(comment, " ; variadic, %d fixed args", n - 100);
+				else
+					sprintf(comment, " ; %d args", n);
+			}
+			fprintf(f, "\n%s:%s\n", fl[currExp].fn, comment);
 			currExp++;
 		}
 		if(currLbl < lbl.count) {
