@@ -177,10 +177,10 @@ static int asm_data(AS* a) {
 			vs = vs2;
 		else if(memcmp(p, "char", 4) == 0)
 			vs = vs1;
-		else if(memcmp(p, "string", 4) == 0)
+		else if(memcmp(p, "string", 6) == 0)
 			vs = vs200;
 		else {
-			dprintf(2, "error: expected int, short, or char\n");
+			dprintf(2, "error: expected int, short, char, or string\n");
 			return 0;
 		}
 		while(!isspace(*p) && p < pend) p++;
