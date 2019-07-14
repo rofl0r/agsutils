@@ -177,6 +177,8 @@ static int asm_data(AS* a) {
 			vs = vs2;
 		else if(memcmp(p, "char", 4) == 0)
 			vs = vs1;
+		else if(memcmp(p, "string", 4) == 0)
+			vs = vs200;
 		else {
 			dprintf(2, "error: expected int, short, or char\n");
 			return 0;
@@ -210,6 +212,10 @@ static int asm_data(AS* a) {
 			value = atoi(p);
 			write_var:
 			switch (vs) {
+				case vs200:
+					for(value = 0; value < 20; value++)
+						ByteArray_writeMem(a->data, (void*)"\0\0\0\0\0\0\0\0\0\0", 10);
+					break;
 				case vs4:
 					ByteArray_writeInt(a->data, value);
 					break;
@@ -225,7 +231,7 @@ static int asm_data(AS* a) {
 		}
 		if(exportflag) add_export(a, EXPORT_DATA, var, data_pos);
 		add_variable(a, var, vs, data_pos);
-		data_pos += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4} [vs];
+		data_pos += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4, [vs200]=200} [vs];
 	}
 	return 1;
 }

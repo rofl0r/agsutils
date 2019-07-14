@@ -314,9 +314,17 @@ int find_next_match(struct fixup_resolved *list, size_t nel, unsigned value, siz
 	}
 }
 
+static int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd) {
+	size_t i;
+	for(i = 0; i < fxd->count[FIXUP_DATADATA]; i++)
+		if(fxd->codeindex_per[FIXUP_DATADATA][i] == gdoffset)
+			return 1;
+	return 0;
+}
+
 struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 		struct fixup_resolved *fxlist_resolved, size_t fxlist_cnt,
-		unsigned* code, size_t codecount)
+		unsigned* code, size_t codecount, struct fixup_data *fxd)
 {
 	static enum varsize last_size = vs4;
 
@@ -445,6 +453,13 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 		if(ret.numrefs) {
 			COMMENT(f, "warning: couldn't determine varsize, default to 4\n");
 			ret.varsize = vs4;
+		} else if(has_datadata_fixup(offset+200, fxd)) {
+			// there's a datadata fixup 200 bytes from here.
+			// so chances are good we're looking at a string buffer.
+			// whether that's really the case is decided by the caller
+			ret.varsize = vs200;
+			/* skip assignment of last_size on loop-end */
+			return ret;
 		} else {
 			COMMENT(f, "unref'd, assuming array member with last known size\n");
 			ret.varsize = last_size;
@@ -455,12 +470,12 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 	return ret;
 }
 
-int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd) {
-	size_t i;
-	for(i = 0; i < fxd->count[FIXUP_DATADATA]; i++)
-		if(fxd->codeindex_per[FIXUP_DATADATA][i] == gdoffset)
-			return 1;
-	return 0;
+static int is_all_zeroes(const char* buf, int len) {
+	while(len--) {
+		if(*buf != 0) return 0;
+		buf++;
+	}
+	return 1;
 }
 
 static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
@@ -468,7 +483,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 			   struct fixup_data *fxd,
 			   unsigned *code, size_t codesize) {
 	if(!size) return 1;
-	static const char*typenames[vsmax] = {[vs0]="ERR", [vs1]="char", [vs2]="short", [vs4]="int"};
+	static const char*typenames[vsmax] = {[vs0]="ERR", [vs1]="char", [vs2]="short", [vs4]="int", [vs200]="string"};
 
 	size_t fxcount = fxd->count[FIXUP_GLOBALDATA];
 	struct fixup_resolved *gd_fixups_resolved = malloc(sizeof(struct fixup_resolved) * fxcount);
@@ -486,10 +501,28 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	AF_set_pos(a, start);
 
 	for(i = 0; i < size; ) {
-		struct varinfo vi = find_fixup_for_globaldata(f, i, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize);
+		struct varinfo vi = find_fixup_for_globaldata(f, i, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize, fxd);
 		int x;
 		sw:
 		switch(vi.varsize) {
+			case vs200:
+				{
+					off_t savepos = AF_get_pos(a);
+					if(i + 204 <= size) {
+						char buf[200];
+						assert(200 == AF_read(a, buf, 200));
+						/* read the datadata fixup content*/
+						x = AF_read_int(a);
+						if(x == i && is_all_zeroes(buf, 200)) {
+							x = 0;
+							AF_set_pos(a, savepos + 200);
+							break;
+						}
+					}
+					AF_set_pos(a, savepos);
+					vi.varsize = vs0;
+					goto sw;
+				}
 			case vs4:
 				x = AF_read_int(a);
 				break;
@@ -514,7 +547,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 			if(vn) fprintf(f, "export %s %s = %d\n", typenames[vi.varsize], vn, x);
 			else fprintf(f, "%s var%.6zu = %d\n", typenames[vi.varsize], i, x);
 		}
-		i += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4} [vi.varsize];
+		i += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4, [vs200]=200} [vi.varsize];
 	}
 	free(gd_fixups_resolved);
 	return 1;
