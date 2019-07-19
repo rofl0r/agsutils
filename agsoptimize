@@ -68,6 +68,13 @@ def sourceline_matchfn(matcher, matches, lines):
 	global removed
 	removed += 1
 
+def thisaddr_sourceline_matchfn(matcher, matches, lines):
+	global removed
+	ws, addr = matches[0].groups(0)
+	matcher.fout.write( "%s\n" % lines[0])
+	matcher.fout.write( "%ssourceline %d\n" %(ws, int(addr)))
+	removed += 1
+
 def cmp_mr_matchfn(matcher, matches, lines):
 	global removed
 	ws, op = matches[0].groups(0)
@@ -93,6 +100,13 @@ def load_negative_literal_matchfn(matcher, matches, lines):
 	matcher.fout.write( "%smr bx, ax\n"%(ws))
 	matcher.fout.write( "%sli ax, -%s\n"%(ws, val))
 	removed += 4
+
+def load_negative_literal2_matchfn(matcher, matches, lines):
+	global removed
+	ws, val = matches[0].groups(0)
+	matcher.fout.write( "%sli ax, -%s\n"%(ws, val))
+	matcher.fout.write( "%sli bx, -%s\n"%(ws, val))
+	removed += 2
 
 def load_literal_matchfn(matcher, matches, lines):
 	global removed
@@ -127,21 +141,56 @@ def memread4_swap_matchfn(matcher, matches, lines):
 	else:
 		for line in lines: matcher.fout.write("%s\n"%line)
 
+def ptrstack2x_matchfn(matcher, matches, lines):
+	global removed
+	ws, val1 = matches[0].groups(0)
+	ws, val2 = matches[2].groups(0)
+	if val1 == val2:
+		matcher.fout.write( "%s\n" % lines[0])
+		matcher.fout.write( "%s\n" % lines[1])
+		removed += 1
+	else:
+		for line in lines: matcher.fout.write("%s\n"%line)
+
+def regload_arith_matchfn(matcher, matches, lines):
+	# li ax, 1; add bx, ax, ax; mr ax, bx
+	global removed
+	ws, reg1, val = matches[0].groups(0)
+	ws, op, reg2a, reg2b = matches[1].groups(0)
+	ws, reg3a, reg3b = matches[2].groups(0)
+	if reg1 == reg2b and reg3a == reg1 and reg2a == reg3b:
+		matcher.fout.write( "%s%si %s, %s\n" % (ws, op, reg2a, val))
+		matcher.fout.write( "%s\n" % lines[2])
+		removed += 1
+	else:
+		for line in lines: matcher.fout.write("%s\n"%line)
+
+def load0_matchfn(matcher, matches, lines):
+	global removed
+	ws, reg1 = matches[0].groups(0)
+	matcher.fout.write( "%sxor %s, %s\n"%(ws, reg1, reg1))
+	# actually we don't remove here, but we wanna see the count of replacements
+	removed += 1
+
+# ========= macro replacement ==========
+def objcall1_matchfn(matcher, matches, lines):
+	ws, arg, tail = matches[0].groups(0)
+	ws, obj, tail = matches[1].groups(0)
+	ws, func, tail = matches[7].groups(0)
+	global removed
+	matcher.fout.write("%sOBJCALL1(%s, %s, %s)%s\n"%(ws, func, obj, arg, tail))
+	removed += 10
 
 def eprint(text): sys.stderr.write("%s\n"%text)
 
 def usage():
 	eprint("usage: %s [options] infile outfile"%sys.argv[0])
 	eprint("")
-	eprint("options: -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap -m4s")
+	eprint("options: -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap -m4s ...")
 	eprint("at least one option required.\n")
-	eprint("cmp: optimize cmp/mr")
-	eprint("cmp2: optimize gt/gte/lt/lte (requires prev -ll pass)")
-	eprint("pushpop: optimize push/pop")
-	eprint("sourceline: remove sourceline statements")
-	eprint("lnl: optimize negative literal loads")
-	eprint("ll: optimize literal loads")
-	eprint("m4s: optimize register swap after memread")
+	for i in commandline_args_matcher_map.keys():
+		eprint("%s: %s"%(i, help_text[i]))
+
 
 def get_matcher_name(matcher):
 	return matcher_names[matcher]
@@ -160,6 +209,15 @@ def optimize(matcher, fin):
 	global removed_per_matcher
 	removed_per_matcher[mn] = removed
 
+def seek_text(fin, fout):
+	global lineno
+	while True:
+		lineno = lineno + 1
+		s = fin.readline()
+		if s == '': break
+		fout.write(s)
+		if s.startswith('.text'): break
+
 all_matchers = {}
 matcher_names = {}
 def prep_matchers():
@@ -174,6 +232,14 @@ def prep_matchers():
 		re.compile('(\s+)sourceline ([0-9]+)'),
 	], sourceline_matchfn, output_fn)
 
+	# this matcher is only for debug purposes.
+	# it adds a sourceline statement after every thisaddr,
+	# which is right at the beginning of each func.
+	# so one can set e.g. a breakpoint in the ags interpreter.
+	all_matchers['thisaddr_sourceline_matcher'] = MultiLineMatcher([
+		re.compile('(\s+)thisaddr ([0-9]+)$'),
+	], thisaddr_sourceline_matchfn, output_fn)
+
 	all_matchers['cmp_mr_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)(cmpeq|cmpne|lor|land) bx, ax'),
 		re.compile('(\s+)mr ax, bx'),
@@ -187,6 +253,13 @@ def prep_matchers():
 		re.compile('(\s+)mr ax, bx$'),
 		re.compile('(\s+)pop bx$'),
 	], load_negative_literal_matchfn, output_fn)
+
+	all_matchers['load_negative_literal2_matcher'] = MultiLineMatcher([
+		re.compile('(\s+)li ax, ([0-9]+)$'),
+		re.compile('(\s+)li bx, 0$'),
+		re.compile('(\s+)sub bx, ax$'),
+		re.compile('(\s+)mr ax, bx$'),
+	], load_negative_literal2_matchfn, output_fn)
 
 	all_matchers['load_literal_matcher'] = MultiLineMatcher([
 		re.compile('(\s+)push ax$'),
@@ -220,25 +293,90 @@ def prep_matchers():
 		re.compile('(\s+)li ([a-d]x), ([0-9]+)$'),
 	], memread4_swap_matchfn, output_fn)
 
+	all_matchers['ptrstack2x_matcher'] = MultiLineMatcher([
+		re.compile('(\s+)ptrstack ([0-9]+)$'),
+		re.compile('(\s+)mem.*$'),
+		re.compile('(\s+)ptrstack ([0-9]+)$'),
+	], ptrstack2x_matchfn, output_fn)
+
+	all_matchers['regload_arith_matcher'] = MultiLineMatcher([
+	# li ax, 1; add bx, ax, ax; mr ax, bx
+		re.compile('(\s+)li ([a-d]x), ([0-9]+)$'),
+		re.compile('(\s+)(add|sub) ([a-d]x), ([a-d]x)$'),
+		re.compile('(\s+)mr ([a-d]x), ([a-d]x)$'),
+	], regload_arith_matchfn, output_fn)
+
+	all_matchers['assertlte_matcher'] = MultiLineMatcher([
+		re.compile('(\s+)assertlte\s.*'),
+	], sourceline_matchfn, output_fn)
+
+	all_matchers['load0_matcher'] = MultiLineMatcher([
+		re.compile('(\s+)li ([a-d]x), 0$'),
+	], load0_matchfn, output_fn)
+
+	all_matchers['objcall1_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li bx, ' + re_iden_or_num + re_tail),
+		re.compile(re_leading_ws + r'li mar, ' + re_iden_or_num + re_tail),
+		re.compile(re_leading_ws + r'mr ax, mar' + re_tail),
+		re.compile(re_leading_ws + r'push op' + re_tail),
+		re.compile(re_leading_ws + r'callobj ax' + re_tail),
+		re.compile(re_leading_ws + r'farpush bx' + re_tail),
+		re.compile(re_leading_ws + r'setfuncargs 1' + re_tail),
+		re.compile(re_leading_ws + r'li ax, ' + re_extfunc + re_tail),
+		re.compile(re_leading_ws + r'farcall ax' + re_tail),
+		re.compile(re_leading_ws + r'farsubsp 1' + re_tail),
+		re.compile(re_leading_ws + r'pop op' + re_tail),
+	], objcall1_matchfn, output_fn)
+
+
 	for i in all_matchers.keys():
 		matcher_names[all_matchers[i]] = i
 
+commandline_args_matcher_map =  {
+	"-cmp" : 'cmp_mr_matcher',
+	"-pushpop": 'pushpop_matcher',
+	"-sourceline": 'sourceline_matcher',
+	"-lnl": 'load_negative_literal_matcher',
+	"-lnl2": 'load_negative_literal2_matcher',
+	"-ll": 'load_literal_matcher',
+	"-cmp2": 'cmp2_matcher',
+	"-axmar": 'axmar_matcher',
+	"-mrswap": 'mr_swap_matcher',
+	"-m4s": 'memread4_swap_matcher',
+	"-ptrstack2x": 'ptrstack2x_matcher',
+	"-rlarith": 'regload_arith_matcher',
+	"-assertlte": "assertlte_matcher",
+	"-load0": "load0_matcher",
+	"-fcdebug": "thisaddr_sourceline_matcher",
+	"-objcall1": "objcall1_matcher",
+}
+
+help_text = {
+	'-cmp': "optimize cmp/mr",
+	'-cmp2': "optimize gt/gte/lt/lte (requires prev -ll pass)",
+	"-pushpop": "optimize push/pop",
+	"-sourceline": "remove sourceline statements",
+	"-lnl": "optimize negative literal loads",
+	"-lnl2": "optimize negative literal loads variant2",
+	"-ll" : "optimize literal loads",
+	"-axmar": "...",
+	"-mrswap": "remove gratuitous reverse register copy",
+	"-m4s": "optimize register swap after memread",
+	"-ptrstack2x": "optimize duplicate ptrstack statements",
+	"-rlarith": "remove temporary register loads for add/sub",
+	"-assertlte": "remove assertlte statements",
+	"-load0": "replace load of 0 with xor reg, reg",
+	"-fcdebug": "insert sourceline directives on the start of each func (4 debugging)",
+	"-objcall1": "replace objcall1 with macro",
+}
 
 def main():
 	matcher_names = []
 	if len(sys.argv) < 4: return usage()
 	# -cmp -pushpop -sourceline -lnl -ll -cmp2 -axmar -mrswap
 	for i in xrange(1, len(sys.argv)-2):
-		if sys.argv[i] == "-cmp": matcher_names.append( 'cmp_mr_matcher')
-		elif sys.argv[i] == "-pushpop": matcher_names.append( 'pushpop_matcher')
-		elif sys.argv[i] == "-sourceline": matcher_names.append( 'sourceline_matcher')
-		elif sys.argv[i] == "-lnl": matcher_names.append( 'load_negative_literal_matcher')
-		elif sys.argv[i] == "-ll": matcher_names.append( 'load_literal_matcher')
-		elif sys.argv[i] == "-cmp2": matcher_names.append( 'cmp2_matcher')
-		elif sys.argv[i] == "-axmar": matcher_names.append( 'axmar_matcher')
-		elif sys.argv[i] == "-mrswap": matcher_names.append( 'mr_swap_matcher')
-		elif sys.argv[i] == "-m4s": matcher_names.append( 'memread4_swap_matcher')
-		else: return usage()
+		if not sys.argv[i] in commandline_args_matcher_map: return usage()
+		else: matcher_names.append(commandline_args_matcher_map[sys.argv[i]])
 
 	fn = sys.argv[len(sys.argv)-2]
 	fin = open(fn, "r")
@@ -250,6 +388,7 @@ def main():
 		tmp = tempfile.TemporaryFile()
 		m = all_matchers[mn]
 		m.fout = tmp
+		seek_text(fin, m.fout)
 		optimize(m, fin)
 		tmp.seek(0)
 		fin = tmp
