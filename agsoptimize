@@ -38,6 +38,7 @@ class MultiLineMatcher():
 			self.line_matches += 1
 			if self.line_matches == len(self.regexes):
 				self.matchfn(self, self.matches, self.saved_lines)
+				self.matches = None
 				self.line_matches = 0
 				self.saved_lines = None
 		else:
