@@ -24,6 +24,8 @@ LIB_SRCS = \
 	MemGrow.c \
 	RoomFile.c \
 	Script.c \
+	preproc.c \
+	tokenizer.c \
 	StringEscape.c
 
 LIB_OBJS =  $(LIB_SRCS:.c=.o)
