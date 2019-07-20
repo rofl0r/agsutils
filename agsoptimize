@@ -173,6 +173,13 @@ def load0_matchfn(matcher, matches, lines):
 	removed += 1
 
 # ========= macro replacement ==========
+def objcall0_matchfn(matcher, matches, lines):
+	ws, obj, tail = matches[0].groups(0)
+	ws, func, tail = matches[5].groups(0)
+	global removed
+	matcher.fout.write("%sOBJCALL0(%s, %s)%s\n"%(ws, func, obj, tail))
+	removed += 1
+
 def objcall1_matchfn(matcher, matches, lines):
 	ws, arg, tail = matches[0].groups(0)
 	ws, obj, tail = matches[1].groups(0)
@@ -180,6 +187,78 @@ def objcall1_matchfn(matcher, matches, lines):
 	global removed
 	matcher.fout.write("%sOBJCALL1(%s, %s, %s)%s\n"%(ws, func, obj, arg, tail))
 	removed += 10
+
+def objcall1dynstr_matchfn(matcher, matches, lines):
+	ws, arg, tail = matches[0].groups(0)
+	ws, obj, tail = matches[3].groups(0)
+	ws, func, tail = matches[9].groups(0)
+	global removed
+	matcher.fout.write("%sOBJCALL1_DYNSTR(%s, %s, %s)%s\n"%(ws, func, obj, arg, tail))
+	removed += 12
+
+def farcall0_matchfn(matcher, matches, lines):
+	ws, fun, tail = matches[1].groups(0)
+	global removed
+	removed += 1
+	matcher.fout.write("%sFARCALL0(%s)%s\n"%(ws, fun, tail))
+
+def farcall1_matchfn(matcher, matches, lines):
+	ws, arg, tail = matches[0].groups(0)
+	ws, fun, tail = matches[3].groups(0)
+	global removed
+	removed += 1
+	matcher.fout.write("%sFARCALL1(%s, %s)%s\n"%(ws, fun, arg, tail))
+
+def varislit_matchfn(matcher, matches, lines):
+	ws, var, tail = matches[0].groups(0)
+	ws, val, tail = matches[3].groups(0)
+	ws, op, tail_ = matches[4].groups(0)
+	global removed
+	removed += 2
+	m = "VAR_EQ" if op == 'cmpeq' else "VAR_NE"
+	matcher.fout.write("%s%s(%s, %s)%s\n"%(ws, m, var, val, tail))
+
+def varislit2_matchfn(matcher, matches, lines):
+	ws, var, tail = matches[0].groups(0)
+	ws, val, tail = matches[2].groups(0)
+	ws, op, tail_ = matches[3].groups(0)
+	global removed
+	removed += 1
+	m = "VAR_EQ" if op == 'cmpeq' else "VAR_NE"
+	matcher.fout.write("%s%s(%s, %s)%s\n"%(ws, m, var, val, tail))
+
+def incvar_matchfn(matcher, matches, lines):
+	ws, val, tail = matches[0].groups(0)
+	ws, var1, tail = matches[2].groups(0)
+	ws, op, tail = matches[5].groups(0)
+	ws, var2, tail = matches[6].groups(0)
+	global removed
+	if var1 != var2:
+		for line in lines: matcher.fout.write("%s\n"%line)
+	else:
+		removed += 1
+		vali = int(val)
+		if op == "sub":
+			vali *= -1
+		matcher.fout.write("%sINC_VAR(%s, %d)%s\n"%(ws, var1, vali, tail))
+
+def incvar2_matchfn(matcher, matches, lines):
+	ws, var, tail = matches[0].groups(0)
+	ws, op, val, tail = matches[2].groups(0)
+	global removed
+	removed += 1
+	vali = int(val)
+	if op == "subi":
+		vali *= -1
+	matcher.fout.write("%sINC_VAR(%s, %d)%s\n"%(ws, var, vali, tail))
+
+def setvar_matchfn(matcher, matches, lines):
+	ws, val, tail = matches[0].groups(0)
+	ws, var, tail = matches[1].groups(0)
+	global removed
+	removed += 1
+	matcher.fout.write("%sSET_VAR(%s, %s)%s\n"%(ws, var, val, tail))
+
 
 def eprint(text): sys.stderr.write("%s\n"%text)
 
@@ -220,6 +299,22 @@ def seek_text(fin, fout):
 
 all_matchers = {}
 matcher_names = {}
+
+re_tail = r"(| \\)$"
+re_digits = r"([0-9]+)"
+re_number__ = r"-{0,1}[0-9]+"
+re_number = r"(" + re_number__ + ")"
+re_string__ = r'\"[^"]*\"'
+re_string = r'(' + re_string__ + ')'
+# variable prefixed with @ means: variable exported by curr script
+re_var__ = r"@{0,1}[_9A-Za-z]+[0-9A-Za-z_]*"
+re_var = r"(" + re_var__ + ")"
+re_var_str_or_num = "(" + "(?:" + re_var__ + ")|(?:" + re_string__ + ")|(?:" + re_number__ +")"  + ")"
+re_iden_or_num = r"([0-9A-Za-z_]+)"
+re_leading_ws = r"(\s*)"
+re_gpr = r"([a-d]x)"
+re_extfunc = r"([_9A-Za-z]+[0-9A-Za-z_:]*)"
+
 def prep_matchers():
 	global all_matchers
 	global matcher_names
@@ -314,6 +409,35 @@ def prep_matchers():
 		re.compile('(\s+)li ([a-d]x), 0$'),
 	], load0_matchfn, output_fn)
 
+	# macros. we replace specific snippets with macros, to make the code
+	# more readable.
+
+	all_matchers['farcall0_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'setfuncargs 0' + re_tail),
+		re.compile(re_leading_ws + r'li ax, ' + re_extfunc + re_tail),
+		re.compile(re_leading_ws + r'farcall ax' + re_tail),
+	], farcall0_matchfn, output_fn)
+
+	all_matchers['farcall1_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li ax, ' + re_var_str_or_num + re_tail),
+		re.compile(re_leading_ws + r'farpush ax' + re_tail),
+		re.compile(re_leading_ws + r'setfuncargs 1' + re_tail),
+		re.compile(re_leading_ws + r'li ax, ' + re_extfunc + re_tail),
+		re.compile(re_leading_ws + r'farcall ax' + re_tail),
+		re.compile(re_leading_ws + r'farsubsp 1' + re_tail),
+	], farcall1_matchfn, output_fn)
+
+	all_matchers['objcall0_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'mr ax, mar' + re_tail),
+		re.compile(re_leading_ws + r'push op' + re_tail),
+		re.compile(re_leading_ws + r'callobj ax' + re_tail),
+		re.compile(re_leading_ws + r'setfuncargs 0' + re_tail),
+		re.compile(re_leading_ws + r'li ax, ' + re_extfunc + re_tail),
+		re.compile(re_leading_ws + r'farcall ax' + re_tail),
+		re.compile(re_leading_ws + r'pop op' + re_tail),
+	], objcall0_matchfn, output_fn)
+
 	all_matchers['objcall1_matcher'] = MultiLineMatcher([
 		re.compile(re_leading_ws + r'li bx, ' + re_iden_or_num + re_tail),
 		re.compile(re_leading_ws + r'li mar, ' + re_iden_or_num + re_tail),
@@ -328,6 +452,60 @@ def prep_matchers():
 		re.compile(re_leading_ws + r'pop op' + re_tail),
 	], objcall1_matchfn, output_fn)
 
+	all_matchers['objcall1dynstr_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li ax, ' + re_string + re_tail),
+		re.compile(re_leading_ws + r'newstr ax' + re_tail),
+		re.compile(re_leading_ws + r'mr bx, ax' + re_tail),
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'mr ax, mar' + re_tail),
+		re.compile(re_leading_ws + r'push op' + re_tail),
+		re.compile(re_leading_ws + r'callobj ax' + re_tail),
+		re.compile(re_leading_ws + r'farpush bx' + re_tail),
+		re.compile(re_leading_ws + r'setfuncargs 1' + re_tail),
+		re.compile(re_leading_ws + r'li ax, ' + re_extfunc + re_tail),
+		re.compile(re_leading_ws + r'farcall ax' + re_tail),
+		re.compile(re_leading_ws + r'farsubsp 1' + re_tail),
+		re.compile(re_leading_ws + r'pop op' + re_tail),
+	], objcall1dynstr_matchfn, output_fn)
+
+	all_matchers['varislit_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'memread4 ax' + re_tail),
+		re.compile(re_leading_ws + r'mr bx, ax' + re_tail),
+		re.compile(re_leading_ws + r'li ax, ' + re_number + re_tail),
+		re.compile(re_leading_ws + r'(cmpeq|cmpne) ax, bx' + re_tail),
+	], varislit_matchfn, output_fn)
+
+	all_matchers['varislit2_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'memread4 bx' + re_tail),
+		re.compile(re_leading_ws + r'li ax, ' + re_number + re_tail),
+		re.compile(re_leading_ws + r'(cmpeq|cmpne) ax, bx' + re_tail),
+	], varislit2_matchfn, output_fn)
+
+	all_matchers['incvar_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li ax, ' + re_number + re_tail),
+		re.compile(re_leading_ws + r'push ax' + re_tail),
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'memread4 ax' + re_tail),
+		re.compile(re_leading_ws + r'pop bx' + re_tail),
+		re.compile(re_leading_ws + r'(sub|add) ax, bx' + re_tail),
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'memwrite4 ax' + re_tail),
+	], incvar_matchfn, output_fn)
+
+	all_matchers['incvar2_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'memread4 ax' + re_tail),
+		re.compile(re_leading_ws + r'(subi|addi) ax, ' + re_number + re_tail),
+		re.compile(re_leading_ws + r'memwrite4 ax' + re_tail),
+	], incvar2_matchfn, output_fn)
+
+	all_matchers['setvar_matcher'] = MultiLineMatcher([
+		re.compile(re_leading_ws + r'li ax, ' + re_number + re_tail),
+		re.compile(re_leading_ws + r'li mar, ' + re_var + re_tail),
+		re.compile(re_leading_ws + r'memwrite4 ax' + re_tail),
+	], setvar_matchfn, output_fn)
 
 	for i in all_matchers.keys():
 		matcher_names[all_matchers[i]] = i
@@ -348,7 +526,16 @@ commandline_args_matcher_map =  {
 	"-assertlte": "assertlte_matcher",
 	"-load0": "load0_matcher",
 	"-fcdebug": "thisaddr_sourceline_matcher",
+	"-objcall0": "objcall0_matcher",
 	"-objcall1": "objcall1_matcher",
+	"-objcall1dynstr": "objcall1dynstr_matcher",
+	"-farcall0": "farcall0_matcher",
+	"-farcall1": "farcall1_matcher",
+	"-varislit": "varislit_matcher",
+	"-varislit2": "varislit2_matcher",
+	"-incvar": "incvar_matcher",
+	"-incvar2": "incvar2_matcher",
+	"-setvar": "setvar_matcher",
 }
 
 help_text = {
@@ -367,7 +554,16 @@ help_text = {
 	"-assertlte": "remove assertlte statements",
 	"-load0": "replace load of 0 with xor reg, reg",
 	"-fcdebug": "insert sourceline directives on the start of each func (4 debugging)",
+	"-objcall0": "replace objcall0 with macro",
 	"-objcall1": "replace objcall1 with macro",
+	"-objcall1dynstr": "replace objcall1 with macro",
+	"-farcall0": "replace farcall0 with macro",
+	"-farcall1": "replace farcall1 with macro",
+	"-varislit": "varislit macro (neg)",
+	"-varislit2": "varislit macro",
+	"-incvar": "incvar macro",
+	"-incvar2": "incvar macro",
+	"-setvar": "setvar macro",
 }
 
 def main():
