@@ -46,12 +46,12 @@
 #define SCMD_NOTREG       42    // reg1 = !reg1
 #define SCMD_SHIFTLEFT    43    // reg1 = reg1 << reg2
 #define SCMD_SHIFTRIGHT   44    // reg1 = reg1 >> reg2
-#define SCMD_CALLOBJ      45    // next call is member function of reg1
+#define SCMD_CALLOBJ      45    // op = reg1 (set "this" argument for next function call)
 #define SCMD_CHECKBOUNDS  46    // check reg1 is between 0 and arg2
 #define SCMD_MEMWRITEPTR  47    // m[MAR] = reg1 (adjust ptr addr)
 #define SCMD_MEMREADPTR   48    // reg1 = m[MAR] (adjust ptr addr)
 #define SCMD_MEMZEROPTR   49    // m[MAR] = 0    (blank ptr)
-#define SCMD_MEMINITPTR   50    // m[MAR] = reg1 (but don't free old one)
+#define SCMD_MEMINITPTR   50    // m[MAR] = reg1 (like memwrite4, but doesn't remove reference/free the old pointer)
 #define SCMD_LOADSPOFFS   51    // MAR = SP - arg1 (optimization for local var access)
 #define SCMD_CHECKNULL    52    // error if MAR==0
 #define SCMD_FADD         53    // reg1 += arg2 (float,int)
@@ -161,14 +161,16 @@ static const struct opcode_info opcodes[] = {
 	[SCMD_NEWUSEROBJECT] = {"newuserobject", 2, 1},
 };
 
+/* these are called e.g. SREG_OP in upstream */
 enum ags_reg {
 	AR_NULL = 0,
-	AR_SP,
-	AR_MAR,
-	AR_AX,
+	AR_SP,  /* stack ptr */
+	AR_MAR, /* memory address register, i.e. holding pointer for mem* funcs */
+	AR_AX,  /* 4 GPRs */
 	AR_BX,
 	AR_CX,
-	AR_OP,
+	AR_OP,  /* object pointer for member func calls, i.e. "this".
+		   ags engine only sets it via SCMD_CALLOBJ, otherwise, it is only ever pushed/popped */
 	AR_DX,
 	AR_MAX
 };
