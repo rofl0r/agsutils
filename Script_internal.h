@@ -35,7 +35,6 @@ struct fixup_data {
 	unsigned char *types;
 };
 
-enum varsize {vs0 = 0, vs1, vs2, vs4, vs200, vsmax};
-struct varinfo {size_t numrefs; enum varsize varsize;};
+struct varinfo {size_t numrefs; unsigned varsize;};
 
 #endif

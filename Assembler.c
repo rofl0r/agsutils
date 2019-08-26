@@ -28,7 +28,7 @@ struct label {
 
 struct variable {
 	char* name;
-	enum varsize vs;
+	unsigned vs;
 	unsigned offset;
 };
 
@@ -121,7 +121,7 @@ static size_t get_string_section_length(AS* a) {
 	return l;
 }
 
-static int add_variable(AS *a, char* name, enum varsize vs, size_t offset) {
+static int add_variable(AS *a, char* name, unsigned vs, size_t offset) {
 	struct variable item = { .name = strdup(name), .vs = vs, .offset = offset };
 	return List_add(a->variable_list, &item);
 }
@@ -164,7 +164,7 @@ static int asm_data(AS* a) {
 		if(buf[0] == '\n') continue;
 		char* p = buf, *pend = buf + sizeof buf, *var;
 		int exportflag = 0;
-		enum varsize vs = vs0;
+		unsigned vs = 0;
 		if(*p == '#' || *p == ';') continue;
 		while(isspace(*p) && p < pend) p++;
 		if(!memcmp(p, "export", 6) && isspace(p[6])) {
@@ -173,13 +173,13 @@ static int asm_data(AS* a) {
 			while(isspace(*p) && p < pend) p++;
 		}
 		if(memcmp(p, "int", 3) == 0)
-			vs = vs4;
+			vs = 4;
 		else if(memcmp(p, "short", 5) == 0)
-			vs = vs2;
+			vs = 2;
 		else if(memcmp(p, "char", 4) == 0)
-			vs = vs1;
+			vs = 1;
 		else if(memcmp(p, "string", 6) == 0)
-			vs = vs200;
+			vs = 200;
 		else {
 			dprintf(2, "error: expected int, short, char, or string\n");
 			return 0;
@@ -213,17 +213,17 @@ static int asm_data(AS* a) {
 			value = atoi(p);
 			write_var:
 			switch (vs) {
-				case vs200:
+				case 200:
 					for(value = 0; value < 20; value++)
 						ByteArray_writeMem(a->data, (void*)"\0\0\0\0\0\0\0\0\0\0", 10);
 					break;
-				case vs4:
+				case 4:
 					ByteArray_writeInt(a->data, value);
 					break;
-				case vs2:
+				case 2:
 					ByteArray_writeShort(a->data, value);
 					break;
-				case vs1:
+				case 1:
 					ByteArray_writeUnsignedByte(a->data, value);
 					break;
 				default:
@@ -232,7 +232,7 @@ static int asm_data(AS* a) {
 		}
 		if(exportflag) add_export(a, EXPORT_DATA, var, data_pos);
 		add_variable(a, var, vs, data_pos);
-		data_pos += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4, [vs200]=200} [vs];
+		data_pos += vs;
 	}
 	return 1;
 }

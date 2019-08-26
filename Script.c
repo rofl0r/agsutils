@@ -265,21 +265,21 @@ unsigned *get_code(AF *a, size_t start, size_t count) {
 	return ret;
 }
 
-static enum varsize get_varsize_from_instr(unsigned* code, size_t codecount, size_t index) {
+static unsigned get_varsize_from_instr(unsigned* code, size_t codecount, size_t index) {
 	assert(index < codecount);
 	switch(code[index]) {
 		case SCMD_MEMREADB: case SCMD_MEMWRITEB:
-			return vs1;
+			return 1;
 		case SCMD_MEMREADW: case SCMD_MEMWRITEW:
-			return vs2;
+			return 2;
 		case SCMD_MEMWRITEPTR:
 		case SCMD_MEMREADPTR:
 		case SCMD_MEMZEROPTR:
 		case SCMD_MEMINITPTR:
 		case SCMD_MEMREAD: case SCMD_MEMWRITE:
-			return vs4;
+			return 4;
 		default:
-			return vs0;
+			return 0;
 	}
 }
 
@@ -328,14 +328,14 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 {
 
 	size_t iter = (size_t)-1, x;
-	struct varinfo ret = {0,vs0};
+	struct varinfo ret = {0,0};
 	while(find_next_match(fxlist_resolved, fxlist_cnt, offset, &iter)) {
 		x = fxlist_resolved[iter].offset;
 		if(1) {
 			assert(x + 1 < codecount);
 			if(1) {
 				ret.numrefs++;
-				enum varsize oldvarsize = ret.varsize;
+				unsigned oldvarsize = ret.varsize;
 				ret.varsize = get_varsize_from_instr(code, codecount, x+1);
 				if(!ret.varsize) switch(code[x+1]) {
 				case SCMD_REGTOREG:
@@ -344,7 +344,7 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 						code[x+2] == AR_MAR &&
 						code[x+4] == SCMD_CALLOBJ &&
 						code[x+3] == code[x+5]) {
-						ret.varsize = vs4;
+						ret.varsize = 4;
 					}
 					break;
 				case SCMD_MUL:
@@ -353,7 +353,7 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 						code[x+2] != AR_MAR &&
 						code[x+4] == SCMD_MEMREADPTR &&
 						code[x+5] == AR_MAR)
-						ret.varsize = vs4;
+						ret.varsize = 4;
 					// muli is used as an array index like:
 					// muli REG, 4; add MAR, REG; PUSH/POP MAR; ...
 					else if(x+11 < codecount &&
@@ -414,7 +414,7 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 					   code[x+5] == AR_MAR &&
 					   code[x+7] == SCMD_CALLOBJ &&
 					   code[x+6] == code[x+8])
-						ret.varsize = vs4;
+						ret.varsize = 4;
 					break;
 				case SCMD_PUSHREG:
 					// ptrget and similar ops are typically preceded by push mar, pop mar
@@ -459,12 +459,22 @@ static int is_all_zeroes(const char* buf, int len) {
 	return 1;
 }
 
+static const char* get_varsize_typename(unsigned varsize) {
+	static const char typenames[][6] = {[0]="ERR", [1]="char", [2]="short", [4]="int"};
+	switch(varsize) {
+		case 0: case 1: case 2: case 4:
+			return typenames[varsize];
+		case 200:
+			return "string";
+	}
+	return 0;
+}
+
 static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 			   struct function_export* exp, size_t expcount,
 			   struct fixup_data *fxd,
 			   unsigned *code, size_t codesize) {
 	if(!size) return 1;
-	static const char*typenames[vsmax] = {[vs0]="ERR", [vs1]="char", [vs2]="short", [vs4]="int", [vs200]="string"};
 
 	size_t fxcount = fxd->count[FIXUP_GLOBALDATA];
 	struct fixup_resolved *gd_fixups_resolved = malloc(sizeof(struct fixup_resolved) * fxcount);
@@ -484,17 +494,17 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	for(i = 0; i < size; ) {
 		struct varinfo vi;
 		if(has_datadata_fixup(i, fxd))
-			vi = (struct varinfo){0,vs4};
+			vi = (struct varinfo){0,4};
 		else {
 			vi = find_fixup_for_globaldata(f, i, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize);
 			if(vi.varsize == 0 && has_datadata_fixup(i+200, fxd))
-				vi.varsize = vs200;
+				vi.varsize = 200;
 		}
 		int x;
 		char *comment = "";
 		sw:
 		switch(vi.varsize) {
-			case vs200:
+			case 200:
 				{
 					off_t savepos = AF_get_pos(a);
 					if(i + 204 <= size) {
@@ -509,35 +519,34 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 						}
 					}
 					AF_set_pos(a, savepos);
-					vi.varsize = vs0;
+					vi.varsize = 0;
 					goto sw;
 				}
-			case vs4:
+			case 4:
 				x = AF_read_int(a);
 				break;
-			case vs2:
+			case 2:
 				x = AF_read_short(a);
 				break;
-			case vs1:
+			case 1:
 				x = ByteArray_readByte(a->b);
 				break;
-			case vs0:
+			case 0:
 				if(vi.numrefs) comment = " ; warning: couldn't determine varsize, default to 1";
 				else comment = " ; unreferenced variable, assuming char";
-				vi.varsize = vs1;
+				vi.varsize = 1;
 				goto sw;
-			case vsmax:
-				assert(0);
 		}
-		char* vn = get_varname(exp, expcount, i);
+		char* vn = get_varname(exp, expcount, i),
+		*tn = get_varsize_typename(vi.varsize);
 		if(has_datadata_fixup(i, fxd)) {
-			if(vn) fprintf(f, "export %s %s = .data + %d%s\n", typenames[vi.varsize], vn, x, comment);
-			else fprintf(f, "%s var%.6zu = .data + %d%s\n", typenames[vi.varsize], i, x, comment);
+			if(vn) fprintf(f, "export %s %s = .data + %d%s\n", tn, vn, x, comment);
+			else fprintf(f, "%s var%.6zu = .data + %d%s\n", tn, i, x, comment);
 		} else {
-			if(vn) fprintf(f, "export %s %s = %d%s\n", typenames[vi.varsize], vn, x, comment);
-			else fprintf(f, "%s var%.6zu = %d%s\n", typenames[vi.varsize], i, x, comment);
+			if(vn) fprintf(f, "export %s %s = %d%s\n", tn, vn, x, comment);
+			else fprintf(f, "%s var%.6zu = %d%s\n", tn, i, x, comment);
 		}
-		i += (const unsigned[vsmax]) {[vs0]=0, [vs1]=1, [vs2]=2, [vs4]=4, [vs200]=200} [vi.varsize];
+		i += vi.varsize;
 	}
 	free(gd_fixups_resolved);
 	return 1;
