@@ -176,9 +176,19 @@ static int asm_data(AS* a) {
 			vs = 4;
 		else if(memcmp(p, "short", 5) == 0)
 			vs = 2;
-		else if(memcmp(p, "char", 4) == 0)
+		else if(memcmp(p, "char", 4) == 0) {
 			vs = 1;
-		else if(memcmp(p, "string", 6) == 0)
+			if(p[4] == '[') {
+				vs = atoi(p+5);
+				char *q = p+5;
+				while(isdigit(*q) && q < pend) q++;
+				if(vs == 0 || *q != ']') {
+					dprintf(2, "error: expected number > 0 and ']' after '['\n");
+					return 0;
+				}
+			}
+			else vs = 1;
+		} else if(memcmp(p, "string", 6) == 0)
 			vs = 200;
 		else {
 			dprintf(2, "error: expected int, short, char, or string\n");
@@ -213,9 +223,10 @@ static int asm_data(AS* a) {
 			value = atoi(p);
 			write_var:
 			switch (vs) {
-				case 200:
-					for(value = 0; value < 20; value++)
+				default:
+					for(value = vs; value >= 10; value-=10)
 						ByteArray_writeMem(a->data, (void*)"\0\0\0\0\0\0\0\0\0\0", 10);
+					while(value--) ByteArray_writeUnsignedByte(a->data, 0);
 					break;
 				case 4:
 					ByteArray_writeInt(a->data, value);
@@ -226,8 +237,6 @@ static int asm_data(AS* a) {
 				case 1:
 					ByteArray_writeUnsignedByte(a->data, value);
 					break;
-				default:
-					assert(0);
 			}
 		}
 		if(exportflag) add_export(a, EXPORT_DATA, var, data_pos);

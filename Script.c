@@ -470,6 +470,24 @@ static const char* get_varsize_typename(unsigned varsize) {
 	return 0;
 }
 
+static struct varinfo get_varinfo_from_code(
+	unsigned *code, size_t codesize,
+	size_t offset,
+	struct fixup_data *fxd,
+	struct fixup_resolved *gd_fixups_resolved,
+	FILE *f)
+{
+		struct varinfo vi;
+		if(has_datadata_fixup(offset, fxd))
+			vi = (struct varinfo){0,4};
+		else {
+			vi = find_fixup_for_globaldata(f, offset, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize);
+			if(vi.varsize == 0 && has_datadata_fixup(offset+200, fxd))
+				vi.varsize = 200;
+		}
+		return vi;
+}
+
 static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 			   struct function_export* exp, size_t expcount,
 			   struct fixup_data *fxd,
@@ -492,16 +510,10 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	AF_set_pos(a, start);
 
 	for(i = 0; i < size; ) {
-		struct varinfo vi;
-		if(has_datadata_fixup(i, fxd))
-			vi = (struct varinfo){0,4};
-		else {
-			vi = find_fixup_for_globaldata(f, i, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize);
-			if(vi.varsize == 0 && has_datadata_fixup(i+200, fxd))
-				vi.varsize = 200;
-		}
+		struct varinfo vi = get_varinfo_from_code(code, codesize, i, fxd, gd_fixups_resolved, f);
 		int x;
 		char *comment = "";
+		int is_str = 0;
 		sw:
 		switch(vi.varsize) {
 			case 200:
@@ -515,6 +527,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 						if(x == i && is_all_zeroes(buf, 200)) {
 							x = 0;
 							AF_set_pos(a, savepos + 200);
+							is_str = 1;
 							break;
 						}
 					}
@@ -532,13 +545,34 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 				x = ByteArray_readByte(a->b);
 				break;
 			case 0:
-				if(vi.numrefs) comment = " ; warning: couldn't determine varsize, default to 1";
-				else comment = " ; unreferenced variable, assuming char";
 				vi.varsize = 1;
-				goto sw;
+				x = ByteArray_readByte(a->b);
+				if(vi.numrefs) comment = " ; warning: couldn't determine varsize, default to 1";
+				else {
+					comment = " ; unreferenced variable, assuming char";
+					if(x) break;
+					struct varinfo vi2;
+					size_t j = i;
+					while(++j < size) {
+						vi2 = get_varinfo_from_code(code, codesize, j, fxd, gd_fixups_resolved, f);
+						if(vi2.varsize || vi.numrefs) break;
+						x = ByteArray_readByte(a->b);
+						if(x) {
+							ByteArray_set_position_rel(a->b, -1);
+							x = 0;
+							break;
+						}
+						++vi.varsize;
+					}
+				}
+				break;
 		}
 		char* vn = get_varname(exp, expcount, i),
-		*tn = get_varsize_typename(vi.varsize);
+		*tn = get_varsize_typename(vi.varsize), buf[32];
+		if(!tn || (vi.varsize == 200 && !is_str)) {
+			snprintf(buf, sizeof buf, "char[%u]", vi.varsize);
+			tn = buf;
+		}
 		if(has_datadata_fixup(i, fxd)) {
 			if(vn) fprintf(f, "export %s %s = .data + %d%s\n", tn, vn, x, comment);
 			else fprintf(f, "%s var%.6zu = .data + %d%s\n", tn, i, x, comment);
