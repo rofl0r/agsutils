@@ -8,7 +8,7 @@
 *.out
 *.rcb
 *.pack
-*.exe
+#*.exe
 *.s
 *.cfg
 *.dat
