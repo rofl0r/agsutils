@@ -8,6 +8,7 @@ PROGS_SRCS = \
 	agssemble.c \
 	agsdisas.c \
 	agssim.c \
+	agsprite.c \
 	agsinject.c
 
 PROGS_OBJS =  $(PROGS_SRCS:.c=.o)
@@ -26,6 +27,7 @@ LIB_SRCS = \
 	Script.c \
 	preproc.c \
 	tokenizer.c \
+	SpriteFile.c \
 	StringEscape.c
 
 LIB_OBJS =  $(LIB_SRCS:.c=.o)
