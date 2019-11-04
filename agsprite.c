@@ -91,7 +91,7 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 	struct TargaHeader hdr = {
 		.idlength = 0,
 		.colourmaptype = bpp == 1 ? 1 : 0,
-		.datatypecode = bpp == 1 ? 1: 2,
+		.datatypecode = bpp == 1 ? TIT_COLOR_MAPPED : ITI_TRUE_COLOR,
 		.colourmaporigin = 0,
 		.colourmaplength = bpp == 1 ? le16(palcount) : 0,
 		.colourmapdepth = bpp == 1 ? 24 : 0,
