@@ -7,8 +7,6 @@
 #include "Targa.h"
 #include <assert.h>
 
-#define CONVERT_32_TO_24
-
 static int lookup_palette(unsigned color, unsigned *palette, int ncols)
 {
 	int i;
@@ -59,6 +57,86 @@ static int create_palette_pic(const ImageData* d, unsigned *palette, unsigned ch
 	return ret;
 }
 
+#define rle_read_col(OUT, IDX) \
+	for(OUT=0, i=0; i<bpp;++i) {OUT |= (q[bpp*(IDX)+i] << (i*8));}
+static unsigned rle_encode(unsigned char *data, unsigned data_size, unsigned bpp, unsigned char** result)
+{
+	/* worst case length: entire file consisting of sequences of 2
+	   identical, and one different pixel, resulting in
+	   1 byte flag + 1 pixel + 1 byte flag + 1 pixel. in the case of
+	   8 bit, that's 1 byte overhead every 3 pixels. */
+	unsigned char *out = malloc(data_size + 1 + (data_size/bpp/3));
+	if(!out) return 0;
+	unsigned char *p = out, *q = data;
+	unsigned i, count = 0, togo = data_size/bpp, repcol;
+	unsigned mode = 0; /* 0: stateless, 1: series: 2: repetition */
+	unsigned jump_flag;
+	while(1) {
+		jump_flag = 0;
+		unsigned col[2] = {0};
+		if(togo) {
+			rle_read_col(col[0], count);
+			if(togo>1 && mode < 2) rle_read_col(col[1], count+1);
+		} else {
+			if(count) goto write_series;
+			else break;
+		}
+		switch(mode) {
+		case 0:
+			if(togo>1) {
+				if(col[0] == col[1]) {
+		start_rep:
+					mode = 2;
+					repcol = col[0];
+				} else {
+		start_series:
+					mode = 1;
+				}
+				count = 1;
+			} else {
+				goto start_series;
+			}
+			break;
+		case 1:
+			if(togo>1) {
+				if(col[0] == col[1]) {
+					jump_flag = 1;
+					goto write_series;
+				} else {
+		advance:
+					if(++count == 128) {
+		write_series:
+						*(p++) = ((mode - 1) << 7) | (count - 1);
+						if(mode == 1) for(i=0;i<count*bpp;++i)
+							*(p++) = *(q++);
+						else {
+							for(i=0;i<bpp*8;i+=8)
+								*(p++) = (repcol & (0xff << i)) >> i;
+							q += count * bpp;
+						}
+						if(!togo) goto done;
+						if(jump_flag == 1) goto start_rep;
+						if(jump_flag == 2) goto start_series;
+						mode = 0;
+						count = 0;
+					}
+				}
+			} else goto advance;
+			break;
+		case 2:
+			if(col[0] == repcol) goto advance;
+			else {
+				jump_flag = 2;
+				goto write_series;
+			}
+		}
+		togo--;
+	}
+done:
+	*result = out;
+	return p-out;
+}
+
 static void write_tga(char *name, ImageData* d, unsigned char *palette)
 {
 	unsigned pal[256];
@@ -88,10 +166,20 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 		data = paldata;
 		data_size = d->width*d->height;
 	}
+	unsigned char *rle_data = 0;
+	unsigned rle_data_size = rle_encode(data, data_size, bpp, &rle_data);
+	int use_rle = 0;
+	if(rle_data && rle_data_size < data_size) {
+		data_size = rle_data_size;
+		data = rle_data;
+		use_rle = 1;
+	}
 	struct TargaHeader hdr = {
 		.idlength = 0,
 		.colourmaptype = bpp == 1 ? 1 : 0,
-		.datatypecode = bpp == 1 ? TIT_COLOR_MAPPED : ITI_TRUE_COLOR,
+		.datatypecode = bpp == 1 ?
+				(use_rle ? TIT_RLE_COLOR_MAPPED : TIT_COLOR_MAPPED) :
+				(use_rle ? TIT_RLE_TRUE_COLOR : TIT_TRUE_COLOR),
 		.colourmaporigin = 0,
 		.colourmaplength = bpp == 1 ? le16(palcount) : 0,
 		.colourmapdepth = bpp == 1 ? 24 : 0,
@@ -99,11 +187,7 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 		.y_origin = le16(d->height), /* image starts at the top */
 		.width = le16(d->width),
 		.height = le16(d->height),
-#ifdef CONVERT_32_TO_24
-		.bitsperpixel = bpp == 4 ? 24 : (bpp*8),
-#else
 		.bitsperpixel = bpp*8,
-#endif
 		.imagedescriptor = 0x20, /* image starts at the top */
 	};
 	fwrite(&hdr, 1, sizeof hdr, f);
@@ -112,14 +196,10 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 		tmp = le32(pal[i]);
 		fwrite(&tmp, 1, 3, f);
 	}
-#ifdef CONVERT_32_TO_24
-	if (bpp == 4) for(i=0; i<data_size; i+=4) {
-		fwrite(data+i, 1, 3, f);
-	} else
-#endif
-		fwrite(data, 1, data_size, f);
+	fwrite(data, 1, data_size, f);
 	fclose(f);
 	free(paldata);
+	free(rle_data);
 }
 
 static int usage(char *a) {
