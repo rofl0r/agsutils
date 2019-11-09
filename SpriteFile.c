@@ -131,7 +131,7 @@ static int ags_unpack(ImageData *d) {
 }
 
 int SpriteFile_extract(AF* f, SpriteFile *sf, int spriteno, ImageData *data) {
-	if(spriteno >= sf->num_sprites) return 0;
+	if(spriteno >= sf->num_sprites+1) return 0;
 	if(sf->offsets[spriteno] == 0) return 0;
 	AF_set_pos(f, sf->offsets[spriteno]);
 	data->bytesperpixel = AF_read_short(f);

@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	int i;
-	for(i=0; i<sf.num_sprites; i++) {
+	for(i=0; i<sf.num_sprites+1; i++) {
 		ImageData d;
 		if(SpriteFile_extract(&f, &sf, i, &d)) {
 			char namebuf[64];
