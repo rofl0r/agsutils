@@ -1,7 +1,10 @@
 #include "File.h"
 #include "SpriteFile.h"
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "endianness.h"
 #include "BitmapFuncs.h"
 #include "Targa.h"
@@ -218,6 +221,10 @@ int main(int argc, char **argv) {
 
 	char* file = argv[1];
 	char *dir = argv[2];
+
+	if(access(dir, R_OK) == -1 && errno == ENOENT) {
+		mkdir(dir,  S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+	}
 
 	AF f;
 	SpriteFile sf;
