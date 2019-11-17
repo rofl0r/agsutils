@@ -3,46 +3,9 @@
 #include <assert.h>
 
 static int alloc_sprite_index(SpriteFile *si, int nsprites) {
-#if 0
-	si->heights = malloc(nsprites*2);
-	si->widths  = malloc(nsprites*2);
-#endif
 	si->offsets = malloc(nsprites*4);
 	return 1;
 }
-
-#if 0
-static int read_sprite_index(int id, int nsprites, SpriteFile *si) {
-	AF f;
-	int ret, result = 0;
-	ret = AF_open(&f, "sprindex.dat");
-	if(!ret) return 0;
-	char buf[8];
-	ssize_t n = AF_read(&f, buf, 8);
-	if(n != 9 || memcmp(buf, "SPRINDEX", 8)) goto err;
-	int version = AF_read_int(&f);
-	if(version < 1 || version > 2) goto err;
-	if(version >= 2 && AF_read_int(&f) != id) goto err;
-	if(AF_read_int(&f) != nsprites) goto err;
-
-	int numsprits = nsprites+1;
-	if(AF_read_int(&f) != numsprits) goto err;
-
-	int i;
-	for(i=0; i<numsprits; ++i) si->widths[i] = AF_read_short(&f);
-	for(i=0; i<numsprits; ++i) si->heights[i] = AF_read_short(&f);
-	for(i=0; i<numsprits; ++i) si->offsets[i] = AF_read_uint(&f);
-	for(i=1; i<numsprits; ++i) if(si->offsets[i] == 0) {
-		si->widths[i]  = 0;
-		si->heights[i] = 0;
-	}
-
-	result = 1;
-err:
-	AF_close(&f);
-	return result;
-}
-#endif
 
 typedef signed char* (*readfunc)(signed char *in, unsigned *out);
 
@@ -176,37 +139,7 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 	if(sf->version < 4) sf->num_sprites = 200;
 	sf->num_sprites++;
 	alloc_sprite_index(sf, sf->num_sprites);
-#if 0
-	/* why bother the hassle to load a different file?
-	   we need to parse the rest anyway since the sprindex.dat
-	   could be missing. */
-	if(read_sprite_index(sf->id, sf->num_sprites, &sf))
-		return 1;
-	/* sprite index invalid or missing */
-#endif
 
-#if 0
-	int i;
-	for(i = 0; i < sf->num_sprites+1; ++i) {
-		si->offsets[i] = AF_get_pos(f);
-		int coldep = AF_read_short(f);
-		if(!coldep) {
-			si->offsets[i] = 0;
-			si->widths[i] = 0;
-			si->heights[i] = 0;
-			//if eof break
-			continue;
-		}
-		//if eof break
-		si->widths [i] = AF_read_short(f);
-		si->heights[i] = AF_read_short(f);
-		unsigned sprite_data_size;
-		if(sf->version == 5) sprite_data_size = AF_read_uint(f);
-		else sprite_data_size = coldep * si->widths[i] * si->heights[i];
-		/* sprite data */
-		AF_read_junk(f, sprite_data_size);
-	}
-#else
 	int i;
 	for(i = 0; i < sf->num_sprites; ++i) {
 		sf->offsets[i] = AF_get_pos(f);
@@ -222,6 +155,5 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 		else sprite_data_size = coldep * w * h;
 		AF_read_junk(f, sprite_data_size);
 	}
-#endif
 	return 1;
 }
