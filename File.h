@@ -9,6 +9,7 @@ typedef struct AgsFile {
 	struct ByteArray *b;
 } AF;
 
+/* 0: error, 1: success */
 int AF_open(AF *f, char* fn);
 void AF_close(AF* f);
 
