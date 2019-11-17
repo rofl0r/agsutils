@@ -9,6 +9,8 @@
 #include "BitmapFuncs.h"
 #include "Targa.h"
 #include <assert.h>
+#include "version.h"
+#define ADS ":::AGSprite " VERSION " by rofl0r:::"
 
 static int lookup_palette(unsigned color, unsigned *palette, int ncols)
 {
@@ -239,21 +241,46 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "error reading spritefile %s\n", file);
 		return 1;
 	}
+	FILE *info = 0;
+	{
+		char buf[1024];
+		if(sf.palette) {
+			snprintf(buf, sizeof buf, "%s/agsprite.pal", dir);
+			FILE *pal = fopen(buf, "w");
+			if(!pal) goto ferr;
+			fwrite(sf.palette, 1, 256*3, pal);
+			fclose(pal);
+		}
+		snprintf(buf, sizeof buf, "%s/agsprite.info", dir);
+		info = fopen(buf, "w");
+		if(!info) {
+		ferr:
+			fprintf(stderr, "error opening %s\n", buf);
+			return 1;
+		}
+		fprintf(info,
+		"info=infofile created by " ADS "\n"
+		"info=this file is needed to reconstruct acsprset.spr\n"
+		"spritecacheversion=%d\n"
+		"spritecount=%d\n"
+		"id=%d\n"
+		"palette=%s\n"
+		, sf.version, sf.num_sprites, sf.id, sf.palette ? "agsprite.pal" : ""
+		);
+	}
 	int i;
 	for(i=0; i<sf.num_sprites; i++) {
 		ImageData d;
 		if(SpriteFile_extract(&f, &sf, i, &d)) {
 			char namebuf[64];
-			switch(d.bytesperpixel) {
-			case 1:
-			case 2:
-			case 3:
-			case 4:
-				snprintf(namebuf, sizeof namebuf, "%s/sprite%06d_%02d_%dx%d.tga", dir, i, d.bytesperpixel*8, d.width, d.height);
-				write_tga(namebuf, &d, sf.palette);
-			}
+			snprintf(namebuf, sizeof namebuf, "sprite%06d_%02d_%dx%d.tga", i, d.bytesperpixel*8, d.width, d.height);
+			fprintf(info, "%d=%s\n", i, namebuf);
+			char filename[1024];
+			snprintf(filename, sizeof filename, "%s/%s", dir, namebuf);
+			write_tga(filename, &d, sf.palette);
 			free(d.data);
 		}
 	}
+	fclose(info);
 	return 0;
 }
