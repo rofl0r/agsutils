@@ -3,12 +3,11 @@
 #include <assert.h>
 
 static int alloc_sprite_index(SpriteFile *si, int nsprites) {
-	int numsprits = nsprites + 1;
 #if 0
-	si->heights = malloc(numsprits*2);
-	si->widths  = malloc(numsprits*2);
+	si->heights = malloc(nsprites*2);
+	si->widths  = malloc(nsprites*2);
 #endif
-	si->offsets = malloc(numsprits*4);
+	si->offsets = malloc(nsprites*4);
 	return 1;
 }
 
@@ -175,6 +174,7 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 
 	sf->num_sprites = AF_read_ushort(f);
 	if(sf->version < 4) sf->num_sprites = 200;
+	sf->num_sprites++;
 	alloc_sprite_index(sf, sf->num_sprites);
 #if 0
 	/* why bother the hassle to load a different file?
@@ -208,7 +208,7 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 	}
 #else
 	int i;
-	for(i = 0; i < sf->num_sprites+1; ++i) {
+	for(i = 0; i < sf->num_sprites; ++i) {
 		sf->offsets[i] = AF_get_pos(f);
 		int coldep = AF_read_short(f);
 		if(!coldep) {
