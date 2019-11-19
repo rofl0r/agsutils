@@ -23,24 +23,24 @@ signed char *readfunc32(signed char *in, unsigned *out) {
 	*out = (i[0] << 24) | (i[1] << 16) | (i[2] << 8) | i[3];
 	return in+4;
 }
-typedef void (*writefunc)(signed char *out, int n, unsigned value);
-void writefunc8(signed char *out, int n, unsigned value) {
-	out[n] = value;
-}
-void writefunc16(signed char *out, int n, unsigned value) {
-	out+=n*2;
-	out[0] = (value & 0xff00) >> 8;
-	out[1] = (value & 0xff) >> 0;
-}
-void writefunc32(signed char *out, int n, unsigned value) {
-	out+=n*4;
-	out[0] = (value & 0xff000000) >> 24;
-	out[1] = (value & 0xff0000) >> 16;
-	out[2] = (value & 0xff00) >> 8;
-	out[3] = (value & 0xff) >> 0;
+
+static void writefunc_n(unsigned char *out, int n, unsigned value, int bpp)
+{
+	out+=n*bpp;
+	unsigned i = 0;
+	switch(bpp) {
+	default:
+		out[i++] = (value & 0xff000000) >> 24; /*fall-through*/
+	case 3:
+		out[i++] = (value & 0xff0000) >> 16; /*fall-through*/
+	case 2:
+		out[i++] = (value & 0xff00) >> 8; /*fall-through*/
+	case 1:
+		out[i++] = (value & 0xff) >> 0; /*fall-through*/
+	}
 }
 
-static char* unpackl(signed char *out, signed char *in, int size, readfunc rf, writefunc wf)
+static char* unpackl(signed char *out, signed char *in, int size, readfunc rf, int bpp)
 {
 	int n = 0;
 	while (n < size) {
@@ -52,14 +52,14 @@ static char* unpackl(signed char *out, signed char *in, int size, readfunc rf, w
 			in = rf(in, &val);
 			while(i--) {
 				if (n >= size) return 0;
-				wf(out, n++, val);
+				writefunc_n(out, n++, val, bpp);
 			}
 		} else {
 			int i = c + 1;
 			while (i--) {
 				if (n >= size) return 0;
 				in = rf(in, &val);
-				wf(out, n++, val);
+				writefunc_n(out, n++, val, bpp);
 			}
 		}
 	}
@@ -74,13 +74,13 @@ static int ags_unpack(ImageData *d) {
 	for(y = 0; y < d->height; ++y, q+=d->width*d->bytesperpixel) {
 		switch(d->bytesperpixel) {
 		case 1:
-			p = unpackl(q, p, d->width, readfunc8, writefunc8);
+			p = unpackl(q, p, d->width, readfunc8, d->bytesperpixel);
 			break;
 		case 2:
-			p = unpackl(q, p, d->width, readfunc16, writefunc16);
+			p = unpackl(q, p, d->width, readfunc16, d->bytesperpixel);
 			break;
 		case 4:
-			p = unpackl(q, p, d->width, readfunc32, writefunc32);
+			p = unpackl(q, p, d->width, readfunc32, d->bytesperpixel);
 			break;
 		default: assert(0);
 		}
