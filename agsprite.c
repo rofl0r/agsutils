@@ -173,30 +173,6 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 	free(rle_data);
 }
 
-static int usage(char *a) {
-	printf(	"%s ACTIONSTR acsprset.spr DIR\n"
-		"ACTIONSTR can be x - extract or c - pack\n"
-		"optionally followed by option characters.\n\n"
-		"option characters:\n"
-		"v - be verbose (both)\n"
-		"u - don't use RLE compression if v >= 6 (pack)\n"
-		"\n"
-		"extract mode:\n"
-		"extracts all sprites from acsprset.spr to DIR\n"
-		"due to the way sprite packs work, for some versions\n"
-		"8 bit images are stored without palette (dynamically\n"
-		"assigned during game). in such a case a random palette\n"
-		"is generated.\n\n"
-		"pack mode:\n"
-		"packs files in DIR to acsprset.spr\n"
-		"image files need to be in tga format\n\n"
-		"examples:\n"
-		"%s xv acsprset.spr IMAGES/\n"
-		"%s cu test.spr IMAGES/\n"
-		, a, a, a);
-	return 1;
-}
-
 static int extract(char* file, char* dir) {
 	if(access(dir, R_OK) == -1 && errno == ENOENT) {
 		mkdir(dir,  S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -547,6 +523,30 @@ static int parse_argstr(char *arg)
 		++arg;
 	}
 	return flags;
+}
+
+static int usage(char *a) {
+	printf(	"%s ACTIONSTR acsprset.spr DIR\n"
+		"ACTIONSTR can be x - extract or c - pack\n"
+		"optionally followed by option characters.\n\n"
+		"option characters:\n"
+		"v - be verbose (both)\n"
+		"u - don't use RLE compression if v >= 6 (pack)\n"
+		"\n"
+		"extract mode:\n"
+		"extracts all sprites from acsprset.spr to DIR\n"
+		"due to the way sprite packs work, for some versions\n"
+		"8 bit images are stored without palette (dynamically\n"
+		"assigned during game). in such a case a random palette\n"
+		"is generated.\n\n"
+		"pack mode:\n"
+		"packs files in DIR to acsprset.spr\n"
+		"image files need to be in tga format\n\n"
+		"examples:\n"
+		"%s xv acsprset.spr IMAGES/\n"
+		"%s cu test.spr IMAGES/\n"
+		, a, a, a);
+	return 1;
 }
 
 int main(int argc, char **argv) {
