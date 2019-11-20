@@ -18,7 +18,13 @@
 #else
 #define breakpoint() do{}while(0)
 #endif
-static int debug_pic = -1, verbose;
+
+#define FL_EXTRACT 1<<0
+#define FL_PACK 1<<1
+#define FL_VERBOSE 1<<2
+#define FL_UNCOMPRESSED 1<<3
+
+static int debug_pic = -1, flags;
 
 static int lookup_palette(unsigned color, unsigned *palette, int ncols)
 {
@@ -172,7 +178,8 @@ static int usage(char *a) {
 		"ACTIONSTR can be x - extract or c - pack\n"
 		"optionally followed by option characters.\n\n"
 		"option characters:\n"
-		"v - be verbose\n"
+		"v - be verbose (both)\n"
+		"u - don't use RLE compression if v >= 6 (pack)\n"
 		"\n"
 		"extract mode:\n"
 		"extracts all sprites from acsprset.spr to DIR\n"
@@ -183,8 +190,10 @@ static int usage(char *a) {
 		"pack mode:\n"
 		"packs files in DIR to acsprset.spr\n"
 		"image files need to be in tga format\n\n"
-		"example: %s xv acsprset.spr IMAGES/\n"
-		, a, a);
+		"examples:\n"
+		"%s xv acsprset.spr IMAGES/\n"
+		"%s cu test.spr IMAGES/\n"
+		, a, a, a);
 	return 1;
 }
 
@@ -200,7 +209,7 @@ static int extract(char* file, char* dir) {
 		fprintf(stderr, "error opening %s\n", file);
 		return 1;
 	}
-	if(verbose) printf("processing spritefile TOC...\n");
+	if(flags & FL_VERBOSE) printf("processing spritefile TOC...\n");
 	ret = SpriteFile_read(&f, &sf);
 	if(!ret) {
 		fprintf(stderr, "error reading spritefile %s\n", file);
@@ -241,7 +250,7 @@ static int extract(char* file, char* dir) {
 			char namebuf[64];
 			snprintf(namebuf, sizeof namebuf, "sprite%06d_%02d_%dx%d.tga", i, d.bytesperpixel*8, d.width, d.height);
 			fprintf(info, "%d=%s\n", i, namebuf);
-			if(verbose) printf("extracting sprite %d (%s)\n", i, namebuf);
+			if(flags & FL_VERBOSE) printf("extracting sprite %d (%s)\n", i, namebuf);
 			char filename[1024];
 			snprintf(filename, sizeof filename, "%s/%s", dir, namebuf);
 			write_tga(filename, &d, sf.palette);
@@ -471,6 +480,8 @@ static int pack(char* file, char* dir) {
 					fprintf(stderr, "error opening %s\n", file);
 					return 1;
 				}
+				/* default to compressed, if possible, and unless overridden */
+				sf.compressed = !(flags&FL_UNCOMPRESSED);
 				SpriteFile_write_header(out, &sf);
 			}
 		}
@@ -480,7 +491,7 @@ static int pack(char* file, char* dir) {
 			/* FIXME: use sscanf */
 			if(strstr(p, "_08_")) org_bpp = 1;
 			else if(strstr(p, "_16_")) org_bpp = 2;
-			if(verbose) printf("adding %d (%s)\n", n, p);
+			if(flags & FL_VERBOSE) printf("adding %d (%s)\n", n, p);
 			if(debug_pic == n) breakpoint();
 
 			while(sf.num_sprites < n) SpriteFile_add(out, &sf, &(ImageData){0});
@@ -511,9 +522,6 @@ static int pack(char* file, char* dir) {
 	return 0;
 }
 
-#define FL_EXTRACT 1<<0
-#define FL_PACK 1<<1
-#define FL_VERBOSE 1<<2
 static int parse_argstr(char *arg)
 {
 	const struct flagmap {
@@ -523,6 +531,7 @@ static int parse_argstr(char *arg)
 		{ 'x', FL_EXTRACT},
 		{ 'c', FL_PACK},
 		{ 'v', FL_VERBOSE},
+		{ 'u', FL_UNCOMPRESSED},
 		{0, 0},
 	};
 	int flags = 0, i;
@@ -542,7 +551,6 @@ static int parse_argstr(char *arg)
 
 int main(int argc, char **argv) {
 
-	int flags;
 	if(argc != 4 || !(flags = parse_argstr(argv[1]))
 	|| !((flags & FL_EXTRACT) || (flags & FL_PACK))
 	|| ((flags&FL_EXTRACT)&&(flags&FL_PACK)) )
@@ -551,7 +559,6 @@ int main(int argc, char **argv) {
 	char* file = argv[2];
 	char *dir = argv[3];
 	if(getenv("DEBUG")) debug_pic = atoi(getenv("DEBUG"));
-	if(flags & FL_VERBOSE) verbose = 1;
 
 	if(flags & FL_EXTRACT) return extract(file, dir);
 	else return pack(file, dir);

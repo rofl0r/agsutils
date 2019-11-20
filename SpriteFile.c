@@ -175,7 +175,7 @@ int SpriteFile_extract(AF* f, SpriteFile *sf, int spriteno, ImageData *data) {
 	data->bytesperpixel = AF_read_short(f);
 	data->width  = AF_read_short(f);
 	data->height = AF_read_short(f);
-	if(sf->version == 5 || sf->compressed) data->data_size = AF_read_uint(f);
+	if(sf->compressed) data->data_size = AF_read_uint(f);
 	else data->data_size = data->bytesperpixel * data->width * data->height;
 	data->data = malloc(data->data_size);
 	if(!data->data) return 0;
@@ -201,10 +201,15 @@ oops:
 int SpriteFile_write_header(FILE *f, SpriteFile *sf) {
 	f_write_short(f, sf->version);
 	if(13 != f_write(f, " Sprite File ", 13)) return 0;
-	/* we write only compressed format if we can */
-	sf->compressed = (sf->version >= 5);
+	switch(sf->version) {
+		/* override user-set compression setting,
+		if required by chosen format */
+		case 5: sf->compressed = 1; break;
+		case 4: sf->compressed = 0; break;
+		/* in case of version >= 6, set by caller*/
+	}
 	if(sf->version >= 6) {
-		if(1 != f_write(f, "\1", 1)) return 0;
+		if(1 != f_write(f, "\0\1"+(!!sf->compressed), 1)) return 0;
 		f_write_int(f, sf->id);
 	} else if (sf->version < 5) {
 		if(3*256 != f_write(f, sf->palette, 3*256))
@@ -275,7 +280,7 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 		int w = AF_read_short(f);
 		int h = AF_read_short(f);
 		unsigned sprite_data_size;
-		if(sf->version == 5 || sf->compressed) sprite_data_size = AF_read_uint(f);
+		if(sf->compressed) sprite_data_size = AF_read_uint(f);
 		else sprite_data_size = coldep * w * h;
 		AF_read_junk(f, sprite_data_size);
 	}
