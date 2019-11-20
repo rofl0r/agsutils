@@ -28,6 +28,7 @@ LIB_SRCS = \
 	preproc.c \
 	tokenizer.c \
 	SpriteFile.c \
+	rle.c \
 	StringEscape.c
 
 LIB_OBJS =  $(LIB_SRCS:.c=.o)

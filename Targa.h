@@ -25,4 +25,14 @@ enum TargaImageType {
 	TIT_RLE_BLACK_WHITE = 11,
 };
 
+struct TargaFooter {
+   unsigned extensionareaoffset;
+   unsigned developerdirectoryoffset;
+   char signature[16];
+   char dot;
+   char null;
+} __attribute__((packed, aligned (1)));
+
+#define TARGA_FOOTER_SIGNATURE "TRUEVISION-XFILE"
+
 #endif

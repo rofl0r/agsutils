@@ -3,7 +3,7 @@
 #include <assert.h>
 
 static int alloc_sprite_index(SpriteFile *si, int nsprites) {
-	si->offsets = malloc(nsprites*4);
+	si->offsets = calloc(4, nsprites);
 	return 1;
 }
 
@@ -72,7 +72,95 @@ static int ags_unpack(ImageData *d) {
 	if(!out) return 0;
 	for(y = 0; y < d->height; ++y, q+=d->width*d->bytesperpixel) {
 		p = unpackl(q, p, d->width, d->bytesperpixel);
-		assert(p);
+	}
+	free(d->data);
+	d->data = out;
+	d->data_size = outsize;
+	return 1;
+}
+
+static unsigned readfunc_p(unsigned char *in, int n, int bpp)
+{
+	unsigned out = 0;
+	in += n*bpp;
+	switch(bpp) {
+	default:
+		out |= (*(in++) << 24); /*fall-through*/
+	case 3:
+		out |= (*(in++) << 16); /*fall-through*/
+	case 2:
+		out |= (*(in++) << 8); /*fall-through*/
+	case 1:
+		out |= (*(in++) << 0); /*fall-through*/
+	}
+	return out;
+}
+
+static void* writefunc_p(unsigned char *out, unsigned value, int bpp)
+{
+	switch(bpp) {
+	default:
+		*(out++) = (value & 0xff000000) >> 24; /*fall-through*/
+	case 3:
+		*(out++) = (value & 0xff0000) >> 16; /*fall-through*/
+	case 2:
+		*(out++) = (value & 0xff00) >> 8; /*fall-through*/
+	case 1:
+		*(out++) = (value & 0xff) >> 0; /*fall-through*/
+	}
+	return out;
+}
+
+
+static char* packl(unsigned char *out, unsigned char *in, int size, int bpp)
+{
+	int n = 0;
+	unsigned col;
+	while (n < size) {
+		int i = n, j = n + 1, jmax = j + 126;
+		if (jmax >= size) jmax = size - 1;
+		if (i == size - 1) {
+			col = readfunc_p(in, n++, bpp);
+			out = writefunc_p(out, 0, 1);
+			out = writefunc_p(out, col, bpp);
+		} else if(readfunc_p(in, i, bpp) == readfunc_p(in, j, bpp)) {
+			while((j < jmax) && (readfunc_p(in, j, bpp) == readfunc_p(in, j + 1, bpp))) ++j;
+			col = readfunc_p(in, i, bpp);
+			out = writefunc_p(out, i-j, 1);
+			out = writefunc_p(out, col, bpp);
+			n += j - i + 1;
+		} else {
+			while ((j < jmax) && (readfunc_p(in, j, bpp) != readfunc_p(in, j + 1, bpp))) ++j;
+			int c = j - i;
+			out = writefunc_p(out, c++, 1);
+			memcpy(out, in+i*bpp, c*bpp);
+			out += c*bpp;
+			n += c;
+		}
+	}
+	return out;
+}
+
+static int ags_pack(ImageData *d) {
+	/* ags has no code for 24bit images :( */
+	assert(d->bytesperpixel != 3 && d->bytesperpixel <= 4);
+	unsigned y;
+	/* worst case length: entire file consisting of sequences of 2
+	   identical, and one different pixel, resulting in
+	   1 byte flag + 1 pixel + 1 byte flag + 1 pixel. in the case of
+	   8 bit, that's 1 byte overhead every 3 pixels.
+	   since this compression is linebased, additional overhead of
+	   1color/line is accounted for.
+	*/
+	unsigned outsize = d->width*d->height*d->bytesperpixel;
+	outsize += 1 + (outsize/d->bytesperpixel/3) + (d->height*d->bytesperpixel);
+	unsigned char *out = malloc(outsize), *p = d->data, *q = out;
+	outsize = 0;
+	if(!out) return 0;
+	for(y = 0; y < d->height; ++y, p+=d->width*d->bytesperpixel) {
+		unsigned char *next = packl(q, p, d->width, d->bytesperpixel);
+		outsize += (next - q);
+		q = next;
 	}
 	free(d->data);
 	d->data = out;
@@ -98,6 +186,54 @@ oops:
 		return 0;
 	}
 	if(sf->compressed && !ags_unpack(data)) goto oops;
+	return 1;
+}
+
+#include "endianness.h"
+#define f_set_pos(F, P) fseeko(F, P, SEEK_SET)
+#define f_get_pos(F) ftello(F)
+#define f_write(F, P, L) fwrite(P, 1, L, F)
+#define f_write_int(F, I) do { unsigned _x = end_htole32(I); f_write(F, &_x, 4); } while(0)
+#define f_write_uint(F, I) f_write_int(F, I)
+#define f_write_short(F, I) do { unsigned short _x = end_htole16(I); f_write(F, &_x, 2); } while(0)
+#define f_write_ushort(F, I) f_write_short(F, I)
+
+int SpriteFile_write_header(FILE *f, SpriteFile *sf) {
+	f_write_short(f, sf->version);
+	if(13 != f_write(f, " Sprite File ", 13)) return 0;
+	/* we write only compressed format if we can */
+	sf->compressed = (sf->version >= 5);
+	if(sf->version >= 6) {
+		if(1 != f_write(f, "\1", 1)) return 0;
+		f_write_int(f, sf->id);
+	} else if (sf->version < 5) {
+		if(3*256 != f_write(f, sf->palette, 3*256))
+			return 0;
+	}
+	sf->sc_off = f_get_pos(f);
+	f_write_ushort(f, 0); /* number of sprites */
+	sf->num_sprites = 0;
+	return 1;
+}
+
+int SpriteFile_add(FILE *f, SpriteFile *sf, ImageData *data) {
+	f_write_ushort(f, data->bytesperpixel);
+	if(data->bytesperpixel) {
+		f_write_ushort(f, data->width);
+		f_write_ushort(f, data->height);
+		if(sf->compressed) {
+			ags_pack(data);
+			f_write_uint(f, data->data_size);
+		}
+		f_write(f, data->data, data->data_size);
+	}
+	++sf->num_sprites;
+	return 1;
+}
+
+int SpriteFile_finalize(FILE* f, SpriteFile *sf) {
+	f_set_pos(f, sf->sc_off);
+	f_write_ushort(f, sf->num_sprites -1);
 	return 1;
 }
 

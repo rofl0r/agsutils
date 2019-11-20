@@ -8,9 +8,17 @@
 #include "endianness.h"
 #include "BitmapFuncs.h"
 #include "Targa.h"
+#include "rle.h"
 #include <assert.h>
 #include "version.h"
 #define ADS ":::AGSprite " VERSION " by rofl0r:::"
+
+#ifdef __x86_64__
+#define breakpoint() __asm__("int3")
+#else
+#define breakpoint() do{}while(0)
+#endif
+static int debug_pic = -1;
 
 static int lookup_palette(unsigned color, unsigned *palette, int ncols)
 {
@@ -18,6 +26,33 @@ static int lookup_palette(unsigned color, unsigned *palette, int ncols)
 	for(i=0; i<ncols; ++i)
 		if(palette[i] == color) return i;
 	return -1;
+}
+
+static void rgb565_to_888(unsigned lo, unsigned hi, unsigned *r, unsigned *g, unsigned *b)
+{
+	*r = (hi & ~7) | (hi >> 5);
+	*g = ((hi & 7) << 5)  | ((lo & 224) >> 3) | ((hi & 7) >> 1);
+	*b = ((lo & 31) << 3) | ((lo & 28) >> 2);
+}
+
+static int convert_16_to_24(ImageData *d) {
+	size_t outsz = d->width*d->height*3;
+	unsigned char *out = malloc(outsz),
+	*p = out, *pe = out + outsz,
+	*q = d->data;
+	if(!out) return 0;
+	while(p < pe) {
+		unsigned r,g,b;
+		rgb565_to_888(*(q++), *(q++), &r, &g, &b);
+		*(p++) = b;
+		*(p++) = g;
+		*(p++) = r;
+	}
+	free(d->data);
+	d->data = out;
+	d->data_size = outsz;
+	d->bytesperpixel = 3;
+	return 1;
 }
 
 static int create_palette_pic(const ImageData* d, unsigned *palette, unsigned char **data)
@@ -33,9 +68,7 @@ static int create_palette_pic(const ImageData* d, unsigned *palette, unsigned ch
 		case 2: {
 			unsigned lo = *(p++);
 			unsigned hi = *(p++);
-			r = (hi & ~7) | (hi >> 5);
-			g = ((hi & 7) << 5)  | ((lo & 224) >> 3) | ((hi & 7) >> 1);
-			b = ((lo & 31) << 3) | ((lo & 24) >> 3);
+			rgb565_to_888(lo, hi, &r, &g, &b);
 			break; }
 		case 3:
 		case 4:
@@ -62,86 +95,6 @@ static int create_palette_pic(const ImageData* d, unsigned *palette, unsigned ch
 	return ret;
 }
 
-#define rle_read_col(OUT, IDX) \
-	for(OUT=0, i=0; i<bpp;++i) {OUT |= (q[bpp*(IDX)+i] << (i*8));}
-static unsigned rle_encode(unsigned char *data, unsigned data_size, unsigned bpp, unsigned char** result)
-{
-	/* worst case length: entire file consisting of sequences of 2
-	   identical, and one different pixel, resulting in
-	   1 byte flag + 1 pixel + 1 byte flag + 1 pixel. in the case of
-	   8 bit, that's 1 byte overhead every 3 pixels. */
-	unsigned char *out = malloc(data_size + 1 + (data_size/bpp/3));
-	if(!out) return 0;
-	unsigned char *p = out, *q = data;
-	unsigned i, count = 0, togo = data_size/bpp, repcol;
-	unsigned mode = 0; /* 0: stateless, 1: series: 2: repetition */
-	unsigned jump_flag;
-	while(1) {
-		jump_flag = 0;
-		unsigned col[2] = {0};
-		if(togo) {
-			rle_read_col(col[0], count);
-			if(togo>1 && mode < 2) rle_read_col(col[1], count+1);
-		} else {
-			if(count) goto write_series;
-			else break;
-		}
-		switch(mode) {
-		case 0:
-			if(togo>1) {
-				if(col[0] == col[1]) {
-		start_rep:
-					mode = 2;
-					repcol = col[0];
-				} else {
-		start_series:
-					mode = 1;
-				}
-				count = 1;
-			} else {
-				goto start_series;
-			}
-			break;
-		case 1:
-			if(togo>1) {
-				if(col[0] == col[1]) {
-					jump_flag = 1;
-					goto write_series;
-				} else {
-		advance:
-					if(++count == 128) {
-		write_series:
-						*(p++) = ((mode - 1) << 7) | (count - 1);
-						if(mode == 1) for(i=0;i<count*bpp;++i)
-							*(p++) = *(q++);
-						else {
-							for(i=0;i<bpp*8;i+=8)
-								*(p++) = (repcol & (0xff << i)) >> i;
-							q += count * bpp;
-						}
-						if(!togo) goto done;
-						if(jump_flag == 1) goto start_rep;
-						if(jump_flag == 2) goto start_series;
-						mode = 0;
-						count = 0;
-					}
-				}
-			} else goto advance;
-			break;
-		case 2:
-			if(col[0] == repcol) goto advance;
-			else {
-				jump_flag = 2;
-				goto write_series;
-			}
-		}
-		togo--;
-	}
-done:
-	*result = out;
-	return p-out;
-}
-
 static void write_tga(char *name, ImageData* d, unsigned char *palette)
 {
 	unsigned pal[256];
@@ -165,11 +118,16 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 			unsigned b = *(palette++);
 			pal[i] = r << 16 | g << 8 | b ;
 		}
-	} else if((palcount = create_palette_pic(d, pal, &paldata)) > 0) {
+	} else if( /* bpp != 2 && */
+		(palcount = create_palette_pic(d, pal, &paldata)) > 0) {
 		/* can be saved as 8 bit palettized image */
 		bpp = 1;
 		data = paldata;
 		data_size = d->width*d->height;
+	} else if(bpp == 2 && convert_16_to_24(d)) {
+		bpp = 3;
+		data = d->data;
+		data_size = d->data_size;
 	}
 	unsigned char *rle_data = 0;
 	unsigned rle_data_size = rle_encode(data, data_size, bpp, &rle_data);
@@ -208,26 +166,25 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 }
 
 static int usage(char *a) {
-	printf(	"%s acsprset.spr OUTDIR\n"
-		"extracts all sprites from acsprset.spr to OUTDIR\n"
+	printf(	"%s ACTION acsprset.spr DIR\n"
+		"ACTION can be x - extract or c - pack\n\n"
+		"extract mode:\n"
+		"extracts all sprites from acsprset.spr to DIR\n"
 		"due to the way sprite packs work, for some versions\n"
 		"8 bit images are stored without palette (dynamically\n"
 		"assigned during game). in such a case a random palette\n"
-		"is generated.\n", a);
+		"is generated.\n\n"
+		"pack mode:\n"
+		"packs files in DIR to acsprset.spr\n"
+		"image files need to be in tga format\n"
+		, a);
 	return 1;
 }
 
-int main(int argc, char **argv) {
-
-	if(argc != 3) return usage(argv[0]);
-
-	char* file = argv[1];
-	char *dir = argv[2];
-
+static int extract(char* file, char* dir) {
 	if(access(dir, R_OK) == -1 && errno == ENOENT) {
 		mkdir(dir,  S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 	}
-
 	AF f;
 	SpriteFile sf;
 	int ret;
@@ -270,6 +227,7 @@ int main(int argc, char **argv) {
 	}
 	int i;
 	for(i=0; i<sf.num_sprites; i++) {
+		if(debug_pic == i) breakpoint();
 		ImageData d;
 		if(SpriteFile_extract(&f, &sf, i, &d)) {
 			char namebuf[64];
@@ -283,4 +241,276 @@ int main(int argc, char **argv) {
 	}
 	fclose(info);
 	return 0;
+}
+
+static int read_tga(FILE *f, ImageData *idata, int skip_palette) {
+	struct TargaHeader hdr;
+	struct TargaFooter ftr;
+	fread(&hdr, 1, sizeof hdr, f);
+	fseek(f, 0, SEEK_END);
+	off_t fs = ftello(f);
+	if(fs > sizeof ftr) {
+		fseek(f, 0-sizeof ftr, SEEK_END);
+		fread(&ftr, 1, sizeof ftr, f);
+		if(!memcmp(ftr.signature, TARGA_FOOTER_SIGNATURE, sizeof ftr.signature))
+			fs -= sizeof ftr;
+	}
+	hdr.colourmaplength = le16(hdr.colourmaplength);
+	hdr.colourmapdepth = le16(hdr.colourmapdepth);
+	hdr.x_origin = le16(hdr.x_origin);
+	hdr.y_origin = le16(hdr.y_origin);
+	hdr.width = le16(hdr.width);
+	hdr.height = le16(hdr.height);
+
+	fseek(f, sizeof hdr + hdr.idlength, SEEK_SET);
+	fs -= ftello(f);
+	unsigned char *data = malloc(fs), *palette = 0;
+	unsigned palsz = 0;
+	fread(data, 1, fs, f);
+	if(hdr.colourmaptype) {
+		palette = data;
+		palsz = hdr.colourmaplength * hdr.colourmapdepth/8;
+		if(fs <= palsz) return 0;
+		data += palsz;
+		fs -= palsz;
+	}
+	unsigned char *workdata = 0;
+	unsigned tmp;
+	switch(hdr.datatypecode) {
+		case TIT_RLE_COLOR_MAPPED:
+		case TIT_RLE_TRUE_COLOR:
+			tmp = hdr.width*hdr.height*hdr.bitsperpixel/8;
+			workdata = malloc(tmp);
+			rle_decode(data, fs, hdr.bitsperpixel/8, workdata, tmp);
+			break;
+		case TIT_COLOR_MAPPED:
+		case TIT_TRUE_COLOR:
+			workdata = data;
+			break;
+		default:
+			return 0;
+	}
+	idata->width = hdr.width;
+	idata->height = hdr.height;
+	if(skip_palette)
+		idata->bytesperpixel = hdr.bitsperpixel/8;
+	else
+		idata->bytesperpixel = hdr.colourmapdepth? hdr.colourmapdepth/8 : hdr.bitsperpixel/8;
+
+	tmp = idata->width*idata->height*idata->bytesperpixel;
+	idata->data_size = tmp;
+	idata->data = malloc(tmp);
+	if(palette && !skip_palette) {
+		unsigned i, j, bpp = hdr.colourmapdepth/8;
+		unsigned char *p = idata->data, *q = workdata;
+		for(i=0; i < idata->width*idata->height; ++i) {
+			unsigned idx = *(q++);
+			if(idx >= hdr.colourmaplength) return 0;
+			for(j=0; j < bpp; ++j)
+				*(p++) = palette[idx*bpp+j];
+		}
+	} else {
+		memcpy(idata->data, workdata, tmp);
+	}
+	if(workdata != data) free(workdata);
+	if(palette) free(palette);
+	else free(data);
+	return 1;
+}
+
+static int is_upscaled_16bit(ImageData *d) {
+	int i;
+	for(i=0; i<d->data_size; i++) {
+		if(i%3 != 1) { /* topmost 3 bits appended */
+			if((d->data[i] & 7) != (d->data[i] >> 5))
+				return 0;
+		} else { /* topmost 2 bits appended */
+			if((d->data[i] & 3) != (d->data[i] >> 6))
+				return 0;
+		}
+	}
+	return 1;
+}
+
+static int raw24_to_ags16(ImageData *d) {
+	int i;
+	unsigned char *data = malloc(d->width*d->height*2), *p = data;
+	if(!data) return 0;
+	for(i=0; i<d->data_size/3; i++) {
+		unsigned b = d->data[i*3+0];
+		unsigned g = d->data[i*3+1];
+		unsigned r = d->data[i*3+2];
+		unsigned hi = (r & ~7) | (g >> 5);
+		unsigned lo = ((g & 28) << 3) | (b >> 3);
+		*(p++) = lo;
+		*(p++) = hi;
+	}
+	free(d->data);
+	d->data = data;
+	d->bytesperpixel = 2;
+	d->data_size = d->width*d->height*2;
+	return 1;
+}
+
+static int raw24_to_32(ImageData *d) {
+	unsigned char* data = malloc(d->width*d->height*4), *p = data, *q = d->data;
+	if(!data) return 0;
+	int i;
+	for(i=0;i<d->width*d->height;++i) {
+		*(p++) = *(q++);
+		*(p++) = *(q++);
+		*(p++) = *(q++);
+		*(p++) = 0;
+	}
+	free(d->data);
+	d->data = data;
+	d->bytesperpixel = 4;
+	d->data_size = d->width*d->height*4;
+	return 1;
+}
+static int raw32_swap_alpha(ImageData *d) {
+#if 0
+	unsigned char *p = d->data, *pe = d->data+d->data_size;
+	while(p < pe) {
+		unsigned char *q = p;
+		unsigned r = *(q++);
+		unsigned g = *(q++);
+		unsigned b = *(q++);
+		unsigned a = *(q++);
+		*(p++) = a;
+		*(p++) = r;
+		*(p++) = g;
+		*(p++) = b;
+	}
+#endif
+	return 1;
+}
+static int tga_to_ags(ImageData *d, int org_bpp) {
+	/* convert raw image data to something acceptable for ags */
+	switch(d->bytesperpixel) {
+	case 4:
+		return raw32_swap_alpha(d);
+	case 3:
+		if(org_bpp == 2 && is_upscaled_16bit(d)) return raw24_to_ags16(d);
+		else return raw24_to_32(d);
+	}
+	return 1;
+}
+
+static int pack(char* file, char* dir) {
+	if(access(dir, R_OK) == -1 && errno == ENOENT) {
+		fprintf(stderr, "error opening dir %s\n", dir);
+		return 1;
+	}
+	FILE *info = 0, *out = 0;
+	char buf[1024];
+	snprintf(buf, sizeof buf, "%s/agsprite.info", dir);
+	info = fopen(buf, "r");
+	if(!info) {
+		fprintf(stderr, "error opening %s\n", buf);
+		return 1;
+	}
+	SpriteFile sf = {0};
+	int line = 0;
+	while(fgets(buf, sizeof buf, info)) {
+		++line;
+		char *p;
+		p = strrchr(buf, '\n');
+		if(p) {
+			p[0] = 0;
+			if(p > buf && p[-1] == '\r') p[-1] = 0;
+		}
+		p = strchr(buf, '=');
+		if(!p) {
+			fprintf(stderr, "syntax error on line %d of agsprite.info\n", line);
+			return 1;
+		}
+		*(p++) = 0;
+		if(!out) {
+			if(0) {
+			} else if(!strcmp("info", buf)) {
+			} else if(!strcmp("spritecacheversion", buf)) {
+				sf.version = atoi(p);
+			} else if(!strcmp("spritecount", buf)) {
+				sf.num_sprites = atoi(p);
+			} else if(!strcmp("id", buf)) {
+				sf.id = atoi(p);
+			} else if(!strcmp("palette", buf)) {
+				if (*p) {
+					char buf2[1024];
+					snprintf(buf2, sizeof buf2, "%s/%s", dir, p);
+					FILE *pal = fopen(buf2, "r");
+					if(!pal) {
+						fprintf(stderr, "error opening %s\n", buf2);
+						return 1;
+					}
+					sf.palette = malloc(256*3);
+					fread(sf.palette, 1, 256*3, pal);
+					fclose(pal);
+				}
+			} else {
+				if(strcmp(buf, "0")) {
+					fprintf(stderr, "unexpected keyword %s\n", buf);
+					return 1;
+				}
+				out = fopen(file, "w");
+				if(!out) {
+					fprintf(stderr, "error opening %s\n", file);
+					return 1;
+				}
+				SpriteFile_write_header(out, &sf);
+			}
+		}
+		if(out) {
+			int n = atoi(buf);
+			int org_bpp = 4;
+			/* FIXME: use sscanf */
+			if(strstr(p, "_08_")) org_bpp = 1;
+			else if(strstr(p, "_16_")) org_bpp = 2;
+
+			if(debug_pic == n) breakpoint();
+			while(sf.num_sprites < n) SpriteFile_add(out, &sf, &(ImageData){0});
+			char fnbuf[1024];
+			snprintf(fnbuf, sizeof fnbuf, "%s/%s", dir, p);
+			FILE *spr = fopen(fnbuf, "r");
+			if(!spr) {
+				fprintf(stderr, "error opening %s\n", fnbuf);
+				return 1;
+			}
+			ImageData data;
+			int skip_palette =
+				(sf.version == 4 && org_bpp != 1) ||
+				(sf.version >= 4 && org_bpp == 1);
+			if(!read_tga(spr, &data, skip_palette)) {
+				fprintf(stderr, "error reading tga file %s\n", p);
+				return 1;
+			}
+			tga_to_ags(&data, org_bpp);
+			SpriteFile_add(out, &sf, &data);
+			free(data.data);
+			fclose(spr);
+		}
+	}
+	SpriteFile_finalize(out, &sf);
+	fclose(out);
+	fclose(info);
+	return 0;
+}
+
+#define MODE_EXTRACT 'x'
+#define MODE_PACK 'c'
+int main(int argc, char **argv) {
+
+	if(argc != 4) return usage(argv[0]);
+	int mode = 0;
+	if(!strcmp(argv[1], "c")) mode = MODE_PACK;
+	if(!strcmp(argv[1], "x")) mode = MODE_EXTRACT;
+	if(!mode) return usage(argv[0]);
+
+	char* file = argv[2];
+	char *dir = argv[3];
+	if(getenv("DEBUG")) debug_pic = atoi(getenv("DEBUG"));
+
+	if(mode == MODE_EXTRACT) return extract(file, dir);
+	else return pack(file, dir);
 }
