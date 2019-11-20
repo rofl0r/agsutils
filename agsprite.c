@@ -357,10 +357,14 @@ static int raw24_to_32(ImageData *d) {
 	if(!data) return 0;
 	int i;
 	for(i=0;i<d->width*d->height;++i) {
-		*(p++) = *(q++);
-		*(p++) = *(q++);
-		*(p++) = *(q++);
-		*(p++) = 0;
+		unsigned b = *(q++);
+		unsigned g = *(q++);
+		unsigned r = *(q++);
+		*(p++) = b;
+		*(p++) = g;
+		*(p++) = r;
+		/* restore transparency for "magic magenta" pixels */
+		*(p++) = "\xff\0"[!!(r == 0xff && g == 0 && b == 0xff)];
 	}
 	free(d->data);
 	d->data = data;
