@@ -10,7 +10,7 @@ typedef struct AgsFile {
 } AF;
 
 /* 0: error, 1: success */
-int AF_open(AF *f, char* fn);
+int AF_open(AF *f, const char* fn);
 void AF_close(AF* f);
 
 off_t AF_get_pos(AF* f);

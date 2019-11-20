@@ -1,6 +1,6 @@
 #include "File.h"
 
-int AF_open(AF *f, char* fn) {
+int AF_open(AF *f, const char* fn) {
 	f->b = &f->b_b;
 	ByteArray_ctor(f->b);
 	ByteArray_set_endian(f->b, BAE_LITTLE);

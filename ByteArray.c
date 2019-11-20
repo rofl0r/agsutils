@@ -149,7 +149,7 @@ static void read_error_short() {
 	assert_dbg(0);
 }
 
-int ByteArray_open_file(struct ByteArray* self, char* filename) {
+int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 	struct stat st;
 	self->type = BAT_FILESTREAM;
 	self->pos = 0;
