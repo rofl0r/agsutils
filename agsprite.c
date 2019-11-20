@@ -18,7 +18,7 @@
 #else
 #define breakpoint() do{}while(0)
 #endif
-static int debug_pic = -1;
+static int debug_pic = -1, verbose;
 
 static int lookup_palette(unsigned color, unsigned *palette, int ncols)
 {
@@ -168,8 +168,12 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 }
 
 static int usage(char *a) {
-	printf(	"%s ACTION acsprset.spr DIR\n"
-		"ACTION can be x - extract or c - pack\n\n"
+	printf(	"%s ACTIONSTR acsprset.spr DIR\n"
+		"ACTIONSTR can be x - extract or c - pack\n"
+		"optionally followed by option characters.\n\n"
+		"option characters:\n"
+		"v - be verbose\n"
+		"\n"
 		"extract mode:\n"
 		"extracts all sprites from acsprset.spr to DIR\n"
 		"due to the way sprite packs work, for some versions\n"
@@ -178,8 +182,9 @@ static int usage(char *a) {
 		"is generated.\n\n"
 		"pack mode:\n"
 		"packs files in DIR to acsprset.spr\n"
-		"image files need to be in tga format\n"
-		, a);
+		"image files need to be in tga format\n\n"
+		"example: %s xv acsprset.spr IMAGES/\n"
+		, a, a);
 	return 1;
 }
 
@@ -195,6 +200,7 @@ static int extract(char* file, char* dir) {
 		fprintf(stderr, "error opening %s\n", file);
 		return 1;
 	}
+	if(verbose) printf("processing spritefile TOC...\n");
 	ret = SpriteFile_read(&f, &sf);
 	if(!ret) {
 		fprintf(stderr, "error reading spritefile %s\n", file);
@@ -235,6 +241,7 @@ static int extract(char* file, char* dir) {
 			char namebuf[64];
 			snprintf(namebuf, sizeof namebuf, "sprite%06d_%02d_%dx%d.tga", i, d.bytesperpixel*8, d.width, d.height);
 			fprintf(info, "%d=%s\n", i, namebuf);
+			if(verbose) printf("extracting sprite %d (%s)\n", i, namebuf);
 			char filename[1024];
 			snprintf(filename, sizeof filename, "%s/%s", dir, namebuf);
 			write_tga(filename, &d, sf.palette);
@@ -473,8 +480,9 @@ static int pack(char* file, char* dir) {
 			/* FIXME: use sscanf */
 			if(strstr(p, "_08_")) org_bpp = 1;
 			else if(strstr(p, "_16_")) org_bpp = 2;
-
+			if(verbose) printf("adding %d (%s)\n", n, p);
 			if(debug_pic == n) breakpoint();
+
 			while(sf.num_sprites < n) SpriteFile_add(out, &sf, &(ImageData){0});
 			char fnbuf[1024];
 			snprintf(fnbuf, sizeof fnbuf, "%s/%s", dir, p);
@@ -503,20 +511,48 @@ static int pack(char* file, char* dir) {
 	return 0;
 }
 
-#define MODE_EXTRACT 'x'
-#define MODE_PACK 'c'
+#define FL_EXTRACT 1<<0
+#define FL_PACK 1<<1
+#define FL_VERBOSE 1<<2
+static int parse_argstr(char *arg)
+{
+	const struct flagmap {
+		char chr;
+		int flag;
+	} map[] = {
+		{ 'x', FL_EXTRACT},
+		{ 'c', FL_PACK},
+		{ 'v', FL_VERBOSE},
+		{0, 0},
+	};
+	int flags = 0, i;
+	while(*arg) {
+		int found = 0;
+		for(i=0;map[i].chr;++i)
+			if(map[i].chr == *arg) {
+				flags |= map[i].flag;
+				found = 1;
+				break;
+		}
+		if(!found) return 0;
+		++arg;
+	}
+	return flags;
+}
+
 int main(int argc, char **argv) {
 
-	if(argc != 4) return usage(argv[0]);
-	int mode = 0;
-	if(!strcmp(argv[1], "c")) mode = MODE_PACK;
-	if(!strcmp(argv[1], "x")) mode = MODE_EXTRACT;
-	if(!mode) return usage(argv[0]);
+	int flags;
+	if(argc != 4 || !(flags = parse_argstr(argv[1]))
+	|| !((flags & FL_EXTRACT) || (flags & FL_PACK))
+	|| ((flags&FL_EXTRACT)&&(flags&FL_PACK)) )
+		return usage(argv[0]);
 
 	char* file = argv[2];
 	char *dir = argv[3];
 	if(getenv("DEBUG")) debug_pic = atoi(getenv("DEBUG"));
+	if(flags & FL_VERBOSE) verbose = 1;
 
-	if(mode == MODE_EXTRACT) return extract(file, dir);
+	if(flags & FL_EXTRACT) return extract(file, dir);
 	else return pack(file, dir);
 }
