@@ -42,8 +42,10 @@ static int convert_16_to_24(ImageData *d) {
 	*q = d->data;
 	if(!out) return 0;
 	while(p < pe) {
-		unsigned r,g,b;
-		rgb565_to_888(*(q++), *(q++), &r, &g, &b);
+		unsigned r,g,b,lo,hi;
+		lo = *(q++);
+		hi = *(q++);
+		rgb565_to_888(lo, hi, &r, &g, &b);
 		*(p++) = b;
 		*(p++) = g;
 		*(p++) = r;
