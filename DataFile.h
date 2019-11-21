@@ -18,11 +18,13 @@ typedef struct AgsDataFile {
 	AF f_b;
 	AF *f;
 	int version;
+	unsigned numsprites;
 	size_t globalvarcount;
 	AGD game;
 	size_t scriptcount;
 	size_t scriptstart;
 	size_t scriptend;
+	off_t spriteflagsstart;
 	ASI globalscript;
 	ASI dialogscript;
 	ASI scripts[50];
@@ -37,6 +39,8 @@ ASI* ADF_get_script(ADF* a, size_t index);
 ASI* ADF_get_global_script(ADF* a);
 ASI* ADF_get_dialog_script(ADF* a);
 size_t ADF_get_scriptcount(ADF* a);
+#define ADF_get_spritecount(A) (A)->numsprites
+#define ADF_get_spriteflagsstart(A) (A)->spriteflagsstart
 
 #pragma RcB2 DEP "DataFile.c"
 

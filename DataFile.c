@@ -245,11 +245,13 @@ int ADF_open(ADF* a, const char *filename) {
 		if(!AF_read_junk(a->f, l)) goto err_close;
 	}
 	// number of sprites
-	l = (a->version < 24) ? 6000 : AF_read_uint(a->f);
+	l = a->numsprites = (a->version < 24) ? 6000 : AF_read_uint(a->f);
+	a->spriteflagsstart = AF_get_pos(a->f);
+	// array of spriteflags (1 char each, max: MAX_SPRITES==30000)
 	if(!AF_read_junk(a->f, l)) goto err_close;
 	l = 68 * a->game.inventorycount; /* sizeof(InventoryItemInfo) */
 	if(!AF_read_junk(a->f, l)) goto err_close;
-	
+
 	l = 24 /* sizeof(MouseCursor) */ * a->game.cursorcount;
 	if(!AF_read_junk(a->f, l)) goto err_close;
 	if(a->version > 32) {
