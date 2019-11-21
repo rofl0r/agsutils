@@ -23,6 +23,7 @@
 #define FL_PACK 1<<1
 #define FL_VERBOSE 1<<2
 #define FL_UNCOMPRESSED 1<<3
+#define FL_HICOLOR 1<<4
 
 static int debug_pic = -1, flags;
 
@@ -326,14 +327,14 @@ static int is_upscaled_16bit(ImageData *d) {
 	return 1;
 }
 
-static int raw24_to_ags16(ImageData *d) {
-	int i;
+static int rawx_to_ags16(ImageData *d, int bpp) {
+	int i, imax = d->data_size/bpp;
 	unsigned char *data = malloc(d->width*d->height*2), *p = data;
 	if(!data) return 0;
-	for(i=0; i<d->data_size/3; i++) {
-		unsigned b = d->data[i*3+0];
-		unsigned g = d->data[i*3+1];
-		unsigned r = d->data[i*3+2];
+	for(i=0; i<imax; i++) {
+		unsigned b = d->data[i*bpp+0];
+		unsigned g = d->data[i*bpp+1];
+		unsigned r = d->data[i*bpp+2];
 		unsigned hi = (r & ~7) | (g >> 5);
 		unsigned lo = ((g & 28) << 3) | (b >> 3);
 		*(p++) = lo;
@@ -344,6 +345,13 @@ static int raw24_to_ags16(ImageData *d) {
 	d->bytesperpixel = 2;
 	d->data_size = d->width*d->height*2;
 	return 1;
+}
+
+static int raw24_to_ags16(ImageData *d) {
+	return rawx_to_ags16(d, 3);
+}
+static int raw32_to_ags16(ImageData *d) {
+	return rawx_to_ags16(d, 4);
 }
 
 static int raw24_to_32(ImageData *d) {
@@ -387,8 +395,10 @@ static int tga_to_ags(ImageData *d, int org_bpp) {
 	/* convert raw image data to something acceptable for ags */
 	switch(d->bytesperpixel) {
 	case 4:
-		return raw32_swap_alpha(d);
+		if(!(flags & FL_HICOLOR)) return raw32_swap_alpha(d);
+		else return raw32_to_ags16(d);
 	case 3:
+		if(flags & FL_HICOLOR) return raw24_to_ags16(d);
 		if(org_bpp == 2 && is_upscaled_16bit(d)) return raw24_to_ags16(d);
 		else return raw24_to_32(d);
 	}
@@ -508,6 +518,7 @@ static int parse_argstr(char *arg)
 		{ 'c', FL_PACK},
 		{ 'v', FL_VERBOSE},
 		{ 'u', FL_UNCOMPRESSED},
+		{ 'h', FL_HICOLOR},
 		{0, 0},
 	};
 	int flags = 0, i;
@@ -532,6 +543,7 @@ static int usage(char *a) {
 		"option characters:\n"
 		"v - be verbose (both)\n"
 		"u - don't use RLE compression if v >= 6 (pack)\n"
+		"h - store all 32bit sprites as 16bit\n"
 		"\n"
 		"extract mode:\n"
 		"extracts all sprites from acsprset.spr to DIR\n"
