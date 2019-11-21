@@ -9,6 +9,7 @@ PROGS_SRCS = \
 	agsdisas.c \
 	agssim.c \
 	agsprite.c \
+	agsalphahack.c \
 	agsinject.c
 
 PROGS_OBJS =  $(PROGS_SRCS:.c=.o)
