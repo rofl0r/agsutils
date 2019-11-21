@@ -17,7 +17,6 @@ typedef struct AgsGameData {
 typedef struct AgsDataFile {
 	AF f_b;
 	AF *f;
-	char* dir;
 	int version;
 	size_t globalvarcount;
 	AGD game;
@@ -29,8 +28,8 @@ typedef struct AgsDataFile {
 	ASI scripts[50];
 } ADF;
 
-void ADF_init(ADF* a, char* dir);
-int ADF_open(ADF* a);
+int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen);
+int ADF_open(ADF* a, const char *filename);
 void ADF_close(ADF* a);
 
 ASI* ADF_open_objectfile(ADF* a, char* fn);

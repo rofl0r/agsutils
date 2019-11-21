@@ -122,8 +122,10 @@ int main(int argc, char**argv) {
 
 	int errors = 0;
 	ADF a_b, *a = &a_b;
-	ADF_init(a, dir);
-	if(!ADF_open(a)) return 1;
+	char fnbuf[512];
+	if(!ADF_find_datafile(dir, fnbuf, sizeof(fnbuf)))
+		return 1;
+	if(!ADF_open(a, fnbuf)) return 1;
 	ASI* s;
 	s = ADF_get_global_script(a);
 	char buf[256];

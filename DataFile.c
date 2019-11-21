@@ -5,12 +5,6 @@
 #include "DataFile.h"
 #include "Script.h"
 
-void ADF_init(ADF* a, char* dir) {
-	memset(a, 0, sizeof(*a));
-	a->f = &a->f_b;
-	a->dir = dir;
-}
-
 void ADF_close(ADF* a) {
 	AF_close(a->f);
 }
@@ -181,18 +175,31 @@ static int ADF_read_view2x(ADF *a) {
 	return 1;
 }
 
-int ADF_open(ADF* a) {
-	char fnbuf[512];
-	size_t l = strlen(a->dir), i;
-	if(l >= sizeof(fnbuf) - 20) return 0;
-	memcpy(fnbuf, a->dir, l);
+int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen)
+{
+	size_t l = strlen(dir);
+	if(l >= flen - 20) return 0;
+	memcpy(fnbuf, dir, l);
 	char* p = fnbuf + l;
 	*p = '/'; p++;
 	memcpy(p, "game28.dta", sizeof("game28.dta"));
-	if(!AF_open(a->f, fnbuf)) {
+	AF f;
+	if(!AF_open(&f, fnbuf)) {
 		memcpy(p, "ac2game.dta", sizeof("ac2game.dta"));
-		if(!AF_open(a->f, fnbuf)) return 0;
+		if(!AF_open(&f, fnbuf)) return 0;
 	}
+	AF_close(&f);
+	return 1;
+}
+
+int ADF_open(ADF* a, const char *filename) {
+	char fnbuf[512];
+	size_t l, i;
+
+	memset(a, 0, sizeof(*a));
+	a->f = &a->f_b;
+
+	if(!AF_open(a->f, filename)) return 0;
 
 	if(30 != AF_read(a->f, fnbuf, 30)) {
 		err_close:
