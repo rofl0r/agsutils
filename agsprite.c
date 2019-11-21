@@ -240,6 +240,19 @@ static int extract(char* file, char* dir) {
 	return 0;
 }
 
+static void convert_bottom_left_tga(ImageData *d) {
+	size_t y, w = d->width*d->bytesperpixel;
+	unsigned char *swp = malloc(w);
+	if(!swp) return;
+	for(y = 0; y < d->height/2; ++y) {
+		size_t to = w*y, bo = (d->height-1-y)*w;
+		memcpy(swp, d->data + to, w);
+		memcpy(d->data + to, d->data + bo, w);
+		memcpy(d->data + bo, swp, w);
+	}
+	free(swp);
+}
+
 static int read_tga(FILE *f, ImageData *idata, int skip_palette) {
 	struct TargaHeader hdr;
 	struct TargaFooter ftr;
@@ -312,6 +325,7 @@ static int read_tga(FILE *f, ImageData *idata, int skip_palette) {
 	if(workdata != data) free(workdata);
 	if(palette) free(palette);
 	else free(data);
+	if(hdr.y_origin == 0) convert_bottom_left_tga(idata);
 	return 1;
 }
 
