@@ -95,6 +95,34 @@ agsinject:
   after you injected your .o file, the next thing you want to do is agspack it all up again.
   then you can test your changes in the ags engine.
 
+agsprite:
+  a tool to extract sprites from acsprset.spr files, and to create a new one
+  from a directory full of extracted sprites. has several options to create
+  smaller spritecache files than original, for example by converting all
+  true-color images to high-color, which is almost impossible to differentiate
+  visually.
+  unfortunately ags saves a "uses alpha channel" flag for every sprite in a
+  different file.
+  if it was set, a picture converted from 32 to 16bit will become
+  invisible, unless it is fixed with `agsalphahack` tool.
+  after repacking a .spr file, a new sprindex.dat must be created and the old
+  one replaced with it (if one existed). agsprite has an option for that too.
+  optionally, the old sprindex.dat can simply be removed by commenting out the
+  line with sprindex.dat in agspack.info and reducing the filecount by 1.
+  at present, agsprite only creates and accepts TGA files saved in top-to-bottom
+  order, which is default for tools like GIMP.
+  if you want to edit a sprite and your tool can't handle TGA format (unlikely),
+  you can still convert the file into a format of your choice with e.g.
+  imagemagick's `convert` tool, and then convert it back to TGA before creating
+  a new sprite pack.
+  run agsprite --help for usage information, and/or check the git log of
+  agsprite.c to read a lot of detailed commit messages.
+
+agsalphahack:
+  a tool to remove alphachannel flags from gamefiles. can delete either all
+  or a single specified sprite number's alpha channel flag. this tool is a
+  supplement to agsprite.
+
 agssim:
   a simple simulator for ags assembly instructions.
   run agssim --help for more info.
@@ -109,15 +137,25 @@ agsoptimize:
 
 
 compilation:
+------------
 
-run `make`.
+after acquiration of a C compiler toolchain (optimally GCC) and GNU make
+(e.g. on ubuntu: `apt install build-essential`),
+
+simply run `make`.
+
 if you need any special CFLAGS, LDFLAGS etc put them into config.mak
 or append them to the make command, i.e. `make CFLAGS="-O2 -g"`
 
+third-party library requirements:
+---------------------------------
+none. \o/
+
 License:
+--------
 there is a tiny part of code left from the original AGS engine, about 150 LOC in CLib32.c.
 it is covered under the artistic license, see file header for details.
-all other code is (C) 2012 rofl0r and licensed under the LGPL 2.1+ with the "NO C++"
+all other code is (C) 2012-2019 rofl0r and licensed under the LGPL 2.1+ with the "NO C++"
 exception.
 the "NO C++" exception means that you are not allowed to convert the code into C++, but
 you can link it to C++ code.
