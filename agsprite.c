@@ -448,6 +448,7 @@ static int pack(char* file, char* dir) {
 	int line = 0;
 	while(fgets(buf, sizeof buf, info)) {
 		++line;
+		if(buf[0] == '#') continue; /* comment */
 		char *p;
 		p = strrchr(buf, '\n');
 		if(p) {
