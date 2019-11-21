@@ -286,3 +286,36 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 	}
 	return 1;
 }
+
+/* create sprindex.dat, use after SpriteFile_read() */
+int SpriteFile_write_sprindex(AF* f, SpriteFile *sf, FILE *outf)
+{
+	unsigned short *h = calloc(2, sf->num_sprites);
+	unsigned short *w = calloc(2, sf->num_sprites);
+	f_write(outf, "SPRINDEX", 8);
+	int version = 2;
+	/* version, figure out when v1 is needed */
+	f_write_int(outf, version);
+	if(version >= 2) f_write_int(outf, sf->id);
+	f_write_uint(outf, sf->num_sprites-1);
+	f_write_uint(outf, sf->num_sprites);
+	int i;
+	for(i=0; i<sf->num_sprites;++i) {
+		AF_set_pos(f, sf->offsets[i]);
+		int coldep = AF_read_short(f);
+		if(coldep == 0) sf->offsets[i] = 0;
+		else {
+			w[i] = AF_read_short(f);
+			h[i] = AF_read_short(f);
+		}
+	}
+	for(i=0; i<sf->num_sprites;++i)
+		f_write_short(outf, w[i]);
+	for(i=0; i<sf->num_sprites;++i)
+		f_write_short(outf, h[i]);
+	for(i=0; i<sf->num_sprites;++i)
+		f_write_uint(outf, sf->offsets[i]);
+	free(h);
+	free(w);
+	return 1;
+}

@@ -1,5 +1,7 @@
 #ifndef SPRITEFILE_H
 #define SPRITEFILE_H
+
+#include <stdio.h>
 #include "File.h"
 #include "ImageData.h"
 
@@ -29,6 +31,9 @@ int SpriteFile_extract(AF* f, SpriteFile *sf, int spriteno, ImageData *data);
 int SpriteFile_write_header(FILE *f, SpriteFile *sf);
 int SpriteFile_add(FILE *f, SpriteFile *sf, ImageData *data);
 int SpriteFile_finalize(FILE* f, SpriteFile *sf);
+
+/* sprindex.dat */
+int SpriteFile_write_sprindex(AF* f, SpriteFile *sf, FILE *outf);
 
 #pragma RcB2 DEP "SpriteFile.c"
 

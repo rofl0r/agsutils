@@ -25,6 +25,7 @@
 #define FL_UNCOMPRESSED 1<<3
 #define FL_HICOLOR 1<<4
 #define FL_HICOLOR_SIMPLE (1<<5)
+#define FL_SPRINDEX (1<<6)
 
 static int debug_pic = -1, flags, filenr;
 
@@ -533,6 +534,32 @@ static int pack(char* file, char* dir) {
 	return 0;
 }
 
+static int sprindex(char* infile, char* outfile) {
+	AF f;
+	SpriteFile sf;
+	int ret;
+	ret = AF_open(&f, infile);
+	if(!ret) {
+		fprintf(stderr, "error opening %s\n", infile);
+		return 1;
+	}
+	if(flags & FL_VERBOSE) printf("processing spritefile TOC...\n");
+	ret = SpriteFile_read(&f, &sf);
+	if(!ret) {
+		fprintf(stderr, "error reading spritefile %s\n", infile);
+		return 1;
+	}
+	FILE *out = fopen(outfile, "w");
+	if(!out) {
+		fprintf(stderr, "error opening outfile %s\n", outfile);
+		return 1;
+	}
+	ret = SpriteFile_write_sprindex(&f, &sf, out);
+	AF_close(&f);
+	fclose(out);
+	return !ret;
+}
+
 static int parse_argstr(char *arg)
 {
 	const struct flagmap {
@@ -541,6 +568,7 @@ static int parse_argstr(char *arg)
 	} map[] = {
 		{ 'x', FL_EXTRACT},
 		{ 'c', FL_PACK},
+		{ 'i', FL_SPRINDEX},
 		{ 'v', FL_VERBOSE},
 		{ 'u', FL_UNCOMPRESSED},
 		{ 'h', FL_HICOLOR},
@@ -564,7 +592,10 @@ static int parse_argstr(char *arg)
 
 static int usage(char *a) {
 	printf(	"%s ACTIONSTR acsprset.spr DIR\n"
-		"ACTIONSTR can be x - extract or c - pack\n"
+		"ACTIONSTR can be:\n"
+		"x - extract\n"
+		"c - pack\n"
+		"i - create sprindex.dat from .spr\n"
 		"optionally followed by option characters.\n\n"
 		"option characters:\n"
 		"v - be verbose (both)\n"
@@ -581,17 +612,21 @@ static int usage(char *a) {
 		"pack mode:\n"
 		"packs files in DIR to acsprset.spr\n"
 		"image files need to be in tga format\n\n"
+		"sprite index mode:\n"
+		"here DIR parameter is repurposed to actually mean output file.\n"
+		"a sprindex.dat file corresponding to acsprset.spr param is created.\n\n"
 		"examples:\n"
 		"%s xv acsprset.spr IMAGES/\n"
 		"%s cu test.spr IMAGES/\n"
-		, a, a, a);
+		"%s i repack.spr FILES/sprindex.dat\n"
+		, a, a, a, a);
 	return 1;
 }
 
 int main(int argc, char **argv) {
 
 	if(argc != 4 || !(flags = parse_argstr(argv[1]))
-	|| !((flags & FL_EXTRACT) || (flags & FL_PACK))
+	|| !((flags & FL_EXTRACT) || (flags & FL_PACK) || (flags & FL_SPRINDEX))
 	|| ((flags&FL_EXTRACT)&&(flags&FL_PACK)) )
 		return usage(argv[0]);
 
@@ -600,5 +635,6 @@ int main(int argc, char **argv) {
 	if(getenv("DEBUG")) debug_pic = atoi(getenv("DEBUG"));
 
 	if(flags & FL_EXTRACT) return extract(file, dir);
+	else if(flags & FL_SPRINDEX) return sprindex(file, dir);
 	else return pack(file, dir);
 }
