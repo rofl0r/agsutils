@@ -24,8 +24,9 @@
 #define FL_VERBOSE 1<<2
 #define FL_UNCOMPRESSED 1<<3
 #define FL_HICOLOR 1<<4
+#define FL_HICOLOR_SIMPLE (1<<5)
 
-static int debug_pic = -1, flags;
+static int debug_pic = -1, flags, filenr;
 
 static int lookup_palette(unsigned color, unsigned *palette, int ncols)
 {
@@ -391,12 +392,36 @@ static int raw32_swap_alpha(ImageData *d) {
 #endif
 	return 1;
 }
+/* return true if alpha uses only values 0 (fully transparent)
+   or 0xff (not transparent), and transparency is only used
+   for "magic magenta". */
+static int is_hicolor_candidate(ImageData *d) {
+	unsigned char *p = d->data, *pe = d->data+d->data_size;
+	while(p < pe) {
+		unsigned b = *(p++);
+		unsigned g = *(p++);
+		unsigned r = *(p++);
+		unsigned a = *(p++);
+		switch(a) {
+			case 0xff: break;
+			case 0:
+			if(!(r == 0xff && g == 0 && b == 0xff))
+				return 0;
+			break;
+			default: return 0;
+		}
+	}
+	return 1;
+}
 static int tga_to_ags(ImageData *d, int org_bpp) {
 	/* convert raw image data to something acceptable for ags */
 	switch(d->bytesperpixel) {
 	case 4:
-		if(!(flags & FL_HICOLOR)) return raw32_swap_alpha(d);
-		else return raw32_to_ags16(d);
+		if(flags & FL_HICOLOR) return raw32_to_ags16(d);
+		else if(flags & FL_HICOLOR_SIMPLE && is_hicolor_candidate(d)) {
+			if(flags & FL_VERBOSE) printf("converting %d to 16bpp\n", filenr);
+			return raw32_to_ags16(d);
+		} else return raw32_swap_alpha(d);
 	case 3:
 		if(flags & FL_HICOLOR) return raw24_to_ags16(d);
 		if(org_bpp == 2 && is_upscaled_16bit(d)) return raw24_to_ags16(d);
@@ -472,7 +497,7 @@ static int pack(char* file, char* dir) {
 			}
 		}
 		if(out) {
-			int n = atoi(buf);
+			int n = filenr = atoi(buf);
 			int org_bpp = 4;
 			/* FIXME: use sscanf */
 			if(strstr(p, "_08_")) org_bpp = 1;
@@ -519,6 +544,7 @@ static int parse_argstr(char *arg)
 		{ 'v', FL_VERBOSE},
 		{ 'u', FL_UNCOMPRESSED},
 		{ 'h', FL_HICOLOR},
+		{ 'H', FL_HICOLOR_SIMPLE},
 		{0, 0},
 	};
 	int flags = 0, i;
@@ -543,7 +569,8 @@ static int usage(char *a) {
 		"option characters:\n"
 		"v - be verbose (both)\n"
 		"u - don't use RLE compression if v >= 6 (pack)\n"
-		"h - store all 32bit sprites as 16bit\n"
+		"h - store all 32bit sprites as 16bit (pack)\n"
+		"H - same, but only when alpha unused (pack)\n"
 		"\n"
 		"extract mode:\n"
 		"extracts all sprites from acsprset.spr to DIR\n"
