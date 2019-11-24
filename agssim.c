@@ -185,7 +185,12 @@ static struct rval {
 	enum RegisterUsage ru;
 } registers[AR_MAX];
 
-static int stack_mem[1000];
+static unsigned char stack_mem[1000*4];
+#define memory stack_mem
+
+static int canread(int index, int cnt) {
+	return index >= 0 && index+cnt < sizeof(memory)/sizeof(memory[0]);
+}
 
 static void grow_text(size_t req) {
 	if(text.len + req > text.capa) {
@@ -209,7 +214,7 @@ static void vm_init() {
 		registers[i].i = 2222222222;
 		registers[i].ru = RU_NONE;
 	}
-	registers[AR_SP].i = (sizeof(stack_mem)/sizeof(stack_mem[0])) -1;
+	registers[AR_SP].i = 0;
 	registers[AR_NULL].i = 0;
 }
 
@@ -246,6 +251,16 @@ static void vm_update_register_usage(int *eip) {
 	if(ri->ra_reg2) change_reg_usage(eip[2], ri->ra_reg2);
 }
 
+static void write_mem(int off, int val) {
+	int *m = (void*) memory;
+	m[off/4] = val;
+}
+
+static int read_mem(int off) {
+	int *m = (void*) memory;
+	return m[off/4];
+}
+
 #define CODE_INT(X) eip[X]
 #define CODE_FLOAT(X) ((float*)eip)[X]
 #define REGI(X) registers[CODE_INT(X)].i
@@ -255,6 +270,7 @@ static void vm_step() {
 	/* we use register AR_NULL as instruction pointer */
 	int *eip = &text.code[registers[AR_NULL].i];
 	int eip_inc = 1 + opcodes[*eip].argcount;
+	int tmp;
 	vm_update_register_usage(eip);
 
 	switch(*eip) {
@@ -313,10 +329,12 @@ static void vm_step() {
 			REGI(1) = !!(REGI(1) || REGI(2));
 			break;
 		case SCMD_PUSHREG:
-			stack_mem[--registers[AR_SP].i] = REGI(1);
+			write_mem(registers[AR_SP].i, REGI(1));
+			registers[AR_SP].i += 4;
 			break;
 		case SCMD_POPREG:
-			REGI(1) = stack_mem[registers[AR_SP].i++];
+			registers[AR_SP].i -= 4;
+			REGI(1) = read_mem(registers[AR_SP].i);
 			break;
 		case SCMD_MUL:
 			REGI(1) *= CODE_INT(2);
@@ -369,6 +387,26 @@ static void vm_step() {
 		case SCMD_FLTE:
 			REGI(1) = !!(REGF(1) <= REGF(2));
 			break;
+		case SCMD_MEMREAD:
+			tmp = 4;
+			goto mread;
+		case SCMD_MEMREADW:
+			tmp = 2;
+			goto mread;
+		case SCMD_MEMREADB:
+			tmp = 1;
+		mread:
+			if(canread(registers[AR_MAR].i, tmp)) {
+				int val = memory[registers[AR_MAR].i];
+				switch(tmp) {
+				case 4:	REGI(1) = val; break;
+				case 2:	REGI(1) = val & 0xffff; break;
+				case 1:	REGI(1) = val & 0xff; break;
+				}
+			} else {
+				dprintf(2, "info: caught OOB memread\n");
+			}
+			break;
 		case SCMD_NEWARRAY:
 		case SCMD_DYNAMICBOUNDS:
 		case SCMD_JNZ:
@@ -396,10 +434,7 @@ static void vm_step() {
 		case SCMD_JZ:
 		case SCMD_MEMWRITEW:
 		case SCMD_MEMWRITEB:
-		case SCMD_MEMREADW:
-		case SCMD_MEMREADB:
 		case SCMD_CALL:
-		case SCMD_MEMREAD:
 		case SCMD_MEMWRITE:
 		case SCMD_WRITELIT:
 		case SCMD_RET:
@@ -430,8 +465,11 @@ static void vm_state() {
 	for(i=0; i< AR_MAX; i++)
 		printf("%s: %2s %d\n", i == 0 ? "eip" : regnames[i], ru_strings[registers[i].ru], registers[i].i);
 
-	for(i=MIN(registers[AR_SP].i+2, 999); i >= MAX(0, registers[AR_SP].i-2); i--) {
-		printf("SL %s %3zu %d\n", i == registers[AR_SP].i ? ">" : " ", i, stack_mem[i]);
+	for(	i = MIN(registers[AR_SP].i+2*4, sizeof(stack_mem)/4);
+		i >= MAX(registers[AR_SP].i-2*4, 0);
+		i-=4) {
+		printf("SL %s %3zu %d\n", i == registers[AR_SP].i ? ">" : " ", i, read_mem(i));
+		if(i == 0) break;
 	}
 
 	int *eip = &text.code[registers[AR_NULL].i];
