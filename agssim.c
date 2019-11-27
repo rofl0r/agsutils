@@ -499,6 +499,8 @@ static void execute_user_command(char *cmd) {
 		vm_run();
 	} else if(!strcmp(cmd, "i")) {
 		vm_init();
+	} else if(!strcmp(cmd, "q")) {
+		exit(0);
 	}
 	vm_state();
 }
