@@ -328,6 +328,9 @@ static void vm_step() {
 		case SCMD_OR:
 			REGI(1) = !!(REGI(1) || REGI(2));
 			break;
+		case SCMD_LOADSPOFFS:
+			registers[AR_MAR].i = registers[AR_SP].i - CODE_INT(1);
+			break;
 		case SCMD_PUSHREG:
 			write_mem(registers[AR_SP].i, REGI(1));
 			registers[AR_SP].i += 4;
@@ -418,7 +421,6 @@ static void vm_step() {
 		case SCMD_CREATESTRING:
 		case SCMD_ZEROMEMORY:
 		case SCMD_CHECKNULL:
-		case SCMD_LOADSPOFFS:
 		case SCMD_MEMINITPTR:
 		case SCMD_MEMZEROPTR:
 		case SCMD_MEMREADPTR:
