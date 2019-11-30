@@ -123,9 +123,9 @@ static int dump_import_export(AF* a, FILE *f, size_t start, size_t count, int im
 	return 1;
 }
 
-static struct function_export* get_exports(AF* a, size_t start, size_t count) {
+static struct export* get_exports(AF* a, size_t start, size_t count) {
 	if(!count) return 0;
-	struct function_export* fl = malloc(count * sizeof(struct function_export));
+	struct export* fl = malloc(count * sizeof(struct export));
 	AF_set_pos(a, start);
 	char buf[4096]; size_t i;
 	for(i = 0; i < count; i++) {
@@ -247,7 +247,7 @@ static struct strings get_strings(AF* a, size_t start, size_t size) {
 	goto retrn;
 }
 
-static char* get_varname(struct function_export* exp, size_t expcount, unsigned globaloffset) {
+static char* get_varname(struct export* exp, size_t expcount, unsigned globaloffset) {
 	size_t i = 0;
 	for(; i < expcount; i++)
 		if(exp[i].type == EXPORT_DATA && exp[i].instr == globaloffset)
@@ -489,7 +489,7 @@ static struct varinfo get_varinfo_from_code(
 }
 
 static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
-			   struct function_export* exp, size_t expcount,
+			   struct export* exp, size_t expcount,
 			   struct fixup_data *fxd,
 			   unsigned *code, size_t codesize) {
 	if(!size) return 1;
@@ -594,7 +594,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 
 	unsigned *code = get_code(a, s->codestart, s->codesize);
 
-	struct function_export* fl = get_exports(a, s->exportstart, s->exportcount);
+	struct export* fl = get_exports(a, s->exportstart, s->exportcount);
 
 	dump_globaldata(a, f, s->globaldatastart, s->globaldatasize, fl, s->exportcount, fxd, code, s->codesize);
 

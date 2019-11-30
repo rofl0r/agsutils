@@ -15,7 +15,7 @@ struct importlist {
 
 #define EXPORT_FUNCTION 1
 #define EXPORT_DATA 2
-struct function_export {
+struct export {
 	char* fn;
 	unsigned instr;
 	unsigned type;

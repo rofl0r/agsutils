@@ -60,7 +60,7 @@ static int add_function_ref(AS *a, char* name, size_t insno) {
 }
 
 static int add_export(AS *a, int type, char* name, size_t offset) {
-	struct function_export item = { .fn = strdup(name), .instr = offset, .type = type};
+	struct export item = { .fn = strdup(name), .instr = offset, .type = type};
 	assert(item.fn);
 	return List_add(a->export_list, &item);
 }
@@ -257,7 +257,7 @@ void add_import(AS *a, char* name) {
 }
 
 static int find_export(AS *a, int type, char* name, unsigned *offset) {
-	struct function_export item;
+	struct export item;
 	size_t i;
 	for(i = 0; i < List_size(a->export_list); i++) {
 		assert(List_get(a->export_list, i, &item));
@@ -554,7 +554,7 @@ static void write_import_section(AS* a, FILE* o) {
 }
 
 static void write_export_section(AS* a, FILE* o) {
-	struct function_export item;
+	struct export item;
 	size_t i = 0;
 	for(; i < List_size(a->export_list); i++) {
 		assert(List_get(a->export_list, i, &item));
@@ -655,7 +655,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	a->import_list = &a->import_list_b;
 	a->label_map = (void*) &a->label_map_b;
 
-	List_init(a->export_list, sizeof(struct function_export));
+	List_init(a->export_list, sizeof(struct export));
 	List_init(a->fixup_list , sizeof(struct fixup));
 	List_init(a->string_list, sizeof(struct string));
 	List_init(a->label_ref_list, sizeof(struct label));
