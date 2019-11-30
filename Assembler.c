@@ -33,21 +33,12 @@ struct variable {
 };
 
 static int add_label(AS *a, char* name, size_t insno) {
-	struct label item = { .name = strdup(name), .insno = insno };
-	assert(item.name);
-	return List_add(a->label_list, &item);
+	char* tmp = strdup(name);
+	return hbmap_insert(a->label_map, tmp, (unsigned) insno) != -1;
 }
 
-static int get_label_offset(AS *a, char* name) {
-	struct label item;
-	size_t i = 0;
-	for(; i < List_size(a->label_list); i++) {
-		assert(List_get(a->label_list, i, &item));
-		if(!strcmp(item.name, name))
-			return item.insno;
-	}
-	assert(0);
-	return 0;
+static unsigned get_label_offset(AS *a, char* name) {
+	return *hbmap_get(a->label_map, name);
 }
 
 static int add_label_ref(AS *a, char * name, size_t insno) {
@@ -625,6 +616,20 @@ int AS_assemble(AS* a, char* out) {
 	return 1;
 }
 
+static int strptrcmp(const void *a, const void *b) {
+	const char * const *x = a;
+	const char * const *y = b;
+	return strcmp(*x, *y);
+}
+static unsigned string_hash(const char* s) {
+	uint_fast32_t h = 0;
+	while (*s) {
+		h = 16*h + *s++;
+		h ^= h>>24 & 0xf0;
+	}
+	return h & 0xfffffff;
+}
+
 void AS_open_stream(AS* a, FILE* f) {
 	memset(a, 0, sizeof *a);
 	a->obj = &a->obj_b;
@@ -644,20 +649,20 @@ void AS_open_stream(AS* a, FILE* f) {
 	a->export_list = &a->export_list_b;
 	a->fixup_list  = &a->fixup_list_b;
 	a->string_list = &a->string_list_b;
-	a->label_list = &a->label_list_b;
 	a->label_ref_list = &a->label_ref_list_b;
 	a->function_ref_list = &a->function_ref_list_b;
 	a->variable_list = &a->variable_list_b;
 	a->import_list = &a->import_list_b;
+	a->label_map = (void*) &a->label_map_b;
 
 	List_init(a->export_list, sizeof(struct function_export));
 	List_init(a->fixup_list , sizeof(struct fixup));
 	List_init(a->string_list, sizeof(struct string));
-	List_init(a->label_list, sizeof(struct label));
 	List_init(a->label_ref_list, sizeof(struct label));
 	List_init(a->function_ref_list, sizeof(struct label));
 	List_init(a->variable_list, sizeof(struct variable));
 	List_init(a->import_list, sizeof(struct string));
+	hbmap_init(a->label_map, strptrcmp, string_hash);
 
 	a->in = f;
 }
