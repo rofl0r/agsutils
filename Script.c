@@ -587,8 +587,6 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 }
 
 #include "StringEscape.h"
-#define DEBUG_OFFSETS 1
-#define DEBUG_BYTECODE 1
 static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct fixup_data *fxd) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
