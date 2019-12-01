@@ -76,22 +76,22 @@ done)
 cat << EOF >> "$MAKEFILE"
 
 \$(GAME_DATA): \$(GAME_DATA_FILES)
-	agsinject 0 \$(OBJS_DIR)/globalscript.o \$(GAME_DATA) && \\
+	agsinject -e -t \$(GAME_DATA) 0:\$(OBJS_DIR)/globalscript.o \\
 EOF
 (cd "$OBJS"
 cnt=1
 i=dialogscript.o
 test -e "$i" && {
-	printf '\tagsinject %d $(OBJS_DIR)/%s $(GAME_DATA) && \\\n' $cnt "$i" >> "$MAKEFILE"
+	printf '\t %d:$(OBJS_DIR)/%s \\\n' $cnt "$i" >> "$MAKEFILE"
 	cnt=2
 } || true
 ocnt=0
 while test -e gamescript${ocnt}.o ; do
 	i=gamescript${ocnt}.o
-	printf '\tagsinject %d $(OBJS_DIR)/%s $(GAME_DATA) && \\\n' $cnt "$i" >> "$MAKEFILE"
+	printf '\t %d:$(OBJS_DIR)/%s \\\n' $cnt "$i" >> "$MAKEFILE"
 	ocnt=$(($ocnt + 1))
 	cnt=$(($cnt + 1))
 done)
-printf '\ttrue\n' >> "$MAKEFILE"
+printf '\t\n' >> "$MAKEFILE"
 
 
