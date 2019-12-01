@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <sys/stat.h>
 #include "version.h"
 #define ADS ":::AGSinject " VERSION " by rofl0r:::"
 
@@ -27,6 +28,8 @@ int usage(char *argv0) {
 	"(e.g. game28.dta, *.crm...), and file(s) to inject are passed as\n"
 	"index:filename tuples.\n"
 	"this allows to inject several compiled scripts at once.\n"
+	"OPTIONS:\n"
+	"-t : only inject obj files whose timestamps are newer than the one of target.\n"
 	"example: %s -e game28.dta 0:globalscript.o 1:dialogscript.o\n"
 	, argv0, argv0, argv0);
 	return 1;
@@ -120,6 +123,22 @@ static int injectpr(const char *obj, const char *out, unsigned which) {
 	return ret;
 }
 
+static int getstamp(const char* fn, struct timespec *stamp) {
+	struct stat st;
+	if(stat(fn, &st) == -1) {
+		perror("stat");
+		return 0;
+	}
+	*stamp = st.st_mtim;
+	return 1;
+}
+
+static int ts_is_newer(const struct timespec *t1, const struct timespec *t2)
+{
+	return t2->tv_sec > t1->tv_sec ||
+		(t2->tv_sec == t1->tv_sec && t2->tv_nsec > t1->tv_nsec);
+}
+
 int main(int argc, char**argv) {
 	char *out, *obj;
 	int which;
@@ -131,15 +150,20 @@ int main(int argc, char**argv) {
 		if(!injectpr(obj, out, which)) return 1;
 		return 0;
 	}
-	int c, extended = 0;
-	while ((c = getopt(argc, argv, "e")) != EOF) switch(c) {
+	int c, extended = 0, usestamps = 0;
+	while ((c = getopt(argc, argv, "et")) != EOF) switch(c) {
 		case 'e': extended = 1; break;
+		case 't': usestamps = 1; break;
 		default: return usage(argv[0]);
 	}
 	if(!extended || !argv[optind] || !argv[optind+1])
 		return usage(argv[0]);
 
 	out = argv[optind];
+	struct timespec stamp;
+
+	if(usestamps && !getstamp(out, &stamp)) return 1;
+
 	while(argv[++optind]) {
 		obj = argv[optind];
 		char *p = strchr(obj, ':');
@@ -148,6 +172,11 @@ int main(int argc, char**argv) {
 		which = atoi(obj);
 		obj = ++p;
 		if(!check_objname(obj)) return 1;
+		if(usestamps) {
+			struct timespec ostamp;
+			if(!getstamp(obj, &ostamp)) return 1;
+			if(!ts_is_newer(&stamp, &ostamp)) continue;
+		}
 		if(!injectpr(obj, out, which)) return 1;
 	}
 	return 0;
