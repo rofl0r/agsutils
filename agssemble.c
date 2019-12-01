@@ -53,6 +53,10 @@ int main(int argc, char** argv) {
 		*p = 0;
 		outn = out;
 	} else outn = argv[optind+1];
+	if(!strcmp(outn, file)) {
+		dprintf(2, "error: input and output file (%s) identical!\n", file);
+		return 1;
+	}
 
 	FILE *in = fopen(file, "r");
 	if(!in) {

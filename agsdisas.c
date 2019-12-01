@@ -48,6 +48,11 @@ int main(int argc, char**argv) {
 		out[l-1] = 's'; // overflow me!
 		s = out;
 	} else s = argv[optind+1];
+	if(!strcmp(o, s)) {
+		dprintf(2, "error: input and output file (%s) identical!\n", o);
+		return 1;
+	}
+
 	disas(o, s, flags);
 	return 0;
 }
