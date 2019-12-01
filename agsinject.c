@@ -5,22 +5,35 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ctype.h>
 #include "version.h"
 #define ADS ":::AGSinject " VERSION " by rofl0r:::"
 
-__attribute__((noreturn))
-void usage(char *argv0) {
+int usage(char *argv0) {
 	dprintf(2,
-	ADS "\nusage:\n%s index input.o inject_to.crm\n"
+	ADS "\n"
+	"usage (simple):\n"
+	"---------------\n"
+	"%s index input.o inject_to.crm\n"
 	"index is the number of script to replace, i.e. 0 for first script\n"
 	"only relevant if the output file is a gamefile which contains multiple scripts\n"
 	"for example gamescript is 0, dialogscript is 1 (if existing), etc\n"
-	"a room file (.crm) only has one script so you must pass 0.\n", argv0);
-	exit(1);
+	"a room file (.crm) only has one script so you must pass 0.\n\n"
+
+	"usage (extended):\n"
+	"-----------------\n"
+	"%s -e [OPTIONS] target index1:input1.o [index2:input2.o...indexN:inputN.o]\n"
+	"in extended mode, indicated by -e switch, target denotes destination file\n"
+	"(e.g. game28.dta, *.crm...), and file(s) to inject are passed as\n"
+	"index:filename tuples.\n"
+	"this allows to inject several compiled scripts at once.\n"
+	"example: %s -e game28.dta 0:globalscript.o 1:dialogscript.o\n"
+	, argv0, argv0, argv0);
+	return 1;
 }
 
 /* inj = filename of file to inject in */
-static int inject(char *o, char *inj, unsigned which) {
+static int inject(const char *o, const char *inj, unsigned which) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
 	size_t index, found;
@@ -84,23 +97,58 @@ static int inject(char *o, char *inj, unsigned which) {
 	return 0;
 }
 
-int main(int argc, char**argv) {
-	if(argc != 4) usage(argv[0]);
-	char *o = argv[2], *inj = argv[3], *p;
+static int check_objname(const char* o) {
+	const char* p;
 	if(!(p = strrchr(o, '.')) || strcmp(p, ".o")) {
 		dprintf(2, "error: object file has no .o extension\n");
-		return 1;
+		return 0;
 	}
-	int which = atoi(argv[1]);
-	dprintf(1, "injecting %s into %s as %d'th script ...", o, inj, which);
-	int ret = inject(o, inj, which);
-	if(ret >= 0) dprintf(1, "OK\n");
+	return 1;
+}
+
+static int injectpr(const char *obj, const char *out, unsigned which) {
+	printf("injecting %s into %s as %d'th script ...", obj, out, which);
+	int ret = inject(obj, out, which);
+	if(ret >= 0) printf("OK\n");
 	else {
-		dprintf(1, "FAIL\n");
+		printf("FAIL\n");
 		if(ret == -1) {
 			dprintf(2, "invalid index %d for roomfile, only 0 possible\n", which);
 			ret = 0;
 		} else perror("error:");
 	}
-	return !ret;
+	return ret;
+}
+
+int main(int argc, char**argv) {
+	char *out, *obj;
+	int which;
+	if(argc == 4 && isdigit(*argv[1])) {
+		obj = argv[2];
+		out = argv[3];
+		which = atoi(argv[1]);
+		if(!check_objname(obj)) return 1;
+		if(!injectpr(obj, out, which)) return 1;
+		return 0;
+	}
+	int c, extended = 0;
+	while ((c = getopt(argc, argv, "e")) != EOF) switch(c) {
+		case 'e': extended = 1; break;
+		default: return usage(argv[0]);
+	}
+	if(!extended || !argv[optind] || !argv[optind+1])
+		return usage(argv[0]);
+
+	out = argv[optind];
+	while(argv[++optind]) {
+		obj = argv[optind];
+		char *p = strchr(obj, ':');
+		if(!isdigit(*obj) || !p) return usage(argv[0]);
+		*p = 0;
+		which = atoi(obj);
+		obj = ++p;
+		if(!check_objname(obj)) return 1;
+		if(!injectpr(obj, out, which)) return 1;
+	}
+	return 0;
 }
