@@ -488,6 +488,17 @@ static struct varinfo get_varinfo_from_code(
 		return vi;
 }
 
+int get_varinfo_from_exports(size_t offs, struct export *exp, size_t expcount, struct varinfo *vi)
+{
+	struct export *end = exp + expcount;
+	for(; exp < end; ++exp)
+		if(exp->instr == offs && exp->type == EXPORT_DATA) {
+			vi->varsize = 1; /* unfortunately no size info is available, so we need to default to char for safety */
+			return 1;
+		}
+	return 0;
+}
+
 static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 			   struct export* exp, size_t expcount,
 			   struct fixup_data *fxd,
@@ -510,7 +521,9 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	AF_set_pos(a, start);
 
 	for(i = 0; i < size; ) {
-		struct varinfo vi = get_varinfo_from_code(code, codesize, i, fxd, gd_fixups_resolved, f);
+		struct varinfo vi;
+		vi = get_varinfo_from_code(code, codesize, i, fxd, gd_fixups_resolved, f);
+		if(vi.varsize == 0) get_varinfo_from_exports(i, exp, expcount, &vi);
 		int x;
 		char *comment = "";
 		int is_str = 0;
@@ -555,7 +568,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 					size_t j = i;
 					while(++j < size) {
 						vi2 = get_varinfo_from_code(code, codesize, j, fxd, gd_fixups_resolved, f);
-						if(vi2.varsize || vi.numrefs) break;
+						if(vi2.varsize || vi.numrefs || get_varinfo_from_exports(j, exp, expcount, &vi2)) break;
 						x = ByteArray_readByte(a->b);
 						if(x) {
 							ByteArray_set_position_rel(a->b, -1);
