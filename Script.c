@@ -681,7 +681,8 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 
 			off_t currpos = AF_get_pos(a);
 
-			for(size_t l = 0; l < args; l++) {
+			size_t l;
+			for(l = 0; l < args; l++) {
 				assert(iblen+4 <= sizeof(insbuf));
 				val = AF_read_uint(a);
 				val = end_htole32(val);
@@ -689,7 +690,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 			}
 
 			char printbuf[sizeof(insbuf)*2 + 1], *pb = printbuf;
-			for(size_t l = 0; l < iblen; l++, pb+=2)
+			for(l = 0; l < iblen; l++, pb+=2)
 				sprintf(pb, "%02x", (int) insbuf[l]);
 			COMMENT(f, "%s\n", printbuf);
 
@@ -712,7 +713,8 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 			fprintf(f, "%s, %s\n", regnames[dst], regnames[src]);
 			continue;
 		}
-		for (size_t l = 0; l < args; l++) {
+		size_t l;
+		for (l = 0; l < args; l++) {
 			char escapebuf[4096];
 			if(l) fprintf(f, ", ");
 			insn = AF_read_uint(a);
