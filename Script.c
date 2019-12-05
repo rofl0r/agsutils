@@ -24,25 +24,25 @@ static int dump_sections(AF* a, FILE *f, size_t start, size_t count) {
 	return 1;
 }
 
+#include "StringEscape.h"
 static int dump_strings(AF* a, FILE *f, size_t start, size_t len) {
 	if(!len) return 1;
 	AF_set_pos(a, start);
-	fprintf(f, ".%s\n\"", "strings");
-	char buf[4096];
-	while(len) {
-		size_t togo = len > sizeof(buf) ? sizeof(buf) : len;
-		if(togo != (size_t) AF_read(a, buf, togo))
-			return 0;
-		size_t i;
-		for(i = 0; i < togo; i++) {
-			len --;
-			if(!buf[i]) {
-				fprintf(f, "\"\n");
-				if(len) fprintf(f, "\"");
-			} else
-				fprintf(f, "%c", buf[i]);
-		}
+	fprintf(f, ".%s\n", "strings");
+	char *buf = malloc(len), *p = buf, escapebuf[4096];
+	if(len != (size_t) AF_read(a, buf, len)) {
+		free(buf);
+		return 0;
 	}
+	while(1) {
+		escape(p, escapebuf, sizeof(escapebuf));
+		fprintf(f, "\"%s\"\n", escapebuf);
+		size_t l = strlen(p);
+		p += l+1;
+		len -= l;
+		if(len == 0 || --len == 0) break;
+	}
+	free(buf);
 	return 1;
 }
 
@@ -599,7 +599,6 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	return 1;
 }
 
-#include "StringEscape.h"
 static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct fixup_data *fxd) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
