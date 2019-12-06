@@ -6,6 +6,7 @@
 
 #include "ags_cpu.h"
 #include "regusage.h"
+#include "hbmap.h"
 #include "version.h"
 #define ADS ":::AGSSim " VERSION " by rofl0r:::"
 
@@ -19,6 +20,51 @@
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
+
+static struct text_segment {
+	int *code;
+	size_t len;
+	size_t capa;
+} text;
+
+static void patch_label_offset(int old, int new) {
+	int *p = text.code, *pe = text.code + text.len;
+	while(p < pe) switch(*p) {
+		case SCMD_JMP: case SCMD_JZ: case SCMD_JNZ:
+			if(p[1] == old) p[1] = new;
+			/* fall-through */
+		default:
+			p += opcodes[*p].argcount + 1;
+	}
+}
+/* for label_map */
+hbmap(char*, int, 32) *label_map;
+static int *get_label_offset(char* name) {
+	return hbmap_get(label_map, name);
+}
+static int add_label(char* name, int insno) {
+	char* tmp = strdup(name);
+	int *old = get_label_offset(name);
+	if(old && (*old & (1<<31)))
+		patch_label_offset(*old, insno);
+	return hbmap_insert(label_map, tmp, insno) != -1;
+}
+static int strptrcmp(const void *a, const void *b) {
+	const char * const *x = a;
+	const char * const *y = b;
+	return strcmp(*x, *y);
+}
+static unsigned string_hash(const char* s) {
+	uint_fast32_t h = 0;
+	while (*s) {
+		h = 16*h + *s++;
+		h ^= h>>24 & 0xf0;
+	}
+	return h & 0xfffffff;
+}
+static void init_labels() {
+	label_map = hbmap_new(strptrcmp, string_hash, 32);
+}
 
 /* TODO: move duplicate code from Assembler.c into separate TU */
 static int get_reg(char* regname) {
@@ -83,13 +129,6 @@ static char* finalize_arg(char **p, char* pend, char* convbuf, size_t convbuflen
 		return ret;
 	}
 }
-
-
-static struct text_segment {
-	int *code;
-	size_t len;
-	size_t capa;
-} text;
 
 static struct rval {
 	union {
@@ -180,7 +219,7 @@ static int read_mem(int off) {
 #define REGI(X) registers[CODE_INT(X)].i
 #define REGF(X) registers[CODE_INT(X)].f
 
-static void vm_step(int run_context) {
+static int vm_step(int run_context) {
 	/* we use register AR_NULL as instruction pointer */
 	int *eip = &text.code[registers[AR_NULL].i];
 	int eip_inc = 1 + opcodes[*eip].argcount;
@@ -192,7 +231,7 @@ static void vm_step(int run_context) {
 		case 0:
 			/* don't modify IP */
 			dprintf(2, "no code at IP.\n");
-			return;
+			return 0;
 		case SCMD_ADD:
 			REGI(1) += CODE_INT(2);
 			break;
@@ -359,9 +398,25 @@ static void vm_step(int run_context) {
 				dprintf(2, "info: caught OOB memread\n");
 			}
 			break;
+		case SCMD_JZ:
+			if(registers[AR_AX].i == 0) goto jump;
+			break;
+		case SCMD_JNZ:
+			if(registers[AR_AX].i == 0) break;
+			/* fall through */
+		case SCMD_JMP:
+		jump:
+			tmp = CODE_INT(1);
+			if((tmp & (1<<31)) == 0) {
+				registers[AR_NULL].i = CODE_INT(1);
+			} else {
+				dprintf(2, "error: jump target lacks definition\n");
+				return 0;
+			}
+			eip_inc = 0;
+			break;
 		case SCMD_NEWARRAY:
 		case SCMD_DYNAMICBOUNDS:
-		case SCMD_JNZ:
 		case SCMD_MEMZEROPTRND:
 		case SCMD_LOOPCHECKOFF:
 		case SCMD_CHECKNULLREG:
@@ -381,8 +436,6 @@ static void vm_step(int run_context) {
 		case SCMD_SUBREALSTACK:
 		case SCMD_PUSHREAL:
 		case SCMD_CALLEXT:
-		case SCMD_JMP:
-		case SCMD_JZ:
 		case SCMD_CALL:
 		case SCMD_RET:
 		default:
@@ -394,6 +447,7 @@ static void vm_step(int run_context) {
 			break;
 	}
 	registers[AR_NULL].i += eip_inc;
+	return 1;
 }
 
 static inline char *int_to_str(int value, char* out) {
@@ -441,7 +495,7 @@ void vm_run(void) {
 	while(1) {
 		int *eip = &text.code[registers[AR_NULL].i];
 		if(!*eip) break;
-		vm_step(1);
+		if(!vm_step(1)) break;
 	}
 }
 
@@ -499,6 +553,7 @@ int main(int argc, char** argv) {
 	char buf[1024], *sym;
 	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
 	int lineno = 0;
+	init_labels();
 	vm_init();
 	printf(ADS " - type !h for help\n");
 	while(fgets(buf, sizeof buf, stdin)) {
@@ -527,7 +582,9 @@ int main(int argc, char** argv) {
 		if(l > 1 && sym[l-1] == ':') {
 			// functionstart or label
 			sym[l-1] = 0;
-			// we currently ignore that
+			int *loff = get_label_offset(sym);
+			if(loff) dprintf(2, "warning: label %s overwritten\n");
+			add_label(sym, text.len);
 			continue;
 		}
 		unsigned instr = find_insn(sym);
@@ -580,15 +637,18 @@ int main(int argc, char** argv) {
 							if(sym[0] == '-') assert(isdigit(sym[1]));
 							value = atoi(sym);
 						} else {
-							dprintf(2, "error: function refs not implemented yet\n");
-							goto loop_footer;
+							goto label_ref;
 						}
 						break;
-					/*
-					case SCMD_JMP: case SCMD_JZ: case SCMD_JNZ:
-						add_label_ref(a, sym, pos);
-						break;
-					*/
+					case SCMD_JMP: case SCMD_JZ: case SCMD_JNZ: {
+					label_ref:;
+						unsigned *loff = get_label_offset(sym);
+						if(!loff) {
+							add_label(sym, (unsigned)text.len | (1<<31));
+							loff = get_label_offset(sym);
+						}
+						value = *loff;
+						} break;
 					default:
 						value = atoi(sym);
 				}
