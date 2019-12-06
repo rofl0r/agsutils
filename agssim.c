@@ -216,6 +216,8 @@ static void vm_init() {
 	}
 	registers[AR_SP].i = 0;
 	registers[AR_NULL].i = 0;
+	/* set up EIP so vm_state() doesn't crash */
+	grow_text(16);
 }
 
 static inline int consume_int(int **eip) {
