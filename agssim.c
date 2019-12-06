@@ -5,6 +5,8 @@
 #include <assert.h>
 
 #include "ags_cpu.h"
+#include "version.h"
+#define ADS ":::AGSSim " VERSION " by rofl0r:::"
 
 enum RegisterAccess {
 	RA_NONE = 0,
@@ -517,6 +519,20 @@ void vm_run(void) {
 	}
 }
 
+static int usage(int fd, char *a0) {
+	dprintf(fd,
+		"%s - simple ags vm simulator\n"
+		"implements the ALU and a small stack\n"
+		"useful to examine how a chunk of code modifies VM state\n"
+		"not implemented: memory access apart from stack, jumps, functions\n"
+		"supply the assembly code via stdin, then type one of the following\n"
+		"commands:\n"
+		"!i - reset VM state and IP\n"
+		"!s - single-step\n"
+		"!r - run\n"
+	, a0);
+	return 1;
+}
 
 static void execute_user_command(char *cmd) {
 	if(!strcmp(cmd, "s")) {
@@ -527,29 +543,19 @@ static void execute_user_command(char *cmd) {
 		vm_init();
 	} else if(!strcmp(cmd, "q")) {
 		exit(0);
+	} else if(!strcmp(cmd, "h")) {
+		usage(1, "agssim");
 	}
 	vm_state();
 }
 
 int main(int argc, char** argv) {
-	if(argc != 1) {
-		dprintf(2,
-			"%s - simple ags vm simulator\n"
-			"implements the ALU and a small stack\n"
-			"useful to examine how a chunk of code modifies VM state\n"
-			"not implemented: memory access apart from stack, jumps, functions\n"
-			"supply the assembly code via stdin, then type one of the following\n"
-			"commands:\n"
-			"!i - reset VM state and IP\n"
-			"!s - single-step\n"
-			"!r - run\n"
-		, argv[0]);
-		return 1;
-	}
+	if(argc != 1) return usage(2, argv[0]);
 	char buf[1024], *sym;
 	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
 	int lineno = 0;
 	vm_init();
+	printf(ADS " - type !h for help\n");
 	while(fgets(buf, sizeof buf, stdin)) {
 		int code[3];
 		size_t pos = 0;
