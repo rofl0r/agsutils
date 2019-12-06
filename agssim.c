@@ -282,7 +282,7 @@ static void vm_step() {
 	/* we use register AR_NULL as instruction pointer */
 	int *eip = &text.code[registers[AR_NULL].i];
 	int eip_inc = 1 + opcodes[*eip].argcount;
-	int tmp;
+	int tmp, val;
 	vm_update_register_usage(eip);
 
 	switch(*eip) {
@@ -406,20 +406,31 @@ static void vm_step() {
 		case SCMD_FLTE:
 			REGI(1) = !!(REGF(1) <= REGF(2));
 			break;
+		case SCMD_WRITELIT:
+			tmp = CODE_INT(1);
+			if(tmp <= 0 || tmp > 4 || tmp == 3) {
+				dprintf(2, "invalid memcpy use\n");
+				break;
+			}
+			val = CODE_INT(2);
+			goto mwrite;
 		case SCMD_MEMWRITE:
 			tmp = 4;
+			val = REGI(1);
 			goto mwrite;
 		case SCMD_MEMWRITEW:
 			tmp = 2;
+			val = REGI(1);
 			goto mwrite;
 		case SCMD_MEMWRITEB:
 			tmp = 1;
+			val = REGI(1);
 		mwrite:
 			if(canread(registers[AR_MAR].i, tmp)) {
 				switch(tmp) {
-				case 4:	write_mem(registers[AR_MAR].i, REGI(1)); break;
-				case 2:	write_mem2(registers[AR_MAR].i, REGI(1)); break;
-				case 1:	write_mem1(registers[AR_MAR].i, REGI(1)); break;
+				case 4:	write_mem (registers[AR_MAR].i, val); break;
+				case 2:	write_mem2(registers[AR_MAR].i, val); break;
+				case 1:	write_mem1(registers[AR_MAR].i, val); break;
 				}
 			} else {
 				dprintf(2, "info: caught OOB memwrite\n");
@@ -470,7 +481,6 @@ static void vm_step() {
 		case SCMD_JMP:
 		case SCMD_JZ:
 		case SCMD_CALL:
-		case SCMD_WRITELIT:
 		case SCMD_RET:
 		default:
 			dprintf(2, "info: %s not implemented yet\n", opcodes[*eip].mnemonic);
