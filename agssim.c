@@ -607,6 +607,11 @@ int main(int argc, char** argv) {
 			int value = 0;
 			if(arg < opcodes[instr].regcount) {
 				value=get_reg(sym);
+				if(value == AR_NULL) {
+			needreg_err:
+					dprintf(2, "line %zu: error: expected register name!\n", lineno);
+					goto loop_footer;
+				}
 				if(instr == SCMD_REGTOREG) {
 					/* fix reversed order of arguments */
 					int dst = value;
@@ -615,6 +620,7 @@ int main(int argc, char** argv) {
 					assert(p < pend);
 					*p = 0;
 					value=get_reg(sym);
+					if(value == AR_NULL) goto needreg_err;
 					code[pos++] = value;
 					code[pos++] = dst;
 					break;
