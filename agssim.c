@@ -211,13 +211,19 @@ static void append_code(int *code, size_t cnt) {
 	}
 }
 
+static void vm_reset_register_usage() {
+	size_t i;
+	for(i = AR_NULL + 1; i < AR_MAX; i++)
+		registers[i].ru = RU_NONE;
+}
+
 static void vm_init() {
 	size_t i;
 	/* initialize registers to an easily recognisable junk value */
 	for(i = AR_NULL + 1; i < AR_MAX; i++) {
 		registers[i].i = 2222222222;
-		registers[i].ru = RU_NONE;
 	}
+	vm_reset_register_usage();
 	registers[AR_SP].i = 0;
 	registers[AR_NULL].i = 0;
 	/* set up EIP so vm_state() doesn't crash */
@@ -282,11 +288,12 @@ static int read_mem(int off) {
 #define REGI(X) registers[CODE_INT(X)].i
 #define REGF(X) registers[CODE_INT(X)].f
 
-static void vm_step() {
+static void vm_step(int run_context) {
 	/* we use register AR_NULL as instruction pointer */
 	int *eip = &text.code[registers[AR_NULL].i];
 	int eip_inc = 1 + opcodes[*eip].argcount;
 	int tmp, val;
+	if(!run_context) vm_reset_register_usage();
 	vm_update_register_usage(eip);
 
 	switch(*eip) {
@@ -533,7 +540,7 @@ void vm_run(void) {
 	while(1) {
 		int *eip = &text.code[registers[AR_NULL].i];
 		if(!*eip) break;
-		vm_step();
+		vm_step(1);
 	}
 }
 
@@ -562,7 +569,7 @@ enum UserCommand {
 };
 static void execute_user_command_i(int uc) {
 	switch(uc) {
-		case UC_STEP: vm_step(); break;
+		case UC_STEP: vm_step(0); break;
 		case UC_RUN : vm_run(); break;
 		case UC_INIT: vm_init(); break;
 		case UC_QUIT: exit(0); break;
