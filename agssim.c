@@ -534,19 +534,38 @@ static int usage(int fd, char *a0) {
 	return 1;
 }
 
-static void execute_user_command(char *cmd) {
-	if(!strcmp(cmd, "s")) {
-		vm_step();
-	} else if(!strcmp(cmd, "r")) {
-		vm_run();
-	} else if(!strcmp(cmd, "i")) {
-		vm_init();
-	} else if(!strcmp(cmd, "q")) {
-		exit(0);
-	} else if(!strcmp(cmd, "h")) {
-		usage(1, "agssim");
+static int lastcommand;
+enum UserCommand {
+	UC_STEP = 1,
+	UC_RUN,
+	UC_INIT,
+	UC_QUIT,
+	UC_HELP,
+};
+static void execute_user_command_i(int uc) {
+	switch(uc) {
+		case UC_STEP: vm_step(); break;
+		case UC_RUN : vm_run(); break;
+		case UC_INIT: vm_init(); break;
+		case UC_QUIT: exit(0); break;
+		case UC_HELP: usage(1, "agssim"); break;
 	}
+	lastcommand = uc;
 	vm_state();
+}
+static void execute_user_command(char *cmd) {
+	int uc = 0;
+	if(0) ;
+	else if(!strcmp(cmd, "s")) uc = UC_STEP;
+	else if(!strcmp(cmd, "r")) uc = UC_RUN;
+	else if(!strcmp(cmd, "i")) uc = UC_INIT;
+	else if(!strcmp(cmd, "q")) uc = UC_QUIT;
+	else if(!strcmp(cmd, "h")) uc = UC_HELP;
+	else {
+		dprintf(2, "unknown command\n");
+		return;
+	}
+	execute_user_command_i(uc);
 }
 
 int main(int argc, char** argv) {
@@ -561,6 +580,10 @@ int main(int argc, char** argv) {
 		size_t pos = 0;
 		lineno++;
 		char* p = buf, *pend = buf + sizeof buf;
+		if(*p == '\n' && lastcommand) {
+			execute_user_command_i(lastcommand);
+			continue;
+		}
 		if(*p == '#' || *p == ';') continue;
 		if(*p == '!') {
 			char *n = strchr(p, '\n');
