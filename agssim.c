@@ -286,6 +286,10 @@ static void vm_step() {
 	vm_update_register_usage(eip);
 
 	switch(*eip) {
+		case 0:
+			/* don't modify IP */
+			dprintf(2, "no code at IP.\n");
+			return;
 		case SCMD_ADD:
 			REGI(1) += CODE_INT(2);
 			break;
