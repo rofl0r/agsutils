@@ -251,6 +251,14 @@ static void vm_update_register_usage(int *eip) {
 	if(ri->ra_reg2) change_reg_usage(eip[2], ri->ra_reg2);
 }
 
+static void write_mem1(int off, int val) {
+	unsigned char *m = (void*) memory;
+	m[off] = val&0xff;
+}
+static void write_mem2(int off, int val) {
+	unsigned short *m = (void*) memory;
+	m[off/2] = val&0xffff;
+}
 static void write_mem(int off, int val) {
 	int *m = (void*) memory;
 	m[off/4] = val;
@@ -390,6 +398,25 @@ static void vm_step() {
 		case SCMD_FLTE:
 			REGI(1) = !!(REGF(1) <= REGF(2));
 			break;
+		case SCMD_MEMWRITE:
+			tmp = 4;
+			goto mwrite;
+		case SCMD_MEMWRITEW:
+			tmp = 2;
+			goto mwrite;
+		case SCMD_MEMWRITEB:
+			tmp = 1;
+		mwrite:
+			if(canread(registers[AR_MAR].i, tmp)) {
+				switch(tmp) {
+				case 4:	write_mem(registers[AR_MAR].i, REGI(1)); break;
+				case 2:	write_mem2(registers[AR_MAR].i, REGI(1)); break;
+				case 1:	write_mem1(registers[AR_MAR].i, REGI(1)); break;
+				}
+			} else {
+				dprintf(2, "info: caught OOB memwrite\n");
+			}
+			break;
 		case SCMD_MEMREAD:
 			tmp = 4;
 			goto mread;
@@ -434,10 +461,7 @@ static void vm_step() {
 		case SCMD_CALLEXT:
 		case SCMD_JMP:
 		case SCMD_JZ:
-		case SCMD_MEMWRITEW:
-		case SCMD_MEMWRITEB:
 		case SCMD_CALL:
-		case SCMD_MEMWRITE:
 		case SCMD_WRITELIT:
 		case SCMD_RET:
 		default:
