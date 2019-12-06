@@ -14,6 +14,10 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
+
 /* TODO: move duplicate code from Assembler.c into separate TU */
 static int get_reg(char* regname) {
 	int i = AR_NULL + 1;
@@ -402,9 +406,18 @@ static void vm_state() {
 		[RU_WRITE] = {'W', 0},
 		[RU_WRITE_AFTER_READ] = {'R', 'W', 0},
 	};
-	size_t i;
-	for(i=0; i< AR_MAX; i++)
-		printf("%s: %2s %d\n", i == 0 ? "eip" : regnames[i], ru_strings[registers[i].ru], registers[i].i);
+	static const char regorder[] = {
+		0, AR_MAR, AR_OP, AR_SP, -1,
+		AR_AX, AR_BX, AR_CX, AR_DX, -1, -1};
+	size_t i, j;
+	for(j=0; j < ARRAY_SIZE(regorder)-1; ++j) {
+		i = regorder[j];
+		if(i == -1) printf("\n");
+		else {
+			printf("%-3s: %-2s %-11d", i == 0 ? "eip" : regnames[i], ru_strings[registers[i].ru], registers[i].i);
+			if(regorder[j+1] != -1) printf(" ");
+		}
+	}
 
 	for(	i = MIN(registers[AR_SP].i+2*4, sizeof(stack_mem)/4);
 		i >= MAX(registers[AR_SP].i-2*4, 0);
