@@ -153,11 +153,12 @@ static void grow_text(size_t req) {
 }
 
 static void append_code(int *code, size_t cnt) {
-	grow_text(cnt);
+	grow_text(cnt+1);
 	size_t i;
 	for(i = 0; i < cnt; i++) {
 		text.code[text.len++] = code[i];
 	}
+	text.code[text.len] = 0;
 }
 
 static void vm_reset_register_usage() {
@@ -177,6 +178,9 @@ static void vm_init() {
 	registers[AR_NULL].i = 0;
 	/* set up EIP so vm_state() doesn't crash */
 	grow_text(16);
+	/* put NULL insn as first instruction so VM doesn't execute
+	   random garbage in mem */
+	text.code[0] = 0;
 }
 
 static inline int consume_int(int **eip) {
