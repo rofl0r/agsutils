@@ -27,26 +27,33 @@ static struct text_segment {
 	size_t capa;
 } text;
 
-static void patch_label_offset(int old, int new) {
-	int *p = text.code, *pe = text.code + text.len;
-	while(p < pe) switch(*p) {
-		case SCMD_JMP: case SCMD_JZ: case SCMD_JNZ:
-			if(p[1] == old) p[1] = new;
-			/* fall-through */
-		default:
-			p += opcodes[*p].argcount + 1;
+struct label_ref {
+	char *name;
+	unsigned insno;
+};
+tglist(struct label_ref) *label_refs;
+static void add_label_ref(char *name, unsigned insno) {
+	struct label_ref new = {.name = strdup(name), .insno = insno};
+	tglist_add(label_refs, new);
+}
+static void resolve_label(char* name, unsigned insno) {
+	size_t i;
+	for(i=0; i<tglist_getsize(label_refs); ) {
+		struct label_ref *l = &tglist_get(label_refs, i);
+		if(!strcmp(l->name, name)) {
+			free(l->name);
+			text.code[l->insno] = insno;
+			tglist_delete(label_refs, i);
+		} else ++i;
 	}
 }
-/* for label_map */
-hbmap(char*, int, 32) *label_map;
-static int *get_label_offset(char* name) {
+/* label_map */
+hbmap(char*, unsigned, 32) *label_map;
+static unsigned *get_label_offset(char* name) {
 	return hbmap_get(label_map, name);
 }
 static int add_label(char* name, int insno) {
 	char* tmp = strdup(name);
-	int *old = get_label_offset(name);
-	if(old && (*old & (1<<31)))
-		patch_label_offset(*old, insno);
 	return hbmap_insert(label_map, tmp, insno) != -1;
 }
 static int strptrcmp(const void *a, const void *b) {
@@ -64,6 +71,7 @@ static unsigned string_hash(const char* s) {
 }
 static void init_labels() {
 	label_map = hbmap_new(strptrcmp, string_hash, 32);
+	label_refs = tglist_new();
 }
 
 /* TODO: move duplicate code from Assembler.c into separate TU */
@@ -224,8 +232,18 @@ static int read_mem(int off) {
 #define REGF(X) registers[CODE_INT(X)].f
 
 static int vm_step(int run_context) {
+	if(tglist_getsize(label_refs)) {
+		dprintf(2, "error: unresolved label refs!\n");
+		size_t i; struct label_ref *l;
+		for(i=0; i<tglist_getsize(label_refs); ++i) {
+			l = &tglist_get(label_refs, i);
+			dprintf(2, "%s@%u\n", l->name, l->insno);
+		}
+		return 0;
+	}
 	/* we use register AR_NULL as instruction pointer */
-	int *eip = &text.code[registers[AR_NULL].i];
+#define EIP registers[AR_NULL].i
+	int *eip = &text.code[EIP];
 	int eip_inc = 1 + opcodes[*eip].argcount;
 	int tmp, val;
 	if(!run_context) vm_reset_register_usage();
@@ -234,7 +252,7 @@ static int vm_step(int run_context) {
 	switch(*eip) {
 		case 0:
 			/* don't modify IP */
-			dprintf(2, "no code at IP.\n");
+			dprintf(2, "no code at IP %u.\n", EIP);
 			return 0;
 		case SCMD_ADD:
 			REGI(1) += CODE_INT(2);
@@ -294,12 +312,16 @@ static int vm_step(int run_context) {
 			registers[AR_MAR].i = registers[AR_SP].i - CODE_INT(1);
 			break;
 		case SCMD_PUSHREG:
-			write_mem(registers[AR_SP].i, REGI(1));
-			registers[AR_SP].i += 4;
+			if(canread(registers[AR_SP].i, 4)) {
+				write_mem(registers[AR_SP].i, REGI(1));
+				registers[AR_SP].i += 4;
+			} else goto oob;
 			break;
 		case SCMD_POPREG:
-			registers[AR_SP].i -= 4;
-			REGI(1) = read_mem(registers[AR_SP].i);
+			if((int) registers[AR_SP].i >= 4) {
+				registers[AR_SP].i -= 4;
+				REGI(1) = read_mem(registers[AR_SP].i);
+			} else goto oob;
 			break;
 		case SCMD_MUL:
 			REGI(1) *= CODE_INT(2);
@@ -355,7 +377,7 @@ static int vm_step(int run_context) {
 		case SCMD_WRITELIT:
 			tmp = CODE_INT(1);
 			if(tmp <= 0 || tmp > 4 || tmp == 3) {
-				dprintf(2, "invalid memcpy use\n");
+				dprintf(2, "VM: invalid memcpy use at IP %u\n", EIP);
 				break;
 			}
 			val = CODE_INT(2);
@@ -379,7 +401,8 @@ static int vm_step(int run_context) {
 				case 1:	write_mem1(registers[AR_MAR].i, val); break;
 				}
 			} else {
-				dprintf(2, "info: caught OOB memwrite\n");
+		oob:
+				dprintf(2, "info: caught OOB access at IP %u\n", EIP);
 			}
 			break;
 		case SCMD_MEMREAD:
@@ -398,9 +421,7 @@ static int vm_step(int run_context) {
 				case 2:	REGI(1) = val & 0xffff; break;
 				case 1:	REGI(1) = val & 0xff; break;
 				}
-			} else {
-				dprintf(2, "info: caught OOB memread\n");
-			}
+			} else goto oob;
 			break;
 		case SCMD_JZ:
 			if(registers[AR_AX].i == 0) goto jump;
@@ -411,14 +432,21 @@ static int vm_step(int run_context) {
 		case SCMD_JMP:
 		jump:
 			tmp = CODE_INT(1);
-			if((tmp & (1<<31)) == 0) {
-				registers[AR_NULL].i = CODE_INT(1);
-			} else {
-				dprintf(2, "error: jump target lacks definition\n");
-				return 0;
-			}
+		jump_tmp:
+			if((unsigned)tmp <= text.len)
+				registers[AR_NULL].i = tmp;
+			else dprintf(2, "error: caught invalid jump to %u at IP %u\n", tmp, EIP);
 			eip_inc = 0;
 			break;
+		case SCMD_CALL:
+			tmp = REGI(1);
+			write_mem(registers[AR_SP].i, registers[AR_NULL].i + eip_inc);
+			registers[AR_SP].i += 4;
+			goto jump_tmp;
+		case SCMD_RET:
+			registers[AR_SP].i -= 4;
+			tmp = read_mem(registers[AR_SP].i);
+			goto jump_tmp;
 		case SCMD_NEWARRAY:
 		case SCMD_DYNAMICBOUNDS:
 		case SCMD_MEMZEROPTRND:
@@ -440,8 +468,6 @@ static int vm_step(int run_context) {
 		case SCMD_SUBREALSTACK:
 		case SCMD_PUSHREAL:
 		case SCMD_CALLEXT:
-		case SCMD_CALL:
-		case SCMD_RET:
 		default:
 			dprintf(2, "info: %s not implemented yet\n", opcodes[*eip].mnemonic);
 			{
@@ -586,7 +612,8 @@ int main(int argc, char** argv) {
 		if(l > 1 && sym[l-1] == ':') {
 			// functionstart or label
 			sym[l-1] = 0;
-			int *loff = get_label_offset(sym);
+			resolve_label(sym, text.len);
+			unsigned *loff = get_label_offset(sym);
 			if(loff) dprintf(2, "warning: label %s overwritten\n");
 			add_label(sym, text.len);
 			continue;
@@ -654,12 +681,15 @@ int main(int argc, char** argv) {
 					label_ref:;
 						unsigned *loff = get_label_offset(sym);
 						if(!loff) {
-							add_label(sym, (unsigned)text.len | (1<<31));
-							loff = get_label_offset(sym);
-						}
-						value = *loff;
+							add_label_ref(sym, text.len+pos);
+							value = -1;
+						} else value = *loff;
 						} break;
 					default:
+						if(!isdigit(sym[0])) {
+							dprintf(2, "error: expected number\n");
+							goto loop_footer;
+						}
 						value = atoi(sym);
 				}
 			}
