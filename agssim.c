@@ -561,7 +561,7 @@ int main(int argc, char** argv) {
 	vm_init();
 	printf(ADS " - type !h for help\n");
 	while(fgets(buf, sizeof buf, stdin)) {
-		int code[3];
+		int code[4];
 		size_t pos = 0;
 		lineno++;
 		char* p = buf, *pend = buf + sizeof buf;
