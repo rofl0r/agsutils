@@ -184,11 +184,12 @@ static void vm_init() {
 	vm_reset_register_usage();
 	registers[AR_SP].i = 0;
 	registers[AR_NULL].i = 0;
+	int was_null = text.code == 0;
 	/* set up EIP so vm_state() doesn't crash */
 	grow_text(16);
 	/* put NULL insn as first instruction so VM doesn't execute
 	   random garbage in mem */
-	text.code[0] = 0;
+	if(was_null) text.code[0] = 0;
 }
 
 static inline int consume_int(int **eip) {
