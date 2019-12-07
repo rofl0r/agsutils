@@ -645,6 +645,7 @@ int main(int argc, char** argv) {
 	init_labels();
 	vm_init();
 	if(interactive) printf(ADS " - type !h for help\n");
+mainloop:
 	while(fgets(buf, sizeof buf, in)) {
 		int code[4];
 		size_t pos = 0;
@@ -758,6 +759,10 @@ int main(int argc, char** argv) {
 loop_footer: ;
 	}
 	if(!interactive) execute_user_command("r");
+	else if(in != stdin) {
+		in = stdin;
+		goto mainloop;
+	}
 	return 0;
 }
 
