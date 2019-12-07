@@ -227,6 +227,22 @@ static int read_mem(int off) {
 	return m[off/4];
 }
 
+static int vm_push(int value) {
+	if(!canread(registers[AR_SP].i, 4)) return 0;
+	write_mem(registers[AR_SP].i, value);
+	registers[AR_SP].i += 4;
+	return 1;
+}
+
+static int vm_pop(int *value) {
+	if((int) registers[AR_SP].i >= 4) {
+		registers[AR_SP].i -= 4;
+		*value = read_mem(registers[AR_SP].i);
+		return 1;
+	}
+	return 0;
+}
+
 #define CODE_INT(X) eip[X]
 #define CODE_FLOAT(X) ((float*)eip)[X]
 #define REGI(X) registers[CODE_INT(X)].i
@@ -313,16 +329,10 @@ static int vm_step(int run_context) {
 			registers[AR_MAR].i = registers[AR_SP].i - CODE_INT(1);
 			break;
 		case SCMD_PUSHREG:
-			if(canread(registers[AR_SP].i, 4)) {
-				write_mem(registers[AR_SP].i, REGI(1));
-				registers[AR_SP].i += 4;
-			} else goto oob;
+			if(!vm_push(REGI(1))) goto oob;
 			break;
 		case SCMD_POPREG:
-			if((int) registers[AR_SP].i >= 4) {
-				registers[AR_SP].i -= 4;
-				REGI(1) = read_mem(registers[AR_SP].i);
-			} else goto oob;
+			if(!vm_pop(&REGI(1))) goto oob;
 			break;
 		case SCMD_MUL:
 			REGI(1) *= CODE_INT(2);
