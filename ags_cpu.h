@@ -38,7 +38,7 @@
 #define SCMD_PUSHREAL     34    // push reg1 onto real stack
 #define SCMD_SUBREALSTACK 35
 #define SCMD_LINENUM      36    // debug info - source code line number
-#define SCMD_CALLAS       37    // call external script function
+#define SCMD_CALLAS       37    // call external script function. this instruction is never emitted to bytecodes in files. it's only used via "live-patching" to change CALLEXT insns if the script to call is in a different instance.
 #define SCMD_THISBASE     38    // current relative address
 #define SCMD_NUMFUNCARGS  39    // number of arguments for ext func call
 #define SCMD_MODREG       40    // reg1 %= reg2
