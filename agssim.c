@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <errno.h>
 
 #include "ags_cpu.h"
 #include "regusage.h"
@@ -243,6 +244,28 @@ static int vm_pop(int *value) {
 	return 0;
 }
 
+static int vm_syscall(int scno) {
+	int ret, arg1, arg2, arg3;
+	/* we follow linux x86_64 syscall numbers for simplicity */
+	switch(scno) {
+	case 0: /* SYS_read (fd, buf, size) */
+		/* fall-through */
+	case 1: /* SYS_write (fd, buf, size) */
+		if(!vm_pop(&arg1) || !vm_pop(&arg2) || !vm_pop(&arg3)) return -EINVAL;
+		if(!canread(arg2, arg3)) return -EFAULT;
+		if(scno == 0)
+			ret = read(arg1, ((char*)memory)+arg2, arg3);
+		else
+			ret = write(arg1, ((char*)memory)+arg2, arg3);
+		if(ret == -1) return -errno;
+		return ret;
+	case 60: /* SYS_exit (exitcode) */
+		if(!vm_pop(&arg1)) arg1 = 1;
+		exit(arg1);
+	default: return -ENOSYS;
+	}
+}
+
 #define CODE_INT(X) eip[X]
 #define CODE_FLOAT(X) ((float*)eip)[X]
 #define REGI(X) registers[CODE_INT(X)].i
@@ -450,14 +473,20 @@ static int vm_step(int run_context) {
 			eip_inc = 0;
 			break;
 		case SCMD_CALL:
+			if(!vm_push(registers[AR_NULL].i + eip_inc)) goto oob;
 			tmp = REGI(1);
-			write_mem(registers[AR_SP].i, registers[AR_NULL].i + eip_inc);
-			registers[AR_SP].i += 4;
 			goto jump_tmp;
 		case SCMD_RET:
 			registers[AR_SP].i -= 4;
 			tmp = read_mem(registers[AR_SP].i);
 			goto jump_tmp;
+		case SCMD_CALLAS:
+			/* we re-purpose "callscr" mnemonic to mean syscall,
+			   as it is unused in ags-emitted bytecode.
+			   using it is unportable, it works only in agssim.
+			   syscall number is passed in reg, arguments on the stack. */
+			registers[AR_AX].i = vm_syscall(REGI(1));
+			break;
 		case SCMD_NEWARRAY:
 		case SCMD_DYNAMICBOUNDS:
 		case SCMD_MEMZEROPTRND:
@@ -475,7 +504,6 @@ static int vm_step(int run_context) {
 		case SCMD_CHECKBOUNDS:
 		case SCMD_CALLOBJ:
 		case SCMD_NUMFUNCARGS:
-		case SCMD_CALLAS:
 		case SCMD_SUBREALSTACK:
 		case SCMD_PUSHREAL:
 		case SCMD_CALLEXT:
