@@ -287,7 +287,7 @@ static int label_check() {
 #define REGF(X) registers[CODE_INT(X)].f
 
 static int vm_step(int run_context) {
-	if(!run_context && label_check()) return 0;
+	if(!run_context && !label_check()) return 0;
 	/* we use register AR_NULL as instruction pointer */
 #define EIP registers[AR_NULL].i
 	int *eip = &text.code[EIP];
