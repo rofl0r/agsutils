@@ -22,6 +22,8 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
 
+static int interactive;
+
 static struct text_segment {
 	int *code;
 	size_t len;
@@ -530,6 +532,7 @@ static inline char *int_to_str(int value, char* out) {
 }
 
 static void vm_state() {
+	if(!interactive) return;
 	static const char ru_strings[][3] = {
 		[RU_NONE] = {0},
 		[RU_READ] = {'R', 0},
@@ -576,12 +579,12 @@ void vm_run(void) {
 
 static int usage(int fd, char *a0) {
 	dprintf(fd,
-		"%s - simple ags vm simulator\n"
+		"%s [OPTIONS] [file.s] - simple ags vm simulator\n"
 		"implements the ALU and a small stack\n"
 		"useful to examine how a chunk of code modifies VM state\n"
-		"not implemented: memory access apart from stack, jumps, functions\n"
-		"supply the assembly code via stdin, then type one of the following\n"
-		"commands:\n"
+		"OPTIONS:\n"
+		"-i : interpreter mode - don't print anything, run and exit\n"
+		"by default, mode is interactive, sporting the following commands:\n"
 		"!i - reset VM state and IP\n"
 		"!s - single-step\n"
 		"!r - run\n"
@@ -624,14 +627,25 @@ static void execute_user_command(char *cmd) {
 }
 
 int main(int argc, char** argv) {
-	if(argc != 1) return usage(2, argv[0]);
+	int c;
+	interactive = 1;
+	FILE *in = stdin;
+	while((c = getopt(argc, argv, "i")) != EOF) switch(c) {
+	case 'i': interactive = 0; break;
+	default: return usage(2, argv[0]);
+	}
+	if(argv[optind]) in = fopen(argv[optind], "r");
+	if(!in) {
+		dprintf(2, "error opening %s\n", argv[optind]);
+		return 1;
+	}
 	char buf[1024], *sym;
 	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
 	int lineno = 0;
 	init_labels();
 	vm_init();
-	printf(ADS " - type !h for help\n");
-	while(fgets(buf, sizeof buf, stdin)) {
+	if(interactive) printf(ADS " - type !h for help\n");
+	while(fgets(buf, sizeof buf, in)) {
 		int code[4];
 		size_t pos = 0;
 		lineno++;
@@ -743,5 +757,7 @@ int main(int argc, char** argv) {
 		append_code(code, pos);
 loop_footer: ;
 	}
+	if(!interactive) execute_user_command("r");
+	return 0;
 }
 
