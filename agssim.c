@@ -266,12 +266,7 @@ static int vm_syscall(int scno) {
 	}
 }
 
-#define CODE_INT(X) eip[X]
-#define CODE_FLOAT(X) ((float*)eip)[X]
-#define REGI(X) registers[CODE_INT(X)].i
-#define REGF(X) registers[CODE_INT(X)].f
-
-static int vm_step(int run_context) {
+static int label_check() {
 	if(tglist_getsize(label_refs)) {
 		dprintf(2, "error: unresolved label refs!\n");
 		size_t i; struct label_ref *l;
@@ -281,6 +276,16 @@ static int vm_step(int run_context) {
 		}
 		return 0;
 	}
+	return 1;
+}
+
+#define CODE_INT(X) eip[X]
+#define CODE_FLOAT(X) ((float*)eip)[X]
+#define REGI(X) registers[CODE_INT(X)].i
+#define REGF(X) registers[CODE_INT(X)].f
+
+static int vm_step(int run_context) {
+	if(!run_context && label_check()) return 0;
 	/* we use register AR_NULL as instruction pointer */
 #define EIP registers[AR_NULL].i
 	int *eip = &text.code[EIP];
@@ -561,6 +566,7 @@ static void vm_state() {
 }
 
 void vm_run(void) {
+	if(!label_check()) return;
 	while(1) {
 		int *eip = &text.code[registers[AR_NULL].i];
 		if(!*eip) break;
