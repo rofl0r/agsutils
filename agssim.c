@@ -292,8 +292,10 @@ static int vm_step(int run_context) {
 	int *eip = &text.code[EIP];
 	int eip_inc = 1 + opcodes[*eip].argcount;
 	int tmp, val;
-	if(!run_context) vm_reset_register_usage();
-	vm_update_register_usage(eip);
+	if(interactive) {
+		if(!run_context) vm_reset_register_usage();
+		vm_update_register_usage(eip);
+	}
 
 	switch(*eip) {
 		case 0:
