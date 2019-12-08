@@ -330,7 +330,7 @@ static int vm_step(int run_context) {
 			REGI(1) &= REGI(2);
 			break;
 		case SCMD_BITOR:
-			REGI(1) &= REGI(2);
+			REGI(1) |= REGI(2);
 			break;
 		case SCMD_ISEQUAL:
 			REGI(1) = !!(REGI(1) == REGI(2));
