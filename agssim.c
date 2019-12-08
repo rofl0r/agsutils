@@ -287,7 +287,6 @@ static int label_check() {
 #define REGF(X) registers[CODE_INT(X)].f
 
 static int vm_step(int run_context) {
-	if(!run_context && !label_check()) return 0;
 	/* we use register AR_NULL as instruction pointer */
 #define EIP registers[AR_NULL].i
 	int *eip = &text.code[EIP];
@@ -602,7 +601,7 @@ enum UserCommand {
 };
 static void execute_user_command_i(int uc) {
 	switch(uc) {
-		case UC_STEP: vm_step(0); break;
+		case UC_STEP: if(label_check()) vm_step(0); break;
 		case UC_RUN : vm_run(); break;
 		case UC_INIT: vm_init(); break;
 		case UC_QUIT: exit(0); break;
