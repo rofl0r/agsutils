@@ -38,7 +38,13 @@ static int add_label(AS *a, char* name, size_t insno) {
 }
 
 static unsigned get_label_offset(AS *a, char* name) {
-	return *hbmap_get(a->label_map, name);
+	unsigned *ret = hbmap_get(a->label_map, name);
+	if(!ret) {
+		dprintf(2, "error: label '%s' not found\n", name);
+		if(strncmp(name, "label", 5)) dprintf(2, "hint: label names must start with 'label'\n");
+		exit(1);
+	}
+	return *ret;
 }
 
 static int add_label_ref(AS *a, char * name, size_t insno) {
