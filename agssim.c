@@ -532,6 +532,12 @@ static inline char *int_to_str(int value, char* out) {
 	return out;
 }
 
+static int* get_next_ip(int *eip, int off) {
+	int *ret = eip, i;
+	for(i=0; i<off; ++i) ret+=1+opcodes[*ret].argcount;
+	return ret;
+}
+
 static void vm_state() {
 	if(!interactive) return;
 	static const char ru_strings[][3] = {
@@ -552,21 +558,34 @@ static void vm_state() {
 			if(regorder[j+1] != -1) printf(" ");
 		}
 	}
-
-	for(	i = MIN(registers[AR_SP].i+2*4, sizeof(stack_mem)/4);
+	char stackview[5][24];
+	stackview[3][0] = 0;
+	stackview[4][0] = 0;
+	for(j=0,i = MIN(registers[AR_SP].i+2*4, sizeof(stack_mem)/4);
 		i >= MAX(registers[AR_SP].i-2*4, 0);
-		i-=4) {
-		printf("SL %s %3zu %d\n", i == registers[AR_SP].i ? ">" : " ", i, read_mem(i));
+		i-=4, ++j) {
+		sprintf(stackview[j],
+			"SL %s %3zu %d", i == registers[AR_SP].i ? ">" : " ", i, read_mem(i));
 		if(i == 0) break;
 	}
-
-	int *eip = &text.code[registers[AR_NULL].i];
-	char arg1buf[32], arg2buf[32];
-	const char *arg1 = opcodes[*eip].argcount == 0 ? "" : \
-		(opcodes[*eip].regcount > 0 ? regnames[eip[1]] : int_to_str(eip[1], arg1buf));
-	const char *arg2 = opcodes[*eip].argcount < 2 ? "" : \
-		(opcodes[*eip].regcount > 1 ? regnames[eip[2]] : int_to_str(eip[2], arg2buf));
-	printf(" > %s %s %s\n", opcodes[*eip].mnemonic, arg1, arg2);
+	int *eip = &text.code[registers[AR_NULL].i], wasnull = 0;
+	for(i = 0; i<5; i++) {
+		char a1b[32], a2b[32], a3b[32], inst[48];
+		if(i > 1) {
+			int *nip = get_next_ip(eip, i-2);
+			const char *arg1 = opcodes[*nip].argcount == 0 ? "" : \
+			(opcodes[*nip].regcount > 0 ? regnames[nip[1]] : int_to_str(nip[1], a1b));
+			const char *arg2 = opcodes[*nip].argcount < 2 ? "" : \
+			(opcodes[*nip].regcount > 1 ? regnames[nip[2]] : int_to_str(nip[2], a2b));
+			const char *arg3 = opcodes[*nip].argcount < 3 ? "" : \
+			(opcodes[*nip].regcount > 2 ? regnames[nip[3]] : int_to_str(nip[2], a3b));
+			if(!wasnull)
+				sprintf(inst, " %s %s %s %s", i==2?">":" ", opcodes[*nip].mnemonic, arg1, arg2);
+			else inst[0] = 0;
+			if(!*nip) wasnull = 1;
+		} else inst[0] = 0;
+		printf("%-52s %s\n", inst, stackview[i]);
+	}
 }
 
 void vm_run(void) {
