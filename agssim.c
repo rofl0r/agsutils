@@ -597,6 +597,7 @@ static void vm_state() {
 		}
 	}
 	char stackview[5][24];
+	stackview[2][0] = 0;
 	stackview[3][0] = 0;
 	stackview[4][0] = 0;
 	for(j=0,i = MIN(registers[AR_SP].i+2*4, sizeof(stack_mem)/4);
@@ -604,7 +605,7 @@ static void vm_state() {
 		i-=4, ++j) {
 		sprintf(stackview[j],
 			"SL %s %3zu %d", i == registers[AR_SP].i ? ">" : " ", i, read_mem(i));
-		if(i == 0) break;
+		if(i <= 0) break;
 	}
 	int *eip = &text.code[registers[AR_NULL].i], wasnull = 0;
 	for(i = 0; i<5; i++) {
