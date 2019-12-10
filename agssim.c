@@ -22,6 +22,9 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
 
+#define BREAKPOINT_FLAG (1<<31)
+#define OPCODE_MASK (~(BREAKPOINT_FLAG))
+
 static int interactive;
 
 static struct text_segment {
@@ -290,9 +293,13 @@ static int vm_step(int run_context) {
 	/* we use register AR_NULL as instruction pointer */
 #define EIP registers[AR_NULL].i
 	int *eip = &text.code[EIP];
-	int eip_inc = 1 + opcodes[*eip].argcount;
+	int eip_inc = 1 + opcodes[*eip&OPCODE_MASK].argcount;
 	int tmp, val;
 	if(interactive) {
+		if(*eip & BREAKPOINT_FLAG) {
+			*eip &= ~BREAKPOINT_FLAG;
+			return 0;
+		}
 		if(!run_context) vm_reset_register_usage();
 		vm_update_register_usage(eip);
 	}
@@ -572,17 +579,18 @@ static void vm_state() {
 	for(i = 0; i<5; i++) {
 		char a1b[32], a2b[32], a3b[32], inst[48];
 		if(i > 1) {
-			int *nip = get_next_ip(eip, i-2);
+			int *nip = get_next_ip(eip, i-2),
+			op = *nip & OPCODE_MASK;
 			const char *arg1 = opcodes[*nip].argcount == 0 ? "" : \
-			(opcodes[*nip].regcount > 0 ? regnames[nip[1]] : int_to_str(nip[1], a1b));
+			(opcodes[op].regcount > 0 ? regnames[nip[1]] : int_to_str(nip[1], a1b));
 			const char *arg2 = opcodes[*nip].argcount < 2 ? "" : \
-			(opcodes[*nip].regcount > 1 ? regnames[nip[2]] : int_to_str(nip[2], a2b));
+			(opcodes[op].regcount > 1 ? regnames[nip[2]] : int_to_str(nip[2], a2b));
 			const char *arg3 = opcodes[*nip].argcount < 3 ? "" : \
-			(opcodes[*nip].regcount > 2 ? regnames[nip[3]] : int_to_str(nip[2], a3b));
+			(opcodes[op].regcount > 2 ? regnames[nip[3]] : int_to_str(nip[2], a3b));
 			if(!wasnull)
-				sprintf(inst, " %s %s %s %s", i==2?">":" ", opcodes[*nip].mnemonic, arg1, arg2);
+				sprintf(inst, " %s %s %s %s", i==2?">":" ", opcodes[op].mnemonic, arg1, arg2);
 			else inst[0] = 0;
-			if(!*nip) wasnull = 1;
+			if(!op) wasnull = 1;
 		} else inst[0] = 0;
 		printf("%-52s %s\n", inst, stackview[i]);
 	}
@@ -607,6 +615,7 @@ static int usage(int fd, char *a0) {
 		"by default, mode is interactive, sporting the following commands:\n"
 		"!i - reset VM state and IP\n"
 		"!s - single-step\n"
+		"!n - step-over\n"
 		"!r - run\n"
 	, a0);
 	return 1;
@@ -615,6 +624,7 @@ static int usage(int fd, char *a0) {
 static int lastcommand;
 enum UserCommand {
 	UC_STEP = 1,
+	UC_NEXT, /* step-over */
 	UC_RUN,
 	UC_INIT,
 	UC_QUIT,
@@ -623,6 +633,8 @@ enum UserCommand {
 static void execute_user_command_i(int uc) {
 	switch(uc) {
 		case UC_STEP: if(label_check()) vm_step(0); break;
+		case UC_NEXT: *get_next_ip(&text.code[EIP], 1) |= BREAKPOINT_FLAG;
+				/* fall-through */
 		case UC_RUN : vm_run(); break;
 		case UC_INIT: vm_init(); break;
 		case UC_QUIT: exit(0); break;
@@ -639,6 +651,7 @@ static void execute_user_command(char *cmd) {
 	else if(!strcmp(cmd, "i")) uc = UC_INIT;
 	else if(!strcmp(cmd, "q")) uc = UC_QUIT;
 	else if(!strcmp(cmd, "h")) uc = UC_HELP;
+	else if(!strcmp(cmd, "n")) uc = UC_NEXT;
 	else {
 		dprintf(2, "unknown command\n");
 		return;
