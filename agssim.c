@@ -249,14 +249,17 @@ static int vm_pop(int *value) {
 	return 0;
 }
 
-static int vm_syscall(int scno) {
-	int ret, arg1, arg2, arg3;
+static int vm_syscall(void) {
+	int ret,
+	scno = registers[AR_AX].i,
+	arg1 = registers[AR_BX].i,
+	arg2 = registers[AR_CX].i,
+	arg3 = registers[AR_DX].i;
 	/* we follow linux x86_64 syscall numbers for simplicity */
 	switch(scno) {
 	case 0: /* SYS_read (fd, buf, size) */
 		/* fall-through */
 	case 1: /* SYS_write (fd, buf, size) */
-		if(!vm_pop(&arg1) || !vm_pop(&arg2) || !vm_pop(&arg3)) return -EINVAL;
 		if(!canread(arg2, arg3)) return -EFAULT;
 		if(scno == 0)
 			ret = read(arg1, ((char*)memory)+arg2, arg3);
@@ -265,7 +268,6 @@ static int vm_syscall(int scno) {
 		if(ret == -1) return -errno;
 		return ret;
 	case 60: /* SYS_exit (exitcode) */
-		if(!vm_pop(&arg1)) arg1 = 1;
 		exit(arg1);
 	default: return -ENOSYS;
 	}
@@ -499,8 +501,11 @@ static int vm_step(int run_context) {
 			/* we re-purpose "callscr" mnemonic to mean syscall,
 			   as it is unused in ags-emitted bytecode.
 			   using it is unportable, it works only in agssim.
-			   syscall number is passed in reg, arguments on the stack. */
-			registers[AR_AX].i = vm_syscall(REGI(1));
+			   the register arg for callscr instruction is ignored.
+			   the arguments are passed in regs ax,bx,cx,dx,op
+			   in this order, where the first arg is the syscall
+			   number. return value is put in ax. */
+			registers[AR_AX].i = vm_syscall();
 			break;
 		case SCMD_NEWARRAY:
 		case SCMD_DYNAMICBOUNDS:

@@ -28,30 +28,20 @@ memwrite1 ax
 addi mar, 1
 ;reset mar to point to the beginning of stack, i.e. our string
 ptrstack 0
-;move stack pointer past our buffer
-addi sp, 8
-; push number of bytes to write onto stack
-li ax, 6
-push ax
-; push address of buffer
-push mar
-; push 1 (fd number of stdout)
+; syscall nr
 li ax, 1
-push ax
-; put syscall number 1 (write) into ax
-li ax, 1
-; do the syscall
+; fd 1: stdout
+li bx, 1
+; buf
+mr cx, mar
+; number of bytes to write
+li dx, 6
 callscr ax
-; restore stackptr to prev value so return addr is correct
-mr sp, mar
-; return
 ret
 main:
 li ax, hello
 call ax
-; push 0 onto stack
-li ax, 0
-push ax
 ; SYS_exit
 li ax, 60
+li bx 0
 callscr ax
