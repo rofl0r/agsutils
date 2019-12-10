@@ -511,7 +511,10 @@ static int vm_step(int run_context) {
 		jump_tmp:
 			if((unsigned)tmp <= text.len)
 				registers[AR_NULL].i = tmp;
-			else dprintf(2, "error: caught invalid jump to %u at IP %u\n", tmp, EIP);
+			else {
+				vm_signal(VM_SIGSEGV, tmp);
+				return 0;
+			}
 			eip_inc = 0;
 			break;
 		case SCMD_CALL:
