@@ -652,6 +652,7 @@ static int usage(int fd, char *a0) {
 		"!s - single-step\n"
 		"!n - step-over\n"
 		"!r - run\n"
+		"!b ADDR - set a breakpoint on ADDR (address or label)\n"
 	, a0);
 	return 1;
 }
@@ -660,14 +661,34 @@ static int lastcommand;
 enum UserCommand {
 	UC_STEP = 1,
 	UC_NEXT, /* step-over */
+	UC_BP,
 	UC_RUN,
 	UC_INIT,
 	UC_QUIT,
 	UC_HELP,
 };
-static void execute_user_command_i(int uc) {
+static void execute_user_command_i(int uc, char* param) {
 	switch(uc) {
 		case UC_STEP: if(label_check()) vm_step(0); break;
+		case UC_BP:  {
+			int addr, *ptr;
+			if(isdigit(param[0]))
+				addr = atoi(param);
+			else {
+				ptr = get_label_offset(param);
+				if(!ptr) {
+					dprintf(2, "label %s not found!\n", param);
+					return;
+				}
+				addr = *ptr;
+			}
+			if(addr >= text.len) {
+				dprintf(2, "breakpoint offset %d out of bounds\n", addr);
+				return;
+			}
+			text.code[addr] |= BREAKPOINT_FLAG;
+		}
+		return;
 		case UC_NEXT: *get_next_ip(&text.code[EIP], 1) |= BREAKPOINT_FLAG;
 				/* fall-through */
 		case UC_RUN : vm_run(); break;
@@ -680,6 +701,9 @@ static void execute_user_command_i(int uc) {
 }
 static void execute_user_command(char *cmd) {
 	int uc = 0;
+	char *param = cmd;
+	while(!isspace(*param)) param++;
+	while(isspace(*param)) param++;
 	if(0) ;
 	else if(!strcmp(cmd, "s")) uc = UC_STEP;
 	else if(!strcmp(cmd, "r")) uc = UC_RUN;
@@ -687,11 +711,12 @@ static void execute_user_command(char *cmd) {
 	else if(!strcmp(cmd, "q")) uc = UC_QUIT;
 	else if(!strcmp(cmd, "h")) uc = UC_HELP;
 	else if(!strcmp(cmd, "n")) uc = UC_NEXT;
+	else if(*cmd == 'b') uc = UC_BP;
 	else {
 		dprintf(2, "unknown command\n");
 		return;
 	}
-	execute_user_command_i(uc);
+	execute_user_command_i(uc, param);
 }
 
 int main(int argc, char** argv) {
@@ -720,7 +745,7 @@ mainloop:
 		lineno++;
 		char* p = buf, *pend = buf + sizeof buf;
 		if(*p == '\n' && lastcommand) {
-			execute_user_command_i(lastcommand);
+			execute_user_command_i(lastcommand, "");
 			continue;
 		}
 		if(*p == '#' || *p == ';') continue;
