@@ -286,6 +286,25 @@ static int label_check() {
 	return 1;
 }
 
+#define EIP registers[AR_NULL].i
+
+#define VM_SIGILL 1
+#define VM_SIGSEGV 2
+static int vm_return;
+static void vm_signal(int sig, int param) {
+	switch(sig) {
+		case VM_SIGILL:
+			dprintf(2, "illegal instruction at IP %u\n", EIP);
+			break;
+		case VM_SIGSEGV:
+			dprintf(2, "segmentation fault: invalid access at %u\n", EIP);
+			break;
+		default:
+			dprintf(2, "unknown signal\n");
+	}
+	vm_return = 1;
+}
+
 #define CODE_INT(X) eip[X]
 #define CODE_FLOAT(X) ((float*)eip)[X]
 #define REGI(X) registers[CODE_INT(X)].i
@@ -293,7 +312,6 @@ static int label_check() {
 
 static int vm_step(int run_context) {
 	/* we use register AR_NULL as instruction pointer */
-#define EIP registers[AR_NULL].i
 	int *eip = &text.code[EIP];
 	int eip_inc = 1 + opcodes[*eip&OPCODE_MASK].argcount;
 	int tmp, val;
@@ -459,7 +477,8 @@ static int vm_step(int run_context) {
 				}
 			} else {
 		oob:
-				dprintf(2, "info: caught OOB access at IP %u\n", EIP);
+				vm_signal(VM_SIGSEGV, 0);
+				return 0;
 			}
 			break;
 		case SCMD_MEMREAD:
@@ -532,13 +551,15 @@ static int vm_step(int run_context) {
 		case SCMD_SUBREALSTACK:
 		case SCMD_PUSHREAL:
 		case SCMD_CALLEXT:
-		default:
 			dprintf(2, "info: %s not implemented yet\n", opcodes[*eip].mnemonic);
 			{
 				size_t i, l = opcodes[*eip].argcount;
 				for(i = 0; i < l; i++) ++(*eip);
 			}
 			break;
+		default:
+			vm_signal(VM_SIGILL, 0);
+			return 0;
 	}
 	registers[AR_NULL].i += eip_inc;
 	return 1;
@@ -806,6 +827,6 @@ loop_footer: ;
 		in = stdin;
 		goto mainloop;
 	}
-	return 0;
+	return vm_return;
 }
 
