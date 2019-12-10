@@ -785,7 +785,7 @@ mainloop:
 						} break;
 					default:
 						if(!isdigit(sym[0])) {
-							dprintf(2, "error: expected number\n");
+							dprintf(2, "line %zu: error: expected number\n", lineno);
 							goto loop_footer;
 						}
 						value = atoi(sym);
