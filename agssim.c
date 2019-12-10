@@ -425,6 +425,12 @@ static int vm_step(int run_context) {
 		case SCMD_FLTE:
 			REGI(1) = !!(REGF(1) <= REGF(2));
 			break;
+		case SCMD_ZEROMEMORY:
+			tmp = CODE_INT(1);
+			if(canread(registers[AR_MAR].i, tmp)) {
+				memset(((char*)memory)+registers[AR_MAR].i,0,tmp);
+			} else goto oob;
+			break;
 		case SCMD_WRITELIT:
 			tmp = CODE_INT(1);
 			if(tmp <= 0 || tmp > 4 || tmp == 3) {
@@ -515,7 +521,6 @@ static int vm_step(int run_context) {
 		case SCMD_STRINGSNOTEQ:
 		case SCMD_STRINGSEQUAL:
 		case SCMD_CREATESTRING:
-		case SCMD_ZEROMEMORY:
 		case SCMD_CHECKNULL:
 		case SCMD_MEMINITPTR:
 		case SCMD_MEMZEROPTR:
