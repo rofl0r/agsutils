@@ -22,33 +22,43 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
 
+#define ALIGN(X, A) ((X+(A-1)) & -(A))
+
 #define BREAKPOINT_FLAG (1<<31)
 #define OPCODE_MASK (~(BREAKPOINT_FLAG))
 
 static int interactive;
 
-static struct text_segment {
-	int *code;
-	size_t len;
+static struct mem {
+	unsigned char *mem;
 	size_t capa;
-} text;
+	size_t ltext;
+	size_t lstack;
+	size_t lheap;
+} mem;
+
+#define memory (mem.mem)
+#define text memory
+#define text_end ALIGN(mem.ltext, 4096)
+#define stack_mem (mem.mem+text_end)
+#define heap_mem (mem.mem+text_end+mem.lstack)
 
 struct label_ref {
 	char *name;
-	unsigned insno;
+	unsigned insoff;
 };
 tglist(struct label_ref) *label_refs;
-static void add_label_ref(char *name, unsigned insno) {
-	struct label_ref new = {.name = strdup(name), .insno = insno};
+static void add_label_ref(char *name, unsigned insoff) {
+	struct label_ref new = {.name = strdup(name), .insoff = insoff};
 	tglist_add(label_refs, new);
 }
-static void resolve_label(char* name, unsigned insno) {
+static void resolve_label(char* name, unsigned insoff) {
 	size_t i;
 	for(i=0; i<tglist_getsize(label_refs); ) {
 		struct label_ref *l = &tglist_get(label_refs, i);
 		if(!strcmp(l->name, name)) {
 			free(l->name);
-			text.code[l->insno] = insno;
+			memcpy(text+l->insoff, &insoff, 4);
 			tglist_delete(label_refs, i);
 		} else ++i;
 	}
@@ -58,9 +68,9 @@ hbmap(char*, unsigned, 32) *label_map;
 static unsigned *get_label_offset(char* name) {
 	return hbmap_get(label_map, name);
 }
-static int add_label(char* name, int insno) {
+static int add_label(char* name, int insoff) {
 	char* tmp = strdup(name);
-	return hbmap_insert(label_map, tmp, insno) != -1;
+	return hbmap_insert(label_map, tmp, insoff) != -1;
 }
 static int strptrcmp(const void *a, const void *b) {
 	const char * const *x = a;
@@ -152,27 +162,58 @@ static struct rval {
 	enum RegisterUsage ru;
 } registers[AR_MAX];
 
-static unsigned char stack_mem[1000*4];
-#define memory stack_mem
-
 static int canread(int index, int cnt) {
-	return index >= 0 && index+cnt < sizeof(memory)/sizeof(memory[0]);
+	return index >= 0 && index+cnt < mem.capa;
 }
 
-static void grow_text(size_t req) {
-	if(text.len + req > text.capa) {
-		text.code = realloc(text.code, (text.capa+1024)*sizeof(int));
-		text.capa += 1024;
+#define ALIGN(X, A) ((X+(A-1)) & -(A))
+
+static int vm_init_stack(unsigned size) {
+	if(mem.lstack) return 1;
+	unsigned want = ALIGN(size, 4096);
+	unsigned char *p = realloc(mem.mem, mem.capa+want);
+	if(!p) {
+		dprintf(2, "error: could not allocate stack!\n");
+		return 0;
 	}
+	mem.mem = p;
+	mem.lstack = want;
+	mem.capa += want;
+	registers[AR_SP].i = text_end;
+	return 1;
 }
 
-static void append_code(int *code, size_t cnt) {
-	grow_text(cnt+1);
+static int grow_text(size_t req) {
+	/* add 4 more slots than strictly necessary so we can access
+	 * at least 1 full-length insn past text end without crash */
+	req += 4*sizeof(int);
+	size_t need = mem.ltext + req;
+	if(need > mem.capa-mem.lheap-mem.lstack) {
+		if(mem.lstack) {
+			dprintf(2, "error: cannot enlarge text segment once execution started!\n");
+			return 0;
+		}
+		size_t want = ALIGN(need, 4096);
+		unsigned char *p = realloc(mem.mem, want);
+		if(!p) {
+			dprintf(2, "error: allocating memory failed!\n");
+			return 0;
+		}
+		mem.mem = p;
+		mem.capa = want;
+	}
+	return 1;
+}
+
+static int append_code(int *code, size_t cnt) {
+	if(!grow_text((cnt+1)*4)) return 0;
 	size_t i;
 	for(i = 0; i < cnt; i++) {
-		text.code[text.len++] = code[i];
+		memcpy(text+mem.ltext, &code[i], 4);
+		mem.ltext += 4;
 	}
-	text.code[text.len] = 0;
+	memcpy(text+mem.ltext, "\0\0\0\0", 4);
+	return 1;
 }
 
 static void vm_reset_register_usage() {
@@ -188,14 +229,14 @@ static void vm_init() {
 		registers[i].i = 2222222222;
 	}
 	vm_reset_register_usage();
-	registers[AR_SP].i = 0;
+	registers[AR_SP].i = -1;
 	registers[AR_NULL].i = 0;
-	int was_null = text.code == 0;
+	int was_null = text == 0;
 	/* set up EIP so vm_state() doesn't crash */
 	grow_text(16);
 	/* put NULL insn as first instruction so VM doesn't execute
 	   random garbage in mem */
-	if(was_null) text.code[0] = 0;
+	if(was_null) memcpy(text, "\0\0\0\0", 4);
 }
 
 static inline int consume_int(int **eip) {
@@ -216,21 +257,22 @@ static void vm_update_register_usage(int *eip) {
 }
 
 static void write_mem1(int off, int val) {
-	unsigned char *m = (void*) memory;
-	m[off] = val&0xff;
+	unsigned char *m = memory+off;
+	*m = val&0xff;
 }
 static void write_mem2(int off, int val) {
-	unsigned short *m = (void*) memory;
-	m[off/2] = val&0xffff;
+	unsigned short *m = (void*) (memory+off);
+	*m = val&0xffff;
 }
 static void write_mem(int off, int val) {
-	int *m = (void*) memory;
-	m[off/4] = val;
+	int *m = (void*) (memory+off);
+	*m = val;
 }
 
 static int read_mem(int off) {
-	int *m = (void*) memory;
-	return m[off/4];
+	int ret;
+	memcpy(&ret, memory+off, 4);
+	return ret;
 }
 
 static int vm_push(int value) {
@@ -279,7 +321,7 @@ static int label_check() {
 		size_t i; struct label_ref *l;
 		for(i=0; i<tglist_getsize(label_refs); ++i) {
 			l = &tglist_get(label_refs, i);
-			dprintf(2, "%s@%u\n", l->name, l->insno);
+			dprintf(2, "%s@%u\n", l->name, l->insoff);
 		}
 		return 0;
 	}
@@ -312,19 +354,30 @@ static void vm_signal(int sig, int param) {
 
 static int vm_step(int run_context) {
 	/* we use register AR_NULL as instruction pointer */
-	int *eip = &text.code[EIP];
-	int eip_inc = 1 + opcodes[*eip&OPCODE_MASK].argcount;
-	int tmp, val;
+	int *eip = (void*)(text + EIP);
+	unsigned op = *eip;
 	if(interactive) {
+		// breakpoints can be set only in interactive mode
+		op &= OPCODE_MASK;
+		if(op >= SCMD_MAX) {
+			vm_signal(VM_SIGILL, 0);
+			return 0;
+		}
+
 		if(*eip & BREAKPOINT_FLAG) {
 			*eip &= ~BREAKPOINT_FLAG;
 			return 0;
 		}
 		if(!run_context) vm_reset_register_usage();
 		vm_update_register_usage(eip);
+	} else if(op >= SCMD_MAX) {
+		vm_signal(VM_SIGILL, 0);
+		return 0;
 	}
+	int eip_inc = 1 + opcodes[op].argcount;
+	int tmp, val;
 
-	switch(*eip) {
+	switch(op) {
 		case 0:
 			/* don't modify IP */
 			if(!run_context)
@@ -492,7 +545,8 @@ static int vm_step(int run_context) {
 			tmp = 1;
 		mread:
 			if(canread(registers[AR_MAR].i, tmp)) {
-				int val = memory[registers[AR_MAR].i];
+				int val;
+				memcpy(&val, memory+registers[AR_MAR].i, 4);
 				switch(tmp) {
 				case 4:	REGI(1) = val; break;
 				case 2:	REGI(1) = val & 0xffff; break;
@@ -510,7 +564,7 @@ static int vm_step(int run_context) {
 		jump:
 			tmp = CODE_INT(1);
 		jump_tmp:
-			if((unsigned)tmp <= text.len)
+			if((unsigned)tmp < text_end && !(tmp&3))
 				registers[AR_NULL].i = tmp;
 			else {
 				vm_signal(VM_SIGSEGV, tmp);
@@ -519,7 +573,7 @@ static int vm_step(int run_context) {
 			eip_inc = 0;
 			break;
 		case SCMD_CALL:
-			if(!vm_push(registers[AR_NULL].i + eip_inc)) goto oob;
+			if(!vm_push(registers[AR_NULL].i + eip_inc*4)) goto oob;
 			tmp = REGI(1);
 			goto jump_tmp;
 		case SCMD_RET:
@@ -565,7 +619,7 @@ static int vm_step(int run_context) {
 			vm_signal(VM_SIGILL, 0);
 			return 0;
 	}
-	registers[AR_NULL].i += eip_inc;
+	registers[AR_NULL].i += eip_inc*4;
 	return 1;
 }
 
@@ -610,28 +664,32 @@ static void vm_state() {
 	stackview[2][0] = 0;
 	stackview[3][0] = 0;
 	stackview[4][0] = 0;
-	for(j=0,i = MIN(registers[AR_SP].i+2*4, sizeof(stack_mem)/4);
-		i >= MAX(registers[AR_SP].i-2*4, 0);
+	for(j=0,i = MIN(registers[AR_SP].i+2*4, text_end+mem.lstack);
+		i >= MAX(registers[AR_SP].i-2*4, text_end);
 		i-=4, ++j) {
 		sprintf(stackview[j],
 			"SL %s %3zu %d", i == registers[AR_SP].i ? ">" : " ", i, read_mem(i));
 		if(i <= 0) break;
 	}
-	int *eip = &text.code[registers[AR_NULL].i], wasnull = 0;
+	int *eip = (void*)(text + registers[AR_NULL].i), wasnull = 0;
 	for(i = 0; i<5; i++) {
 		char a1b[32], a2b[32], a3b[32], inst[48];
 		if(i > 1) {
 			int *nip = get_next_ip(eip, i-2),
 			op = *nip & OPCODE_MASK;
-			const char *arg1 = opcodes[*nip].argcount == 0 ? "" : \
-			(opcodes[op].regcount > 0 ? regnames[nip[1]] : int_to_str(nip[1], a1b));
-			const char *arg2 = opcodes[*nip].argcount < 2 ? "" : \
-			(opcodes[op].regcount > 1 ? regnames[nip[2]] : int_to_str(nip[2], a2b));
-			const char *arg3 = opcodes[*nip].argcount < 3 ? "" : \
-			(opcodes[op].regcount > 2 ? regnames[nip[3]] : int_to_str(nip[2], a3b));
-			if(!wasnull)
-				sprintf(inst, " %s %s %s %s", i==2?">":" ", opcodes[op].mnemonic, arg1, arg2);
-			else inst[0] = 0;
+			if(op < SCMD_MAX) {
+				const char *arg1 = opcodes[op].argcount == 0 ? "" : \
+				(opcodes[op].regcount > 0 ? regnames[nip[1]] : int_to_str(nip[1], a1b));
+				const char *arg2 = opcodes[op].argcount < 2 ? "" : \
+				(opcodes[op].regcount > 1 ? regnames[nip[2]] : int_to_str(nip[2], a2b));
+				const char *arg3 = opcodes[op].argcount < 3 ? "" : \
+				(opcodes[op].regcount > 2 ? regnames[nip[3]] : int_to_str(nip[2], a3b));
+				if(!wasnull)
+					sprintf(inst, " %s %s %s %s", i==2?">":" ", opcodes[op].mnemonic, arg1, arg2);
+				else inst[0] = 0;
+			} else {
+				sprintf(inst, "%d", *nip);
+			}
 			if(!op) wasnull = 1;
 		} else inst[0] = 0;
 		printf("%-52s %s\n", inst, stackview[i]);
@@ -687,14 +745,17 @@ static void execute_user_command_i(int uc, char* param) {
 				}
 				addr = *ptr;
 			}
-			if(addr >= text.len) {
+			if(addr >= text_end) {
 				dprintf(2, "breakpoint offset %d out of bounds\n", addr);
 				return;
 			}
-			text.code[addr] |= BREAKPOINT_FLAG;
+			int insn;
+			memcpy(&insn, text+addr, 4);
+			insn |= BREAKPOINT_FLAG;
+			memcpy(text+addr, &insn, 4);
 		}
 		return;
-		case UC_NEXT: *get_next_ip(&text.code[EIP], 1) |= BREAKPOINT_FLAG;
+		case UC_NEXT: *get_next_ip((void*)(text+EIP), 1) |= BREAKPOINT_FLAG;
 				/* fall-through */
 		case UC_RUN : vm_run(); break;
 		case UC_INIT: vm_init(); break;
@@ -705,6 +766,7 @@ static void execute_user_command_i(int uc, char* param) {
 	vm_state();
 }
 static void execute_user_command(char *cmd) {
+	if(!vm_init_stack(16384)) return;
 	int uc = 0;
 	char *param = cmd;
 	while(!isspace(*param)) param++;
@@ -770,10 +832,10 @@ mainloop:
 		if(l > 1 && sym[l-1] == ':') {
 			// functionstart or label
 			sym[l-1] = 0;
-			resolve_label(sym, text.len);
+			resolve_label(sym, mem.ltext);
 			unsigned *loff = get_label_offset(sym);
 			if(loff) dprintf(2, "warning: label %s overwritten\n");
-			add_label(sym, text.len);
+			add_label(sym, mem.ltext);
 			continue;
 		}
 		unsigned instr = find_insn(sym);
@@ -813,11 +875,21 @@ mainloop:
 			} else {
 				switch(instr) {
 					case SCMD_LITTOREG:
-						/* immediate can be function name, string, 
-							* variable name, stack fixup, or numeric value */
+						/* immediate can be function name, string,
+						* variable name, stack fixup, or numeric value */
 						if(sym[0] == '"') {
-							dprintf(2, "error: string handling not implemented\n");
-							goto loop_footer;
+							size_t l = strlen(sym)-1, tl = mem.ltext;
+							if(!append_code((int[2]){SCMD_JMP, tl+8+ALIGN(l, 4)}, 2)) goto loop_footer;
+							char*p = sym+1;
+							--l;
+							while((ssize_t)l > 0) {
+								int x = 0;
+								memcpy(&x, p, l>=4?4:l);
+								if(!append_code(&x, 1)) goto loop_footer;
+								l -= 4;
+								p += 4;
+							}
+							value = tl+8;
 						} else if(sym[0] == '@') {
 							dprintf(2, "error: global variable handling not implemented\n");
 							goto loop_footer;
@@ -839,7 +911,7 @@ mainloop:
 					label_ref:;
 						unsigned *loff = get_label_offset(sym);
 						if(!loff) {
-							add_label_ref(sym, text.len+pos);
+							add_label_ref(sym, mem.ltext+pos*4);
 							value = -1;
 						} else value = *loff;
 						} break;
