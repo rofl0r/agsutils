@@ -327,7 +327,8 @@ static int vm_step(int run_context) {
 	switch(*eip) {
 		case 0:
 			/* don't modify IP */
-			dprintf(2, "no code at IP %u.\n", EIP);
+			if(!run_context)
+				dprintf(2, "no code at IP %u.\n", EIP);
 			return 0;
 		case SCMD_ADD:
 			REGI(1) += CODE_INT(2);
@@ -640,8 +641,6 @@ static void vm_state() {
 void vm_run(void) {
 	if(!label_check()) return;
 	while(1) {
-		int *eip = &text.code[registers[AR_NULL].i];
-		if(!*eip) break;
 		if(!vm_step(1)) break;
 	}
 }
