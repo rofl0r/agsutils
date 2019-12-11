@@ -684,6 +684,10 @@ static void vm_state() {
 				(opcodes[op].regcount > 1 ? regnames[nip[2]] : int_to_str(nip[2], a2b));
 				const char *arg3 = opcodes[op].argcount < 3 ? "" : \
 				(opcodes[op].regcount > 2 ? regnames[nip[3]] : int_to_str(nip[2], a3b));
+				if(op == SCMD_REGTOREG) {
+					const char* tmp = arg1;
+					arg1 = arg2; arg2 = tmp;
+				}
 				if(!wasnull)
 					sprintf(inst, " %s %s %s %s", i==2?">":" ", opcodes[op].mnemonic, arg1, arg2);
 				else inst[0] = 0;
