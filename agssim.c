@@ -838,7 +838,7 @@ mainloop:
 			sym[l-1] = 0;
 			resolve_label(sym, mem.ltext);
 			unsigned *loff = get_label_offset(sym);
-			if(loff) dprintf(2, "warning: label %s overwritten\n");
+			if(loff) dprintf(2, "warning: label %s overwritten\n", sym);
 			add_label(sym, mem.ltext);
 			continue;
 		}
