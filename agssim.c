@@ -574,8 +574,14 @@ static inline char *int_to_str(int value, char* out) {
 }
 
 static int* get_next_ip(int *eip, int off) {
-	int *ret = eip, i;
-	for(i=0; i<off; ++i) ret+=1+opcodes[*ret].argcount;
+	int *ret = eip, i, op;
+	for(i=0; i<off; ++i) {
+		op = *ret & OPCODE_MASK;
+		if(op < SCMD_MAX)
+			ret+=1+opcodes[op].argcount;
+		else
+			++ret;
+	}
 	return ret;
 }
 
