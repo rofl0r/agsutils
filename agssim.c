@@ -640,6 +640,11 @@ static int* get_next_ip(int *eip, int off) {
 	return ret;
 }
 
+static const char *get_regname(unsigned regno) {
+	if(regno < AR_MAX) return regnames[regno];
+	return "INVALID";
+}
+
 static void vm_state() {
 	if(!interactive) return;
 	static const char ru_strings[][3] = {
@@ -679,11 +684,11 @@ static void vm_state() {
 			op = *nip & OPCODE_MASK;
 			if(op < SCMD_MAX) {
 				const char *arg1 = opcodes[op].argcount == 0 ? "" : \
-				(opcodes[op].regcount > 0 ? regnames[nip[1]] : int_to_str(nip[1], a1b));
+				(opcodes[op].regcount > 0 ? get_regname(nip[1]) : int_to_str(nip[1], a1b));
 				const char *arg2 = opcodes[op].argcount < 2 ? "" : \
-				(opcodes[op].regcount > 1 ? regnames[nip[2]] : int_to_str(nip[2], a2b));
+				(opcodes[op].regcount > 1 ? get_regname(nip[2]) : int_to_str(nip[2], a2b));
 				const char *arg3 = opcodes[op].argcount < 3 ? "" : \
-				(opcodes[op].regcount > 2 ? regnames[nip[3]] : int_to_str(nip[2], a3b));
+				(opcodes[op].regcount > 2 ? get_regname(nip[3]) : int_to_str(nip[2], a3b));
 				if(op == SCMD_REGTOREG) {
 					const char* tmp = arg1;
 					arg1 = arg2; arg2 = tmp;
