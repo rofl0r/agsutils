@@ -10,6 +10,7 @@ static int usage(char *argv0) {
 	dprintf(2, ADS "\nusage:\n%s [-oblf] file.o [file.s]\n"
 		   "pass input and optionally output filename.\n"
 		   "options:\n"
+		   "-v : verbose (show filenames)\n"
 		   "-o : dump offset comments in disassembly\n"
 		   "-b : dump hexadecimal bytecode comments in disassembly\n"
 		   "-f : dump informative original fixups section\n"
@@ -18,22 +19,28 @@ static int usage(char *argv0) {
 	exit(1);
 }
 
-static void disas(char *o, char *s, int flags) {
+static int disas(char *o, char *s, int flags, int verbose) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
 	ASI sc;
+	int err = 0;
 	if(AF_open(f, o)) {
 		ASI *i = ASI_read_script(f, &sc) ? &sc : 0;
-		dprintf(1, "disassembling %s -> %s", o, s);
-		if(!i || !ASI_disassemble(f, i, s, flags)) dprintf(1, " FAIL");
-		dprintf(1, "\n");
+		if(verbose) printf("disassembling %s -> %s", o, s);
+		if(!i || !ASI_disassemble(f, i, s, flags)) err = 1;
+		if(verbose) {
+			if(err) printf(" FAIL\n");
+			else printf(" OK\n");
+		}
 		AF_close(f);
 	}
+	return err;
 }
 
 int main(int argc, char**argv) {
-	int flags = 0, c;
-	while ((c = getopt(argc, argv, "oblf")) != EOF) switch(c) {
+	int flags = 0, c, verbose = 0;
+	while ((c = getopt(argc, argv, "voblf")) != EOF) switch(c) {
+		case 'v': verbose = 1; break;
 		case 'o': flags |= DISAS_DEBUG_OFFSETS; break;
 		case 'b': flags |= DISAS_DEBUG_BYTECODE; break;
 		case 'l': flags |= DISAS_SKIP_LINENO; break;
@@ -53,6 +60,5 @@ int main(int argc, char**argv) {
 		return 1;
 	}
 
-	disas(o, s, flags);
-	return 0;
+	return disas(o, s, flags, verbose);
 }
