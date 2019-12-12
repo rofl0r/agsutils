@@ -165,6 +165,9 @@ static struct rval {
 static int canread(int index, int cnt) {
 	return index >= 0 && index+cnt < mem.capa;
 }
+static int canwrite(int index, int cnt) {
+	return index >= text_end && index+cnt < mem.capa;
+}
 
 #define ALIGN(X, A) ((X+(A-1)) & -(A))
 
@@ -276,7 +279,7 @@ static int read_mem(int off) {
 }
 
 static int vm_push(int value) {
-	if(!canread(registers[AR_SP].i, 4)) return 0;
+	if(!canwrite(registers[AR_SP].i, 4)) return 0;
 	write_mem(registers[AR_SP].i, value);
 	registers[AR_SP].i += 4;
 	return 1;
@@ -499,7 +502,7 @@ static int vm_step(int run_context) {
 			break;
 		case SCMD_ZEROMEMORY:
 			tmp = CODE_INT(1);
-			if(canread(registers[AR_MAR].i, tmp)) {
+			if(canwrite(registers[AR_MAR].i, tmp)) {
 				memset(((char*)memory)+registers[AR_MAR].i,0,tmp);
 			} else goto oob;
 			break;
@@ -523,7 +526,7 @@ static int vm_step(int run_context) {
 			tmp = 1;
 			val = REGI(1);
 		mwrite:
-			if(canread(registers[AR_MAR].i, tmp)) {
+			if(canwrite(registers[AR_MAR].i, tmp)) {
 				switch(tmp) {
 				case 4:	write_mem (registers[AR_MAR].i, val); break;
 				case 2:	write_mem2(registers[AR_MAR].i, val); break;
