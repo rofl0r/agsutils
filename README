@@ -135,6 +135,12 @@ agsoptimize:
   which is almost identical to the number of asm statements it removes.
   another advantage is that the script files become smaller.
 
+ascc:
+  the original AGS script compiler with some tweaks to support more C features.
+  it's pretty handy to generate assembly code to inject into scripts.
+  since ascc is based on the original AGS sources and is written in C++, it's
+  available in a different repository: https://github.com/rofl0r/ascc .
+
 
 compilation:
 ------------
