@@ -335,6 +335,7 @@ static int label_check() {
 
 #define VM_SIGILL 1
 #define VM_SIGSEGV 2
+#define VM_SIGABRT 3
 static int vm_return;
 static void vm_signal(int sig, int param) {
 	switch(sig) {
@@ -343,6 +344,9 @@ static void vm_signal(int sig, int param) {
 			break;
 		case VM_SIGSEGV:
 			dprintf(2, "segmentation fault: invalid access at %u\n", EIP);
+			break;
+		case VM_SIGABRT:
+			dprintf(2, "aborted (assertlte check failed at IP %u)\n", EIP);
 			break;
 		default:
 			dprintf(2, "unknown signal\n");
@@ -593,6 +597,9 @@ static int vm_step(int run_context) {
 			   number. return value is put in ax. */
 			registers[AR_AX].i = vm_syscall();
 			break;
+		case SCMD_CHECKBOUNDS:
+			if(REGI(1) > CODE_INT(2)) vm_signal(VM_SIGABRT, 0);
+			break;
 		case SCMD_NEWARRAY:
 		case SCMD_DYNAMICBOUNDS:
 		case SCMD_MEMZEROPTRND:
@@ -606,7 +613,6 @@ static int vm_step(int run_context) {
 		case SCMD_MEMZEROPTR:
 		case SCMD_MEMREADPTR:
 		case SCMD_MEMWRITEPTR:
-		case SCMD_CHECKBOUNDS:
 		case SCMD_CALLOBJ:
 		case SCMD_NUMFUNCARGS:
 		case SCMD_SUBREALSTACK:
