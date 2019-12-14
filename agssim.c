@@ -721,7 +721,7 @@ static void vm_state() {
 void vm_run(void) {
 	if(!label_check()) return;
 	while(1) {
-		if(!vm_step(1)) break;
+		if(!vm_step(1) || vm_return) break;
 	}
 }
 
