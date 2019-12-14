@@ -37,6 +37,29 @@ static struct mem {
 	size_t lheap;
 } mem;
 
+#define EIP registers[AR_NULL].i
+
+#define VM_SIGILL 1
+#define VM_SIGSEGV 2
+#define VM_SIGABRT 3
+static int vm_return;
+static void vm_signal(int sig, int param) {
+	switch(sig) {
+		case VM_SIGILL:
+			dprintf(2, "illegal instruction at IP %u\n", EIP);
+			break;
+		case VM_SIGSEGV:
+			dprintf(2, "segmentation fault: invalid access at %u\n", EIP);
+			break;
+		case VM_SIGABRT:
+			dprintf(2, "aborted (assertlte check failed at IP %u)\n", EIP);
+			break;
+		default:
+			dprintf(2, "unknown signal\n");
+	}
+	vm_return = 1;
+}
+
 #define memory (mem.mem)
 #define text memory
 #define text_end ALIGN(mem.ltext, 4096)
@@ -333,29 +356,6 @@ static int label_check() {
 		return 0;
 	}
 	return 1;
-}
-
-#define EIP registers[AR_NULL].i
-
-#define VM_SIGILL 1
-#define VM_SIGSEGV 2
-#define VM_SIGABRT 3
-static int vm_return;
-static void vm_signal(int sig, int param) {
-	switch(sig) {
-		case VM_SIGILL:
-			dprintf(2, "illegal instruction at IP %u\n", EIP);
-			break;
-		case VM_SIGSEGV:
-			dprintf(2, "segmentation fault: invalid access at %u\n", EIP);
-			break;
-		case VM_SIGABRT:
-			dprintf(2, "aborted (assertlte check failed at IP %u)\n", EIP);
-			break;
-		default:
-			dprintf(2, "unknown signal\n");
-	}
-	vm_return = 1;
 }
 
 #define CODE_INT(X) eip[X]
