@@ -248,6 +248,10 @@ static inline int consume_int(int **eip) {
 }
 
 static void change_reg_usage(int regno, enum RegisterAccess ra) {
+	if(regno >= AR_MAX) {
+		vm_signal(VM_SIGSEGV, 0);
+		return;
+	}
 	registers[regno].ru = get_reg_usage(regno, registers[regno].ru, ra);
 }
 
