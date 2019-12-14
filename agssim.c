@@ -196,6 +196,56 @@ static int canwrite(int index, int cnt) {
 
 #define ALIGN(X, A) ((X+(A-1)) & -(A))
 
+static void vm_setup_startenv(int argc, char **argv, char **envp)
+{
+	unsigned so = 0, si;
+	size_t l, i; char *s;
+	for(i = 0; i < argc; ++i) {
+		s = argv[i];
+		l = strlen(s) + 1;
+		memcpy(stack_mem+so, s, l);
+		so += l;
+	}
+	if(envp) for(i = 0; envp[i]; ++i) {
+		s = envp[i];
+		l = strlen(s) + 1;
+		memcpy(stack_mem+so, s, l);
+		so += l;
+	}
+	so = ALIGN(so, 4);
+	int* stack = (void*)(stack_mem + so);
+	si = so = 0;
+	stack[si++] = argc;
+	for(i = 0; i < argc; ++i) {
+		stack[si++] = text_end + so;
+		l = strlen(argv[i]) + 1;
+		so += l;
+	}
+	stack[si++] = 0;
+	if(envp) for(i = 0; envp[i]; ++i) {
+		stack[si++] = text_end + so;
+		l = strlen(envp[i]) + 1;
+		so += l;
+	}
+	so = ALIGN(so, 4);
+	/* op points to start of stack where the argv stuff is stored */
+	registers[AR_OP].i = text_end + so;
+	stack[si++] = 0;
+	stack[si++] = 0; // auxv not implemented yet
+	/* sp points to usable stack start */
+	registers[AR_SP].i = text_end + so + si*4;
+}
+
+static char** vm_args;
+static int vm_argc;
+static void vm_push_arg(char *arg) {
+	vm_args = realloc(vm_args, sizeof(char*)*(++vm_argc));
+	vm_args[vm_argc -1] = arg;
+}
+
+static void vm_setup_startenv_s(void) {
+	vm_setup_startenv(vm_argc, vm_args, NULL);
+}
 static int vm_init_stack(unsigned size) {
 	if(mem.lstack) return 1;
 	unsigned want = ALIGN(size, 4096);
@@ -208,6 +258,8 @@ static int vm_init_stack(unsigned size) {
 	mem.lstack = want;
 	mem.capa += want;
 	registers[AR_SP].i = text_end;
+	registers[AR_OP].i = text_end;
+	vm_setup_startenv_s();
 	return 1;
 }
 
@@ -737,8 +789,8 @@ void vm_trace(void) {
 
 static int usage(int fd, char *a0) {
 	dprintf(fd,
-		"%s [OPTIONS] [file.s] - simple ags vm simulator\n"
-		"implements the ALU and a small stack\n"
+		"%s [OPTIONS] [filename.s] [-- arguments for ags program]\n"
+		"simple ags vm simulator\n"
 		"useful to examine how a chunk of code modifies VM state\n"
 		"OPTIONS:\n"
 		"-s stacksize : specify stacksize in KB (default: 16)\n"
@@ -749,8 +801,9 @@ static int usage(int fd, char *a0) {
 		"!n - step-over\n"
 		"!r - run\n"
 		"!t - trace - run till bp or end with state printed for every insn\n"
-		"!b ADDR - set a breakpoint on ADDR (address or label)\n"
-	, a0);
+		"!b ADDR - set a breakpoint on ADDR (address or label)\n\n"
+		"example: %s -i printargs.s -- hello world\n"
+	, a0, a0);
 	return 1;
 }
 
@@ -833,17 +886,27 @@ int main(int argc, char** argv) {
 	case 's': stacksize = ALIGN(atoi(optarg) * 1024, 4096); break;
 	default: return usage(2, argv[0]);
 	}
-	if(argv[optind]) in = fopen(argv[optind], "r");
-	if(!in) {
-		dprintf(2, "error opening %s\n", argv[optind]);
-		return 1;
+	if(argv[optind] && optind >= 1 && strcmp(argv[optind-1], "--")) {
+		in = fopen(argv[optind], "r");
+		if(!in) {
+			dprintf(2, "error opening %s\n", argv[optind]);
+			return 1;
+		}
+		optind++;
 	}
+
+	init_labels();
+	vm_init();
+	vm_push_arg(argv[0]);
+	if(argv[optind] && !strcmp(argv[optind], "--"))
+		optind++;
+	while(argv[optind]) vm_push_arg(argv[optind++]);
+
 	char buf[1024], *sym;
 	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
 	int lineno = 0;
-	init_labels();
-	vm_init();
 	if(interactive) printf(ADS " - type !h for help\n");
+
 mainloop:
 	while(fgets(buf, sizeof buf, in)) {
 		int code[4];
