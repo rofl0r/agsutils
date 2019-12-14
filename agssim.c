@@ -160,7 +160,7 @@ static struct rval {
 		float f;
 	};
 	enum RegisterUsage ru;
-} registers[AR_MAX];
+} registers[MAX(AR_MAX, 256)];
 
 static int canread(int index, int cnt) {
 	return index >= 0 && index+cnt < mem.capa;
@@ -228,8 +228,8 @@ static void vm_reset_register_usage() {
 static void vm_init() {
 	size_t i;
 	/* initialize registers to an easily recognisable junk value */
-	for(i = AR_NULL + 1; i < AR_MAX; i++) {
-		registers[i].i = 2222222222;
+	for(i = AR_NULL + 1; i < ARRAY_SIZE(registers); i++) {
+		registers[i].i = -1;
 	}
 	vm_reset_register_usage();
 	registers[AR_SP].i = -1;
@@ -360,8 +360,8 @@ static void vm_signal(int sig, int param) {
 
 #define CODE_INT(X) eip[X]
 #define CODE_FLOAT(X) ((float*)eip)[X]
-#define REGI(X) registers[CODE_INT(X)].i
-#define REGF(X) registers[CODE_INT(X)].f
+#define REGI(X) registers[CODE_INT(X)&0xff].i
+#define REGF(X) registers[CODE_INT(X)&0xff].f
 
 static int vm_step(int run_context) {
 	/* we use register AR_NULL as instruction pointer */
