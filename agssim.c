@@ -29,6 +29,14 @@
 
 static int interactive;
 
+static struct rval {
+	union {
+		int i;
+		float f;
+	};
+	enum RegisterUsage ru;
+} registers[MAX(AR_MAX, 256)];
+
 static struct mem {
 	unsigned char *mem;
 	size_t capa;
@@ -176,14 +184,6 @@ static char* finalize_arg(char **p, char* pend, char* convbuf, size_t convbuflen
 		return ret;
 	}
 }
-
-static struct rval {
-	union {
-		int i;
-		float f;
-	};
-	enum RegisterUsage ru;
-} registers[MAX(AR_MAX, 256)];
 
 static int canread(int index, int cnt) {
 	return index >= 0 && index+cnt < mem.capa;
