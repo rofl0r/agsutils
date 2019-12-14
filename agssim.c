@@ -904,7 +904,7 @@ mainloop:
 							if(!append_code((int[2]){SCMD_JMP, tl+8+ALIGN(l, 4)}, 2)) goto loop_footer;
 							char*p = sym+1;
 							--l;
-							while((ssize_t)l > 0) {
+							while((ssize_t)l >= 0) {
 								int x = 0;
 								memcpy(&x, p, l>=4?4:l);
 								if(!append_code(&x, 1)) goto loop_footer;
