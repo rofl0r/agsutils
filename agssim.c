@@ -725,6 +725,14 @@ void vm_run(void) {
 	}
 }
 
+void vm_trace(void) {
+	if(!label_check()) return;
+	while(1) {
+		if(!vm_step(0) || vm_return) break;
+		vm_state();
+	}
+}
+
 static int usage(int fd, char *a0) {
 	dprintf(fd,
 		"%s [OPTIONS] [file.s] - simple ags vm simulator\n"
@@ -737,6 +745,7 @@ static int usage(int fd, char *a0) {
 		"!s - single-step\n"
 		"!n - step-over\n"
 		"!r - run\n"
+		"!t - trace - run till bp or end with state printed for every insn\n"
 		"!b ADDR - set a breakpoint on ADDR (address or label)\n"
 	, a0);
 	return 1;
@@ -748,6 +757,7 @@ enum UserCommand {
 	UC_NEXT, /* step-over */
 	UC_BP,
 	UC_RUN,
+	UC_TRACE,
 	UC_INIT,
 	UC_QUIT,
 	UC_HELP,
@@ -780,6 +790,7 @@ static void execute_user_command_i(int uc, char* param) {
 		case UC_NEXT: *get_next_ip((void*)(text+EIP), 1) |= BREAKPOINT_FLAG;
 				/* fall-through */
 		case UC_RUN : vm_run(); break;
+		case UC_TRACE: vm_trace(); break;
 		case UC_INIT: vm_init(); break;
 		case UC_QUIT: exit(0); break;
 		case UC_HELP: usage(1, "agssim"); break;
@@ -800,6 +811,7 @@ static void execute_user_command(char *cmd) {
 	else if(!strcmp(cmd, "q")) uc = UC_QUIT;
 	else if(!strcmp(cmd, "h")) uc = UC_HELP;
 	else if(!strcmp(cmd, "n")) uc = UC_NEXT;
+	else if(*cmd == 't') uc = UC_TRACE;
 	else if(*cmd == 'b') uc = UC_BP;
 	else {
 		dprintf(2, "unknown command\n");
