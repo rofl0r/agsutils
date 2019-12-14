@@ -27,7 +27,9 @@
 #define BREAKPOINT_FLAG (1<<31)
 #define OPCODE_MASK (~(BREAKPOINT_FLAG))
 
-static int interactive;
+#define DEFAULT_STACKSIZE 16384
+
+static int interactive, stacksize;
 
 static struct rval {
 	union {
@@ -739,7 +741,8 @@ static int usage(int fd, char *a0) {
 		"implements the ALU and a small stack\n"
 		"useful to examine how a chunk of code modifies VM state\n"
 		"OPTIONS:\n"
-		"-i : interpreter mode - don't print anything, run and exit\n"
+		"-s stacksize : specify stacksize in KB (default: 16)\n"
+		"-i : interpreter mode - don't print anything, run and exit\n\n"
 		"by default, mode is interactive, sporting the following commands:\n"
 		"!i - reset VM state and IP\n"
 		"!s - single-step\n"
@@ -799,7 +802,7 @@ static void execute_user_command_i(int uc, char* param) {
 	vm_state();
 }
 static void execute_user_command(char *cmd) {
-	if(!vm_init_stack(16384)) return;
+	if(!vm_init_stack(stacksize)) return;
 	int uc = 0;
 	char *param = cmd;
 	while(!isspace(*param)) param++;
@@ -822,10 +825,12 @@ static void execute_user_command(char *cmd) {
 
 int main(int argc, char** argv) {
 	int c;
+	stacksize = DEFAULT_STACKSIZE;
 	interactive = 1;
 	FILE *in = stdin;
-	while((c = getopt(argc, argv, "i")) != EOF) switch(c) {
+	while((c = getopt(argc, argv, "is:")) != EOF) switch(c) {
 	case 'i': interactive = 0; break;
+	case 's': stacksize = ALIGN(atoi(optarg) * 1024, 4096); break;
 	default: return usage(2, argv[0]);
 	}
 	if(argv[optind]) in = fopen(argv[optind], "r");
