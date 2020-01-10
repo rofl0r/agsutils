@@ -42,6 +42,7 @@ struct ByteArray {
 		int fd;
 	} source;
 	ssize_t (*readMultiByte)(struct ByteArray*, char*, size_t);
+	unsigned long long (*readUnsignedLongLong)(struct ByteArray*);
 	unsigned int (*readUnsignedInt)(struct ByteArray*);
 	signed int (*readInt)(struct ByteArray*);
 	unsigned short (*readUnsignedShort)(struct ByteArray*);
@@ -88,6 +89,7 @@ int ByteArray_set_position_rel(struct ByteArray* self, int rel);
 off_t ByteArray_bytesAvailable(struct ByteArray* self);
 
 ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len);
+unsigned long long ByteArray_readUnsignedLongLong(struct ByteArray* self);
 unsigned int ByteArray_readUnsignedInt(struct ByteArray* self);
 int ByteArray_readInt(struct ByteArray* self);
 unsigned short ByteArray_readUnsignedShort(struct ByteArray* self);

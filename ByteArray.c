@@ -22,6 +22,7 @@ void ByteArray_ctor(struct ByteArray* self) {
 	self->readUnsignedShort = ByteArray_readUnsignedShort;
 	self->readInt = ByteArray_readInt;
 	self->readUnsignedInt = ByteArray_readUnsignedInt;
+	self->readUnsignedLongLong = ByteArray_readUnsignedLongLong;
 	self->readBytes = ByteArray_readBytes;
 	
 	self->writeInt = ByteArray_writeInt;
@@ -230,6 +231,18 @@ off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, off_t 
 off_t ByteArray_bytesAvailable(struct ByteArray* self) {
 	if(self->pos < self->size) return self->size - self->pos;
 	return 0;
+}
+
+unsigned long long ByteArray_readUnsignedLongLong(struct ByteArray* self) {
+	union {
+		unsigned long long intval;
+		unsigned char charval[sizeof(unsigned long long)];
+	} buf;
+	self->readMultiByte(self, (char*) buf.charval, 8);
+	if(self->endian != self->sys_endian) {
+		buf.intval = byteswap64(buf.intval);
+	}
+	return buf.intval;
 }
 
 unsigned int ByteArray_readUnsignedInt(struct ByteArray* self) {
