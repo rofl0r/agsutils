@@ -15,6 +15,10 @@ ssize_t AF_read(AF* f, void* buf, size_t len) {
 	return ByteArray_readMultiByte(f->b, buf, len);
 }
 
+long long AF_read_longlong(AF* f) {
+	return ByteArray_readUnsignedLongLong(f->b);
+}
+
 int AF_read_int(AF* f) {
 	return ByteArray_readInt(f->b);
 }

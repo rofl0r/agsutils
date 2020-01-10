@@ -17,6 +17,7 @@ off_t AF_get_pos(AF* f);
 int AF_set_pos(AF* f, off_t x);
 
 ssize_t AF_read(AF* f, void* buf, size_t len);
+long long AF_read_longlong(AF* f);
 int AF_read_int(AF* f);
 unsigned AF_read_uint(AF* f);
 short AF_read_short(AF* f);
