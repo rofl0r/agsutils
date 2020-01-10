@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <limits.h>
 #include "Clib32.h"
 #include "endianness.h"
 
@@ -127,6 +128,36 @@ static void fgetstring_enc(char *sss, struct ByteArray *ooo, int maxLength) {
 		sss[i] = ByteArray_readByte(ooo) - get_pseudo_rand();
 		if (i < maxLength - 1) i++;
 	}
+}
+
+static int read_v30_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout) {
+	size_t aa;
+	/* int reservedFlags = */ ByteArray_readInt(wout);
+
+	mfl->num_data_files = ByteArray_readInt(wout);
+	assert(mfl->num_data_files <= MAXMULTIFILES);
+	for (aa = 0; aa < mfl->num_data_files; aa++)
+		fgetnulltermstring(mfl->data_filenames[aa], wout, 50);
+	mfl->num_files = ByteArray_readInt(wout);
+
+	if (mfl->num_files > MAX_FILES)
+		return -1;
+
+	for (aa = 0; aa < mfl->num_files; aa++) {
+		fgetnulltermstring(mfl->filenames[aa], wout, 100);
+		ByteArray_readUnsignedByte(wout); /* "LibUid" */
+		unsigned long long tmp;
+		tmp = ByteArray_readUnsignedLongLong(wout);
+		assert(tmp < UINT_MAX);
+		mfl->offset[aa] = tmp&0xffffffff;
+		tmp = ByteArray_readUnsignedLongLong(wout);
+		assert(tmp < UINT_MAX);
+		mfl->length[aa] = tmp&0xffffffff;
+	}
+
+//	for(aa = 0; aa < mfl->num_files; aa++)
+//		mfl->file_datafile[aa] = fread_data_enc_byte(wout);
+	return 0;
 }
 
 static int getw_enc(struct ByteArray *ooo) {
@@ -422,7 +453,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	f->libversion = ByteArray_readUnsignedByte(ba);
 	switch (f->libversion) {
 		/* enum MFLVersion (kMFLVersion_MultiV21 ...)  in newer AGS */
-		case 6: case 10: case 11: case 15: case 20: case 21:
+		case 6: case 10: case 11: case 15: case 20: case 21: case 30:
 			break;
 		default:
 			// unsupported version
@@ -436,11 +467,12 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 		if (ByteArray_readUnsignedByte(ba) != 0)
 			return -4;  // not first datafile in chain
 
-		if (f->libversion >= 21) {
+		if (f->libversion >= 30) {
+			if (read_v30_clib(&f->mflib, ba)) return -5;
+		} else if (f->libversion >= 21) {
 			if (read_new_new_enc_format_clib(&f->mflib, ba))
 			return -5;
-		}
-		else if (f->libversion == 20) {
+		} else if (f->libversion == 20) {
 			if (read_new_new_format_clib(&f->mflib, ba))
 			return -5;
 		} else  {
