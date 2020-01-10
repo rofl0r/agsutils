@@ -67,7 +67,9 @@ int RoomFile_read(AF *f, struct RoomFile *r) {
 		if((size_t) -1 == AF_read(f, &blocktype, 1)) return 0;
 		if(blocktype == BLOCKTYPE_EOF) break;
 		if(blocktype < BLOCKTYPE_MIN || blocktype > BLOCKTYPE_MAX) return 0;
-		int blocklen = AF_read_int(f);
+		long long blocklen;
+		if(r->version < 32) blocklen = AF_read_int(f);
+		else blocklen = AF_read_longlong(f);
 		off_t curr_pos = AF_get_pos(f), next_block = curr_pos + blocklen;
 		r->blockpos[blocktype] = curr_pos;
 		r->blocklen[blocktype] = blocklen;
