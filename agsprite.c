@@ -45,7 +45,7 @@ static void rgb565_to_888(unsigned lo, unsigned hi, unsigned *r, unsigned *g, un
 }
 
 static int convert_16_to_24(ImageData *d) {
-	size_t outsz = d->width*d->height*3;
+	size_t outsz = d->width*d->height*3UL;
 	unsigned char *out = malloc(outsz),
 	*p = out, *pe = out + outsz,
 	*q = d->data;
@@ -345,7 +345,7 @@ static int is_upscaled_16bit(ImageData *d) {
 
 static int rawx_to_ags16(ImageData *d, int bpp) {
 	int i, imax = d->data_size/bpp;
-	unsigned char *data = malloc(d->width*d->height*2), *p = data;
+	unsigned char *data = malloc(d->width*d->height*2UL), *p = data;
 	if(!data) return 0;
 	for(i=0; i<imax; i++) {
 		unsigned b = d->data[i*bpp+0];
@@ -371,7 +371,7 @@ static int raw32_to_ags16(ImageData *d) {
 }
 
 static int raw24_to_32(ImageData *d) {
-	unsigned char* data = malloc(d->width*d->height*4), *p = data, *q = d->data;
+	unsigned char* data = malloc(d->width*d->height*4UL), *p = data, *q = d->data;
 	if(!data) return 0;
 	int i;
 	for(i=0;i<d->width*d->height;++i) {
