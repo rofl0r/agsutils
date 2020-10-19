@@ -17,20 +17,28 @@ CPROGS = $(PROGS_SRCS:.c=)
 PROGS = $(CPROGS) agsoptimize agsex
 
 LIB_SRCS = \
-	Assembler.c \
 	ByteArray.c \
 	Clib32.c \
 	DataFile.c \
+	Script.c \
 	File.c \
 	List.c \
 	MemGrow.c \
 	RoomFile.c \
-	Script.c \
-	preproc.c \
-	tokenizer.c \
+	StringEscape.c
+
+SPRITE_SRCS = \
 	SpriteFile.c \
 	rle.c \
-	StringEscape.c
+
+SPRITE_OBJS =  $(SPRITE_SRCS:.c=.o)
+
+ASM_SRCS = \
+	Assembler.c \
+	preproc.c \
+	tokenizer.c
+
+ASM_OBJS =  $(ASM_SRCS:.c=.o)
 
 LIB_OBJS =  $(LIB_SRCS:.c=.o)
 
@@ -40,7 +48,10 @@ CFLAGS_WARN = -Wall -Wextra -Wno-unknown-pragmas -Wno-sign-compare -Wno-switch -
 
 all: $(PROGS)
 
-$(PROGS): $(LIB_OBJS)
+$(PROGS_OBJS): $(LIB_OBJS)
+
+agssemble: agssemble.o $(LIB_OBJS) $(ASM_OBJS)
+agsprite: agsprite.o $(LIB_OBJS) $(SPRITE_OBJS)
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CFLAGS_WARN) -o $@ -c $<
