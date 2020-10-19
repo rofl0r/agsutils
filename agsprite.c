@@ -590,19 +590,19 @@ static int parse_argstr(char *arg)
 		{ 'H', FL_HICOLOR_SIMPLE},
 		{0, 0},
 	};
-	int flags = 0, i;
+	int ret = 0, i;
 	while(*arg) {
 		int found = 0;
 		for(i=0;map[i].chr;++i)
 			if(map[i].chr == *arg) {
-				flags |= map[i].flag;
+				ret |= map[i].flag;
 				found = 1;
 				break;
 		}
 		if(!found) return 0;
 		++arg;
 	}
-	return flags;
+	return ret;
 }
 
 static int usage(char *a) {
