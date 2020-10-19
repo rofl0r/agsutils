@@ -904,7 +904,7 @@ int main(int argc, char** argv) {
 
 	char buf[1024], *sym;
 	char convbuf[sizeof(buf)]; /* to convert escaped string into non-escaped version */
-	int lineno = 0;
+	size_t lineno = 0;
 	if(interactive) printf(ADS " - type !h for help\n");
 
 mainloop:
