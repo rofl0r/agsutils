@@ -269,6 +269,7 @@ def usage():
 	eprint("at least one option required.\n")
 	for i in commandline_args_matcher_map.keys():
 		eprint("%s: %s"%(i, help_text[i]))
+	return 1
 
 
 def get_matcher_name(matcher):
@@ -601,6 +602,7 @@ def main():
 		s += "[%s:%d] " %(i[:len(i)-len("_matcher")], removed_per_matcher[i])
 	if total_removed:
 		sys.stdout.write( "%s: removed %d lines %s\n"%(fn, total_removed, s))
+	return 0
 
 
-if __name__ == "__main__": main()
+if __name__ == "__main__": sys.exit(main())
