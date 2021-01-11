@@ -25,24 +25,15 @@ static int dump_sections(AF* a, FILE *f, size_t start, size_t count) {
 }
 
 #include "StringEscape.h"
-static int dump_strings(AF* a, FILE *f, size_t start, size_t len) {
-	if(!len) return 1;
-	AF_set_pos(a, start);
+static int dump_strings(AF* a, FILE *f, struct strings *str) {
+	if(!str->count) return 1;
 	fprintf(f, ".%s\n", "strings");
-	char *buf = malloc(len), *p = buf, escapebuf[4096];
-	if(len != (size_t) AF_read(a, buf, len)) {
-		free(buf);
-		return 0;
-	}
-	while(1) {
-		escape(p, escapebuf, sizeof(escapebuf));
+	char *p, escapebuf[4096];
+	size_t i;
+	for (i=0; i<str->count; ++i) {
+		escape(str->strings[i], escapebuf, sizeof(escapebuf));
 		fprintf(f, "\"%s\"\n", escapebuf);
-		size_t l = strlen(p);
-		p += l+1;
-		len -= l;
-		if(len == 0 || --len == 0) break;
 	}
-	free(buf);
 	return 1;
 }
 
@@ -216,6 +207,7 @@ static struct labels get_labels(unsigned *code, size_t count) {
 
 static struct strings get_strings(AF* a, size_t start, size_t size) {
 	struct strings ret = {0,0,0};
+	int corrupt = 0;
 	if(!size) return ret;
 	if(!(ret.data = malloc(size))) return ret;
 	AF_set_pos(a, start);
@@ -228,6 +220,17 @@ static struct strings get_strings(AF* a, size_t start, size_t size) {
 	size_t i, strcnt = 0;
 	for(i = 0; i < size; i++) {
 		if(!ret.data[i]) strcnt++;
+		else if(ret.data[i] < 9 || (unsigned char) ret.data[i] > 127
+		|| (ret.data[i] > 13 && ret.data[i] < 32))
+			corrupt++;
+	}
+	if(corrupt) {
+		dprintf(2, "warning: %d unusual bytes in string data section, file may be corrupted\n", corrupt);
+	}
+	if(ret.data[size-1]) {
+		dprintf(2, "warning: string data section doesn't end with 0, data probably corrupted\n");
+		strcnt++;
+		ret.data[size-1] = 0;
 	}
 	if(!(ret.strings = malloc(strcnt * sizeof(char*)))) goto free1;
 	char* p = ret.data;
@@ -599,7 +602,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 	return 1;
 }
 
-static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct fixup_data *fxd) {
+static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct fixup_data *fxd, struct strings *str) {
 	int debugmode = getenv("AGSDEBUG") != 0;
 	size_t start = s->codestart;
 	size_t len = s->codesize * sizeof(unsigned);
@@ -616,8 +619,6 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 	struct importlist il = get_imports(a, s->importstart, s->importcount);
 
 	struct labels lbl = get_labels(code, s->codesize);
-
-	struct strings str = get_strings(a, s->stringsstart, s->stringssize);
 
 	AF_set_pos(a, start);
 	fprintf(f, ".%s\n", "text");
@@ -750,7 +751,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 							fprintf(f, ".stack + %d", insn);
 							break;
 						case FIXUP_STRING:
-							escape(str.data + insn, escapebuf, sizeof(escapebuf));
+							escape(str->data + insn, escapebuf, sizeof(escapebuf));
 							fprintf(f, "\"%s\"", escapebuf);
 						default:
 							break;
@@ -781,10 +782,11 @@ int ASI_disassemble(AF* a, ASI* s, char *fn, int flags) {
 	AF_set_pos(a, s->start);
 	struct fixup_data fxd = {0};
 	if(!get_fixups(a, s->fixupstart, s->fixupcount, &fxd)) return 0;
+	struct strings str = get_strings(a, s->stringsstart, s->stringssize);
 
 	//if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize)) goto err_close;
-	if(!disassemble_code_and_data(a, s, f, flags, &fxd)) goto err_close;
-	if(!dump_strings(a, f, s->stringsstart, s->stringssize)) goto err_close;
+	if(!disassemble_code_and_data(a, s, f, flags, &fxd, &str)) goto err_close;
+	if(!dump_strings(a, f, &str)) goto err_close;
 	if((flags & DISAS_DEBUG_FIXUPS) && !dump_fixups(f, s->fixupcount, &fxd)) goto err_close;
 	if(!dump_import_export(a, f, s->importstart, s->importcount, 1)) goto err_close;
 	if(!dump_import_export(a, f, s->exportstart, s->exportcount, 0)) goto err_close;
