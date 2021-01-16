@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ctype.h>
 #include "version.h"
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
@@ -105,6 +106,23 @@ void dump_script(AF* f, ASI* s, char* fn, int flags) {
 	disas("game28.dta", fn, flags);
 }
 
+void dump_header(ADF *a, char *fn) {
+	unsigned i;
+	FILE *f = fopen(fn, "w");
+	if(ADF_get_cursorcount(a)) fprintf(f, "enum CursorMode {\n");
+	for(i=0; i<ADF_get_cursorcount(a); ++i) {
+		if(i > 0) fprintf(f, ",\n");
+		char buf[16] = {0}, *p = ADF_get_cursorname(a, i), *q = buf;
+		while(*p) {
+			if(!isspace(*p)) *(q++) = *p;
+			++p;
+		}
+		fprintf(f, "  eMode%s = %u", buf, i);
+	}
+	if(i) fprintf(f, "};\n");
+	fclose(f);
+}
+
 int main(int argc, char**argv) {
 	int flags = 0, c;
 	while ((c = getopt(argc, argv, "oblf")) != EOF) switch(c) {
@@ -139,6 +157,8 @@ int main(int argc, char**argv) {
 		snprintf(fnbuf, sizeof(fnbuf), "gamescript%zu.o", i);
 		dump_script(a->f, s, filename(out, fnbuf, buf, sizeof buf), flags);
 	}
+
+	dump_header(a, filename(out, "builtinscriptheader.ash", buf, sizeof buf));
 	ADF_close(a);
 	errors += dumprooms(dir, out, flags);
 	if(errors) dprintf(2, "agscriptxtract: got %d errors\n", errors);

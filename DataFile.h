@@ -22,6 +22,7 @@ typedef struct AgsDataFile {
 	unsigned numsprites;
 	size_t globalvarcount;
 	AGD game;
+	char **cursornames;
 	size_t scriptcount;
 	size_t scriptstart;
 	size_t scriptend;
@@ -42,6 +43,8 @@ ASI* ADF_get_dialog_script(ADF* a);
 size_t ADF_get_scriptcount(ADF* a);
 #define ADF_get_spritecount(A) (A)->numsprites
 #define ADF_get_spriteflagsstart(A) (A)->spriteflagsstart
+#define ADF_get_cursorcount(A) (A)->game.cursorcount
+#define ADF_get_cursorname(A, N) (A)->cursornames[N]
 
 #pragma RcB2 DEP "DataFile.c"
 

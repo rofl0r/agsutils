@@ -192,6 +192,20 @@ int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen)
 	return 1;
 }
 
+int ADF_read_cursors(ADF* a) {
+	a->cursornames = malloc(a->game.cursorcount * sizeof(char*));
+	if(!a->cursornames) return 0;
+
+	unsigned i;
+	for(i=0; i<a->game.cursorcount; ++i) {
+		char buf[24];
+		if(24 != AF_read(a->f, buf, 24)) return 0;
+		assert(buf[19] == 0);
+		a->cursornames[i] = strdup(buf+10);
+	}
+	return 1;
+}
+
 int ADF_open(ADF* a, const char *filename) {
 	char fnbuf[512];
 	size_t l, i;
@@ -252,8 +266,8 @@ int ADF_open(ADF* a, const char *filename) {
 	l = 68 * a->game.inventorycount; /* sizeof(InventoryItemInfo) */
 	if(!AF_read_junk(a->f, l)) goto err_close;
 
-	l = 24 /* sizeof(MouseCursor) */ * a->game.cursorcount;
-	if(!AF_read_junk(a->f, l)) goto err_close;
+	if(!ADF_read_cursors(a)) goto err_close;
+
 	if(a->version > 32) {
 		if(!ADF_read_interaction(a, it_char)) goto err_close;
 		if(!ADF_read_interaction(a, it_inventory)) goto err_close;
