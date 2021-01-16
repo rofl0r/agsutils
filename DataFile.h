@@ -11,6 +11,7 @@ typedef struct AgsGameData {
 	size_t inventorycount;
 	size_t viewcount;
 	size_t dialogcount;
+	unsigned color_depth;
 	int hasdict;
 } AGD;
 

@@ -126,7 +126,7 @@ static int ADF_read_gamebase(ADF *a) {
 	a->game.dialogcount = AF_read_uint(a->f);
 	AF_read_uint(a->f); /* numdlgmessage*/
 	a->game.fontcount = AF_read_uint(a->f);
-	AF_read_uint(a->f); /* color depth*/
+	a->game.color_depth = AF_read_uint(a->f); /* color depth - offset 0x710 into game28.dta */
 	AF_read_uint(a->f); /* target_win */
 	AF_read_uint(a->f);/* dialog_bullet */
 	AF_read_ushort(a->f);/* hotdot */
