@@ -109,6 +109,7 @@ void dump_script(AF* f, ASI* s, char* fn, int flags) {
 void dump_header(ADF *a, char *fn) {
 	unsigned i;
 	FILE *f = fopen(fn, "w");
+	fprintf(f, "#if SCRIPT_API < 300000 && SCRIPT_API > 262000\n");
 	if(ADF_get_cursorcount(a)) fprintf(f, "enum CursorMode {\n");
 	for(i=0; i<ADF_get_cursorcount(a); ++i) {
 		if(i > 0) fprintf(f, ",\n");
@@ -121,6 +122,7 @@ void dump_header(ADF *a, char *fn) {
 	}
 	if(i) fprintf(f, "};\n");
 	fprintf(f, "import Character character[%zu];\n", ADF_get_charactercount(a));
+	fprintf(f, "#endif\n");
 	fclose(f);
 }
 
