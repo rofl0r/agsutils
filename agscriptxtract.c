@@ -120,6 +120,7 @@ void dump_header(ADF *a, char *fn) {
 		fprintf(f, "  eMode%s = %u", buf, i);
 	}
 	if(i) fprintf(f, "};\n");
+	fprintf(f, "import Character character[%zu];\n", ADF_get_charactercount(a));
 	fclose(f);
 }
 

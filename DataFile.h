@@ -45,6 +45,7 @@ size_t ADF_get_scriptcount(ADF* a);
 #define ADF_get_spriteflagsstart(A) (A)->spriteflagsstart
 #define ADF_get_cursorcount(A) (A)->game.cursorcount
 #define ADF_get_cursorname(A, N) (A)->cursornames[N]
+#define ADF_get_charactercount(A) (A)->game.charactercount
 
 #pragma RcB2 DEP "DataFile.c"
 
