@@ -392,6 +392,18 @@ int ADF_read_guis(ADF *a) {
 	return 1;
 }
 
+int ADF_read_custom_property(ADF *a) {
+	unsigned i, x = AF_read_uint(a->f);
+	assert(x == 1);
+	x = AF_read_uint(a->f); /* numprops */
+	for(i=0;i<x;++i) {
+		char buf[500]; /* MAX_CUSTOM_PROPERTY_VALUE_LENGTH */
+		if(!AF_read_string(a->f, buf, 200)) return 0; // propname
+		if(!AF_read_string(a->f, buf, 500)) return 0; // propval
+	}
+	return 1;
+}
+
 int ADF_open(ADF* a, const char *filename) {
 	char fnbuf[512];
 	size_t l, i;
@@ -549,6 +561,44 @@ int ADF_open(ADF* a, const char *filename) {
 	}
 
 	if(!ADF_read_guis(a)) return 0;
+
+	if(a->version >= 25) {
+		unsigned x = AF_read_uint(a->f);
+		assert(x == 1);
+		x = AF_read_uint(a->f); /* numplugins */
+		for(i = 0; i < x; ++i) {
+			char buf[80];
+			if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+			unsigned psize = AF_read_uint(a->f);
+			AF_read_junk(a->f, psize); /* plugin content */
+		}
+		/* CustomPropertySchema::UnSerialize */
+		x = AF_read_uint(a->f);
+		assert(x == 1);
+		x = AF_read_uint(a->f); /* numprops */
+		for(i=0; i<x; ++i) {
+			char buf[500]; /* MAX_CUSTOM_PROPERTY_VALUE_LENGTH */
+			if(!AF_read_string(a->f, buf, 20)) return 0; // propname
+			if(!AF_read_string(a->f, buf, 100)) return 0; //propdesc
+			if(!AF_read_string(a->f, buf, 500)) return 0; //defvalue
+			x = AF_read_uint(a->f); /* proptype */
+		}
+
+		for(i=0; i<a->game.charactercount; ++i)
+			if(!ADF_read_custom_property(a)) return 0;
+
+		for(i=0; i<a->game.inventorycount; ++i)
+			if(!ADF_read_custom_property(a)) return 0;
+
+		a->viewnames = malloc(a->game.viewcount * sizeof(char*));
+		for(i=0; i<a->game.viewcount; ++i) {
+			char buf[15+1];
+			if(!AF_read_string(a->f, buf, sizeof buf)) return 1;
+			assert(is_zeroterminated(buf, sizeof buf));
+			a->viewnames[i] = strdup(buf);
+		}
+		/* here follow inventory item script names and dialog script names */
+	}
 
 	/* at this point we have everything we need */
 	return 1;

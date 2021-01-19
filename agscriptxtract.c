@@ -140,6 +140,8 @@ void dump_header(ADF *a, char *fn) {
 		*q = 0;
 		fprintf(f, "#define %s FindGUIID(\"%s\")\n", buf, ADF_get_guiname(a, i));
 	}
+	for(i=0; i<ADF_get_viewcount(a); ++i)
+		fprintf(f, "#define %s %d\n", ADF_get_viewname(a, i), (int) i+1);
 
 	fclose(f);
 }
