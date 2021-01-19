@@ -164,14 +164,70 @@ static int ADF_read_dictionary(ADF *a) {
 	return 1;
 }
 
-
 static int ADF_read_view(ADF *a) {
-	(void) a;
+	size_t i, numloops = AF_read_ushort(a->f);
+	for(i=0; i<numloops; ++i) {
+		size_t numframes = AF_read_ushort(a->f);
+		size_t l = 4 /* flags */ + numframes * (4/*pic*/+2/*xoffs*/+2/*yoffs*/+2/*speed*/+2/*padding*/+4/*flags*/+4/*sound*/+8/*reserved*/);
+		if(!AF_read_junk(a->f, l)) return 0;
+	}
 	return 1;
 }
 
 static int ADF_read_view2x(ADF *a) {
-	(void) a;
+	size_t l = 2 /* numloops */ + (16*2) /* numframes */
+	           + 2 /* padding? */ + (16*4) /* loopflags */
+	           + (16*20*(4/*pic*/+2/*xoffs*/+2/*yoffs*/+2/*speed*/+2/*padding*/+4/*flags*/+4/*sound*/+8/*reserved*/)) /* viewframes */;
+	return AF_read_junk(a->f, l);
+}
+
+static int ADF_read_characters(ADF *a) {
+#define MAX_INV             301
+#define MAX_SCRIPT_NAME_LEN 20
+	struct CharacterInfo {
+		int   defview;
+		int   talkview;
+		int   view;
+		int   room, prevroom;
+		int   x, y, wait;
+		int   flags;
+		short following;
+		short followinfo;
+		int   idleview;
+		short idletime, idleleft;
+		short transparency;
+		short baseline;
+		int   activeinv;
+		int   talkcolor;
+		int   thinkview;
+		short blinkview, blinkinterval;
+		short blinktimer, blinkframe;
+		short walkspeed_y, pic_yoffs;
+		int   z;
+		int   walkwait;
+		short speech_anim_speed, reserved1;
+		short blocking_width, blocking_height;
+		int   index_id;
+		short pic_xoffs, walkwaitcounter;
+		short loop, frame;
+		short walking, animating;
+		short walkspeed, animspeed;
+		short inv[MAX_INV];
+		short actx, acty;
+		char  name[40];
+		char  scrname[MAX_SCRIPT_NAME_LEN];
+		char  on;
+	} character;
+	size_t i;
+	a->characternames = malloc(a->game.charactercount*sizeof(char*));
+	a->characterscriptnames = malloc(a->game.charactercount*sizeof(char*));
+	for(i=0; i<a->game.charactercount; ++i) {
+		if(sizeof(character) != AF_read(a->f, &character, sizeof(character))) return 0;
+		assert(strlen(character.name) < sizeof(character.name));
+		assert(strlen(character.scrname) < sizeof(character.scrname));
+		a->characternames[i] = strdup(character.name);
+		a->characterscriptnames[i] = strdup(character.scrname);
+	}
 	return 1;
 }
 
@@ -241,6 +297,10 @@ int ADF_open(ADF* a, const char *filename) {
 	}
 	if(!ADF_read_gamebase(a)) goto err_close;
 	if(a->version > 32) {
+		/* we're at line 11798 in Engine/ac.cpp, git revision:
+		   205c56d693d903516b7b21beb454251e9489aabf - which is highly
+		   recommended as the old C-style spaghetti code is more
+		   readable than the current refactored OOP version. */
 		l = 40 /* guid */ + 20 /*savegame extension*/ + 50 /*savegame dir*/;
 		if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
 	}
@@ -290,22 +350,25 @@ int ADF_open(ADF* a, const char *filename) {
 			if(!ASI_read_script(a->f, &a->scripts[l])) goto err_close;
 	}
 	a->scriptend = AF_get_pos(a->f);
-	/* at this point we have everything we need */
-	return 1;
-	
-	if(a->version > 31) {
+
+	if(a->version > 32) {
 		for(l = 0; l < a->game.viewcount; l++)
 			if(!ADF_read_view(a)) goto err_close;
 	} else {
 		for(l = 0; l < a->game.viewcount; l++)
 			if(!ADF_read_view2x(a)) goto err_close;
 	}
+
 	if(a->version <= 19) {
-		/* skip junk */
+		/* skip version <= 2.1 unknown data */
 		l = AF_read_uint(a->f) * 0x204;
 		if(!AF_read_junk(a->f, l)) goto err_close;
 	}
+
 	/* ... we are around line 11977 in ac.cpp at this point*/
+	if(!ADF_read_characters(a)) return 0;
+
+	/* at this point we have everything we need */
 	return 1;
 }
 

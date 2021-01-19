@@ -122,7 +122,17 @@ void dump_header(ADF *a, char *fn) {
 	}
 	if(i) fprintf(f, "};\n");
 	fprintf(f, "import Character character[%zu];\n", ADF_get_charactercount(a));
+	for(i=0; i<ADF_get_charactercount(a); ++i) {
+		char buf[64], *p = buf, *n = ADF_get_characterscriptname(a, i);
+		*(p++) = 'c';
+		*(p++) = toupper(*(n++));
+		while(*n) *(p++) = tolower(*(n++));
+		*p = 0;
+		fprintf(f, "import Character %s;\n", buf);
+	}
 	fprintf(f, "#endif\n");
+	for(i=0; i<ADF_get_charactercount(a); ++i)
+		fprintf(f, "#define %s %zu\n", ADF_get_characterscriptname(a, i), (size_t)i);
 	fclose(f);
 }
 
