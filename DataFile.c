@@ -360,7 +360,7 @@ int ADF_open(ADF* a, const char *filename) {
 	}
 
 	if(a->version <= 19) {
-		/* skip version <= 2.1 unknown data */
+		/* skip version <= 2.51 unknown data */
 		l = AF_read_uint(a->f) * 0x204;
 		if(!AF_read_junk(a->f, l)) goto err_close;
 	}
