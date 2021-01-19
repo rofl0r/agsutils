@@ -79,6 +79,7 @@ int AF_read_junk(AF* a, size_t l) {
 		l -= togo;
 	}
 	return 1;*/
+	if(!l) return 1;
 	return ByteArray_set_position(a->b, ByteArray_get_position(a->b) + l);
 }
 
