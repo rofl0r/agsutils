@@ -108,6 +108,7 @@ void dump_script(AF* f, ASI* s, char* fn, int flags) {
 
 void dump_header(ADF *a, char *fn) {
 	unsigned i;
+	dprintf(1, "regenerating script header %s\n", fn);
 	FILE *f = fopen(fn, "w");
 	fprintf(f, "#if SCRIPT_API < 300000 && SCRIPT_API > 262000\n");
 	if(ADF_get_cursorcount(a)) fprintf(f, "enum CursorMode {\n");
