@@ -134,7 +134,31 @@ void dump_header(ADF *a, char *fn) {
 	fprintf(f, "#endif\n");
 	for(i=0; i<ADF_get_charactercount(a); ++i)
 		fprintf(f, "#define %s %zu\n", ADF_get_characterscriptname(a, i), (size_t)i);
+	for(i=0; i<ADF_get_guicount(a); ++i) {
+		char buf[64], *p = ADF_get_guiname(a, i), *q = buf;
+		while(*p) *(q++) = toupper(*(p++));
+		*q = 0;
+		fprintf(f, "#define %s FindGUIID(\"%s\")\n", buf, ADF_get_guiname(a, i));
+	}
+
 	fclose(f);
+}
+
+static void dump_old_dialogscripts(ADF *a, char *dir) {
+	if(!a->old_dialogscripts) return;
+	size_t i, n =a->game.dialogcount;
+	for(i=0; i<n; ++i) {
+		char fnbuf[512];
+		snprintf(fnbuf, sizeof(fnbuf), "%s/dialogscript%03d.ads", dir, (int)i);
+		dprintf(1, "extracting dialogscript source %s\n", fnbuf);
+		FILE *f = fopen(fnbuf, "w");
+		if(!f) {
+			perror("fopen");
+			continue;
+		}
+		fprintf(f, "%s", a->old_dialogscripts[i]);
+		fclose(f);
+	}
 }
 
 int main(int argc, char**argv) {
@@ -173,6 +197,7 @@ int main(int argc, char**argv) {
 	}
 
 	dump_header(a, filename(out, "builtinscriptheader.ash", buf, sizeof buf));
+	dump_old_dialogscripts(a, out);
 	ADF_close(a);
 	errors += dumprooms(dir, out, flags);
 	if(errors) dprintf(2, "agscriptxtract: got %d errors\n", errors);

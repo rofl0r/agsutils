@@ -143,8 +143,13 @@ static int ADF_read_gamebase(ADF *a) {
 	AF_read_uint(a->f);/* invhotdotsprite */
 	l = 4 * 17; /* reserved */
 	if(!AF_read_junk(a->f, l)) return 0;
-	l = 500 * 4 /* 500 global message numbers */;
-	if(!AF_read_junk(a->f, l)) return 0;
+	a->game.globalmessagecount = 0;
+	{
+		int buf[500], n; /* 500 global message numbers */;
+		if(!AF_read(a->f, buf, sizeof(buf))) return 0;
+		for(n = 0; n < 500; ++n)
+			if(buf[n]) a->game.globalmessagecount++;
+	}
 	a->game.hasdict = !!AF_read_int(a->f);/* dict */
 	AF_read_uint(a->f);/* globalscript */
 	AF_read_uint(a->f);/* chars */
@@ -262,6 +267,131 @@ int ADF_read_cursors(ADF* a) {
 	return 1;
 }
 
+int ADF_read_dialogtopics(ADF *a) {
+	/* Common/acroom.h:2722 */
+	a->dialog_codesize = malloc(a->game.dialogcount*sizeof(short));
+	#define MAXTOPICOPTIONS 30
+	size_t i, l; // = (150*MAXTOPICOPTIONS)+(4*MAXTOPICOPTIONS)+4+(2*MAXTOPICOPTIONS)+2+2+4+4;
+	for(i=0; i<a->game.dialogcount; ++i) {
+		/* optionnames + optionflags + optionscripts + entrypoints*/
+		l = (150*MAXTOPICOPTIONS)+(4*MAXTOPICOPTIONS)+4+(2*MAXTOPICOPTIONS);
+		if(!AF_read_junk(a->f, l)) return 0;
+		unsigned short startupentrypoint = AF_read_ushort(a->f);
+		a->dialog_codesize[i] = AF_read_ushort(a->f);
+		if(!AF_read_junk(a->f, 8 /* numoptions+topicFlags*/)) return 0;
+	}
+	return 1;
+}
+
+static void dialog_decrypt_text(char *s, int len) {
+	unsigned i = 0;
+	while (i < len) {
+		*s -= "Avis Durgan"[i % 11];
+		if (!*s) break;
+		++i; ++s;
+	}
+}
+
+static int is_zeroterminated(char *s, size_t maxsize) {
+	char *p = s, *e = s + maxsize;
+	while(p < e) if(!*(p++)) return 1;
+	return 0;
+}
+
+#define BASEGOBJ_SIZE 7
+#define MAX_GUIOBJ_SCRIPTNAME_LEN 25
+#define MAX_GUIOBJ_EVENTHANDLER_LEN 30
+static int ADF_read_gui_object(ADF *a, unsigned guiver) {
+	if(!AF_read_junk(a->f, BASEGOBJ_SIZE*4)) return 0;
+	char buf[MAX_GUIOBJ_SCRIPTNAME_LEN];
+	size_t i;
+	if(guiver >= 106) {
+		if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+	}
+	if(guiver >= 108) {
+		unsigned numev = AF_read_uint(a->f);
+		for(i=0; i<numev; ++i) {
+			char buf[MAX_GUIOBJ_EVENTHANDLER_LEN+1];
+			if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+		}
+	}
+	return 1;
+}
+
+int ADF_read_guis(ADF *a) {
+#define MAX_OBJS_ON_GUI 30
+	/* Engine/acgui.cpp:1471 */
+	unsigned x = AF_read_uint(a->f);
+	assert(x == 0xCAFEBEEF);
+	int guiver, n = AF_read_uint(a->f);
+	if(n >= 100) {
+		guiver = n;
+		n = AF_read_uint(a->f);
+	} else {
+		guiver = 0;
+	}
+	if(n < 0 || n > 1000) return 0;
+	a->guicount = n;
+	a->guinames = malloc(sizeof(char*)*a->guicount);
+	size_t i;
+	for(i = 0; i < a->guicount; ++i) {
+		char buf[16];
+		if(!AF_read_junk(a->f, 4 /*vtext*/)) return 0;
+		if(16 != AF_read(a->f, buf, 16)) return 0;
+		if(!buf[0]) snprintf(buf, sizeof buf, "GUI%zu", i);
+		assert(is_zeroterminated(buf, 16));
+		a->guinames[i] = strdup(buf);
+		size_t l = 20 /* clickEventHandler */ + 27*4 /* some ints */
+		           +MAX_OBJS_ON_GUI*4+MAX_OBJS_ON_GUI*4;
+		if(!AF_read_junk(a->f, l)) return 0;
+	}
+	unsigned n_buttons = AF_read_uint(a->f);
+
+	for(i = 0; i < n_buttons; ++i) {
+		if(!ADF_read_gui_object(a, guiver)) return 0;
+		if(!AF_read_junk(a->f, 12*4/*pic*/+50/*text*/)) return 0;
+		if(guiver >= 111) {
+			if(!AF_read_junk(a->f, 4+4 /*alignment,reserved*/)) return 0;
+		}
+	}
+
+	unsigned n_labels = AF_read_uint(a->f);
+
+	for(i = 0; i < n_labels; ++i) {
+		if(!ADF_read_gui_object(a, guiver)) return 0;
+	}
+
+	unsigned n_invs = AF_read_uint(a->f);
+	for(i = 0; i < n_invs; ++i) {
+		if(!ADF_read_gui_object(a, guiver)) return 0;
+		if(guiver >= 109) {
+			if(!AF_read_junk(a->f, 4*4 /*charid,itemw,itemh,topindex*/)) return 0;
+		}
+	}
+
+	if(guiver >= 100) {
+		unsigned n_sliders = AF_read_uint(a->f);
+		for(i = 0; i < n_sliders; ++i) {
+			if(!ADF_read_gui_object(a, guiver)) return 0;
+		}
+	}
+
+	if(guiver >= 101) {
+		unsigned n_texts = AF_read_uint(a->f);
+		for(i = 0; i < n_texts; ++i) {
+			if(!ADF_read_gui_object(a, guiver)) return 0;
+		}
+	}
+
+	if(guiver >= 102) {
+		unsigned n_lists = AF_read_uint(a->f);
+		for(i = 0; i < n_lists; ++i) {
+			if(!ADF_read_gui_object(a, guiver)) return 0;
+		}
+	}
+	return 1;
+}
+
 int ADF_open(ADF* a, const char *filename) {
 	char fnbuf[512];
 	size_t l, i;
@@ -367,6 +497,58 @@ int ADF_open(ADF* a, const char *filename) {
 
 	/* ... we are around line 11977 in ac.cpp at this point*/
 	if(!ADF_read_characters(a)) return 0;
+
+	if(a->version > 19 /* 2.51*/) // current AGS code says lipsync was added in 2.54==21
+		if(!AF_read_junk(a->f, 50*20/*MAXLIPSYNCFRAMES*/)) goto err_close;
+
+
+	if(a->version < 26) {
+		for(l = 0; l < a->game.globalmessagecount; ++l) {
+			char buf[512];
+			if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+		}
+	} else {
+		for(l = 0; l < a->game.globalmessagecount; ++l) {
+			/* length of encrypted string */
+			size_t e = AF_read_uint(a->f);
+			if(!AF_read_junk(a->f, e)) return 0;
+		}
+	}
+
+	if(!ADF_read_dialogtopics(a)) return 0;
+	/* Engine/ac.cpp:12045 */
+	a->old_dialogscripts = 0;
+	if(a->version <= 37) {
+		a->old_dialogscripts = malloc(a->game.dialogcount*sizeof(char*));
+		for(i = 0; i<a->game.dialogcount; ++i) {
+			AF_read_junk(a->f, a->dialog_codesize[i]);
+			l = AF_read_int(a->f);
+			char* buf = malloc(l);
+			AF_read(a->f, buf, l);
+			dialog_decrypt_text(buf, l);
+			a->old_dialogscripts[i] = buf;
+			//ASI scr;
+			//ASI_read_script(a, &scr);
+		}
+		if(a->version <= 25) {
+			// unencrypted dialog lines
+			// we just seek till end marker
+			// FIXME handle EOF
+			int c;
+			while((c = AF_read_uchar(a->f)) != 0xef);
+			AF_set_pos(a->f, AF_get_pos(a->f) -1);
+		} else {
+			// encrypted dialog lines
+			while(1) {
+				l = AF_read_uint(a->f);
+				if(l == 0xCAFEBEEF) break;
+				if(!AF_read_junk(a->f, l)) return 0;
+			}
+			AF_set_pos(a->f, AF_get_pos(a->f) -4);
+		}
+	}
+
+	if(!ADF_read_guis(a)) return 0;
 
 	/* at this point we have everything we need */
 	return 1;

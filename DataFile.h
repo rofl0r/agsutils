@@ -11,6 +11,7 @@ typedef struct AgsGameData {
 	size_t inventorycount;
 	size_t viewcount;
 	size_t dialogcount;
+	size_t globalmessagecount;
 	unsigned color_depth;
 	int hasdict;
 } AGD;
@@ -32,6 +33,10 @@ typedef struct AgsDataFile {
 	ASI globalscript;
 	ASI dialogscript;
 	ASI scripts[50];
+	unsigned short *dialog_codesize;
+	char** old_dialogscripts;
+	size_t guicount;
+	char **guinames;
 } ADF;
 
 int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen);
@@ -49,6 +54,8 @@ size_t ADF_get_scriptcount(ADF* a);
 #define ADF_get_cursorname(A, N) (A)->cursornames[N]
 #define ADF_get_charactercount(A) (A)->game.charactercount
 #define ADF_get_characterscriptname(A, N) (A)->characterscriptnames[N]
+#define ADF_get_guicount(A) (A)->guicount
+#define ADF_get_guiname(A, N) (A)->guinames[N]
 
 #pragma RcB2 DEP "DataFile.c"
 
