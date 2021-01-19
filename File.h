@@ -23,6 +23,7 @@ unsigned AF_read_uint(AF* f);
 short AF_read_short(AF* f);
 unsigned short AF_read_ushort(AF* f);
 int AF_read_string(AF* a, char* buf, size_t max);
+int AF_read_uchar(AF *f);
 
 /* dumps file contents between start and start+len into fn */
 int AF_dump_chunk(AF* a, size_t start, size_t len, char* fn);

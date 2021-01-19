@@ -35,6 +35,10 @@ unsigned short AF_read_ushort(AF* f) {
 	return ByteArray_readUnsignedShort(f->b);
 }
 
+int AF_read_uchar(AF *f) {
+	return ByteArray_readUnsignedByte(f->b);
+}
+
 off_t AF_get_pos(AF* f) {
 	return ByteArray_get_position(f->b);
 }
