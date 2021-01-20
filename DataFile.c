@@ -597,7 +597,20 @@ int ADF_open(ADF* a, const char *filename) {
 			assert(is_zeroterminated(buf, sizeof buf));
 			a->viewnames[i] = strdup(buf);
 		}
-		/* here follow inventory item script names and dialog script names */
+
+		if(a->version >= 31) { // 2.7.0
+			a->inventorynames = malloc(a->game.inventorycount*sizeof(char*));
+			for(i=0; i<a->game.inventorycount; ++i) {
+				char buf[20]; /* MAX_SCRIPT_NAME_LEN */
+				if(!AF_read_string(a->f, buf, sizeof buf)) return 1;
+				assert(is_zeroterminated(buf, sizeof buf));
+				a->inventorynames[i] = strdup(buf);
+			}
+
+			if(a->version >= 32) { // 2.7.2
+				/* here follow dialog script names */
+			}
+		}
 	}
 
 	/* at this point we have everything we need */

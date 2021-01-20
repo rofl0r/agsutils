@@ -38,6 +38,7 @@ typedef struct AgsDataFile {
 	size_t guicount;
 	char **guinames;
 	char **viewnames;
+	char **inventorynames;
 } ADF;
 
 int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen);
@@ -59,6 +60,9 @@ size_t ADF_get_scriptcount(ADF* a);
 #define ADF_get_guiname(A, N) (A)->guinames[N]
 #define ADF_get_viewcount(A) (A)->game.viewcount
 #define ADF_get_viewname(A, N) (A)->viewnames[N]
+#define ADF_get_inventorycount(A) (A)->game.inventorycount
+#define ADF_get_inventoryname(A, N) (A)->inventorynames[N]
+
 
 #pragma RcB2 DEP "DataFile.c"
 
