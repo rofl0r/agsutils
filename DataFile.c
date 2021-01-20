@@ -298,11 +298,10 @@ static int is_zeroterminated(char *s, size_t maxsize) {
 	return 0;
 }
 
-#define BASEGOBJ_SIZE 7
 #define MAX_GUIOBJ_SCRIPTNAME_LEN 25
 #define MAX_GUIOBJ_EVENTHANDLER_LEN 30
 static int ADF_read_gui_object(ADF *a, unsigned guiver) {
-	if(!AF_read_junk(a->f, BASEGOBJ_SIZE*4)) return 0;
+	if(!AF_read_junk(a->f, guiver >= 119 ? 6*4 : 7*4)) return 0;
 	char buf[MAX_GUIOBJ_SCRIPTNAME_LEN];
 	size_t i;
 	if(guiver >= 106) {
@@ -315,6 +314,14 @@ static int ADF_read_gui_object(ADF *a, unsigned guiver) {
 			if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
 		}
 	}
+	return 1;
+}
+
+static int AF_read_string_with_length(AF *f, char *buf, size_t maxlen) {
+	unsigned len = AF_read_uint(f);
+	if(len >= maxlen) return 0;
+	if(len && !AF_read(f, buf, len)) return 0;
+	buf[len] = 0;
 	return 1;
 }
 
@@ -335,13 +342,36 @@ int ADF_read_guis(ADF *a) {
 	a->guinames = malloc(sizeof(char*)*a->guicount);
 	size_t i;
 	for(i = 0; i < a->guicount; ++i) {
-		char buf[16];
-		if(!AF_read_junk(a->f, 4 /*vtext*/)) return 0;
-		if(16 != AF_read(a->f, buf, 16)) return 0;
+		char buf[512];
+		if(guiver < 119 /* 3.5.0 */) {
+			if(!AF_read_junk(a->f, 4 /*vtext*/)) return 0;
+		}
+		if(guiver >= 118) /* 3.4.0 */ {
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+		} else {
+			if(16 != AF_read(a->f, buf, 16)) return 0;
+			assert(is_zeroterminated(buf, 16));
+		}
 		if(!buf[0]) snprintf(buf, sizeof buf, "GUI%zu", i);
-		assert(is_zeroterminated(buf, 16));
 		a->guinames[i] = strdup(buf);
-		size_t l = 20 /* clickEventHandler */ + 27*4 /* some ints */
+		if(guiver >= 118) {
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+		} else {
+			if(!AF_read_junk(a->f, 20 /* clickEventHandler */)) return 0;
+		}
+		if(!AF_read_junk(a->f, guiver<119 ? 5*4 : 4*4 )) return 0;
+		unsigned n_ctrls = AF_read_uint(a->f);
+		if(guiver < 118)
+			n_ctrls = MAX_OBJS_ON_GUI;
+		// have read 6 of 27 legacy ints at this point
+
+		size_t l;
+		if(guiver >= 119)
+			l = (10+n_ctrls) * 4;
+		else if(guiver >= 118)
+			l = (21+n_ctrls) * 4;
+		else
+			l = 21*4 /* some ints */
 		           +MAX_OBJS_ON_GUI*4+MAX_OBJS_ON_GUI*4;
 		if(!AF_read_junk(a->f, l)) return 0;
 	}
@@ -349,7 +379,13 @@ int ADF_read_guis(ADF *a) {
 
 	for(i = 0; i < n_buttons; ++i) {
 		if(!ADF_read_gui_object(a, guiver)) return 0;
-		if(!AF_read_junk(a->f, 12*4/*pic*/+50/*text*/)) return 0;
+		char buf[512];
+		if(!AF_read_junk(a->f, guiver>=119? 9*4 : 12*4/*pic*/)) return 0;
+		if(guiver < 119) {
+			if(!AF_read(a->f, buf, 50 /*text*/)) return 0; // for debugging
+		} else {
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+		}
 		if(guiver >= 111) {
 			if(!AF_read_junk(a->f, 4+4 /*alignment,reserved*/)) return 0;
 		}
@@ -359,13 +395,15 @@ int ADF_read_guis(ADF *a) {
 
 	for(i = 0; i < n_labels; ++i) {
 		if(!ADF_read_gui_object(a, guiver)) return 0;
+		unsigned textlen = guiver < 113 ? 200 : AF_read_uint(a->f);
+		if(!AF_read_junk(a->f, textlen + 4*3/*font*/)) return 0;
 	}
 
 	unsigned n_invs = AF_read_uint(a->f);
 	for(i = 0; i < n_invs; ++i) {
 		if(!ADF_read_gui_object(a, guiver)) return 0;
 		if(guiver >= 109) {
-			if(!AF_read_junk(a->f, 4*4 /*charid,itemw,itemh,topindex*/)) return 0;
+			if(!AF_read_junk(a->f, guiver >= 119 ? 3*4 : 4*4 /*charid,itemw,itemh,topindex*/)) return 0;
 		}
 	}
 
@@ -373,6 +411,11 @@ int ADF_read_guis(ADF *a) {
 		unsigned n_sliders = AF_read_uint(a->f);
 		for(i = 0; i < n_sliders; ++i) {
 			if(!ADF_read_gui_object(a, guiver)) return 0;
+			unsigned n;
+			if(guiver >= 119) n = 6;
+			else if(guiver >= 104) n = 7;
+			else n = 4;
+			if(!AF_read_junk(a->f, 4*n)) return 0;
 		}
 	}
 
@@ -380,26 +423,52 @@ int ADF_read_guis(ADF *a) {
 		unsigned n_texts = AF_read_uint(a->f);
 		for(i = 0; i < n_texts; ++i) {
 			if(!ADF_read_gui_object(a, guiver)) return 0;
+			if(guiver >= 119) {
+				char buf[2048];
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+				if(!AF_read_junk(a->f, 3*4/*font*/)) return 0;
+			} else {
+				if(!AF_read_junk(a->f, 200/*text*/+3*4/*font*/)) return 0;
+			}
 		}
 	}
 
 	if(guiver >= 102) {
 		unsigned n_lists = AF_read_uint(a->f);
+		size_t l_add1 = guiver >= 119 ? 4 : (guiver >= 112 ? 8 : 0);
+		size_t l_add2 = guiver >= 107 ? 4 : 0;
 		for(i = 0; i < n_lists; ++i) {
 			if(!ADF_read_gui_object(a, guiver)) return 0;
+			unsigned j, n_items = AF_read_uint(a->f);
+			if(!AF_read_junk(a->f, guiver>=119 ? 3*4 : 9*4)) return 0;
+			unsigned flags = AF_read_uint(a->f);
+			if((l_add1 + l_add2) && !AF_read_junk(a->f, l_add1 + l_add2)) return 0;
+			for(j = 0; j < n_items; ++j) {
+				char buf[1024];
+				if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+			}
+			if(guiver >= 114 && guiver < 119 && (flags & 4/* GLF_SGINDEXVALID */)) {
+				if(!AF_read_junk(a->f, n_items*2)) return 0;
+			}
 		}
 	}
 	return 1;
 }
 
 int ADF_read_custom_property(ADF *a) {
-	unsigned i, x = AF_read_uint(a->f);
-	assert(x == 1);
+	unsigned i, x, propver = AF_read_uint(a->f);
+	assert(propver <= 2);
 	x = AF_read_uint(a->f); /* numprops */
 	for(i=0;i<x;++i) {
-		char buf[500]; /* MAX_CUSTOM_PROPERTY_VALUE_LENGTH */
-		if(!AF_read_string(a->f, buf, 200)) return 0; // propname
-		if(!AF_read_string(a->f, buf, 500)) return 0; // propval
+		if(propver == 1) {
+			char buf[500]; /* MAX_CUSTOM_PROPERTY_VALUE_LENGTH */
+			if(!AF_read_string(a->f, buf, 200)) return 0; // propname
+			if(!AF_read_string(a->f, buf, 500)) return 0; // propval
+		} else {
+			char buf[2048];
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+		}
 	}
 	return 1;
 }
@@ -563,7 +632,7 @@ int ADF_open(ADF* a, const char *filename) {
 	if(!ADF_read_guis(a)) return 0;
 
 	if(a->version >= 25) {
-		unsigned x = AF_read_uint(a->f);
+		unsigned prop_version, x = AF_read_uint(a->f);
 		assert(x == 1);
 		x = AF_read_uint(a->f); /* numplugins */
 		for(i = 0; i < x; ++i) {
@@ -573,15 +642,23 @@ int ADF_open(ADF* a, const char *filename) {
 			AF_read_junk(a->f, psize); /* plugin content */
 		}
 		/* CustomPropertySchema::UnSerialize */
-		x = AF_read_uint(a->f);
-		assert(x == 1);
+		prop_version = AF_read_uint(a->f);
+		assert(prop_version <= 2);
 		x = AF_read_uint(a->f); /* numprops */
 		for(i=0; i<x; ++i) {
-			char buf[500]; /* MAX_CUSTOM_PROPERTY_VALUE_LENGTH */
-			if(!AF_read_string(a->f, buf, 20)) return 0; // propname
-			if(!AF_read_string(a->f, buf, 100)) return 0; //propdesc
-			if(!AF_read_string(a->f, buf, 500)) return 0; //defvalue
-			x = AF_read_uint(a->f); /* proptype */
+			if(prop_version == 1) {
+				char buf[500]; /* MAX_CUSTOM_PROPERTY_VALUE_LENGTH */
+				if(!AF_read_string(a->f, buf, 20)) return 0; // propname
+				if(!AF_read_string(a->f, buf, 100)) return 0; //propdesc
+				if(!AF_read_string(a->f, buf, 500)) return 0; //defvalue
+				x = AF_read_uint(a->f); /* proptype */
+			} else {
+				char buf[2048];
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+				AF_read_uint(a->f);
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+			}
 		}
 
 		for(i=0; i<a->game.charactercount; ++i)
