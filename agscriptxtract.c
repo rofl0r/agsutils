@@ -106,6 +106,15 @@ void dump_script(AF* f, ASI* s, char* fn, int flags) {
 	disas("game28.dta", fn, flags);
 }
 
+static char *pfx_capitalize(char *in, char prefix, char *out) {
+	char *p = out, *n = in;
+	*(p++) = prefix;
+	*(p++) = toupper(*(n++));
+	while(*n) *(p++) = tolower(*(n++));
+	*p = 0;
+	return out;
+}
+
 void dump_header(ADF *a, char *fn) {
 	unsigned i;
 	dprintf(1, "regenerating script header %s\n", fn);
@@ -125,15 +134,17 @@ void dump_header(ADF *a, char *fn) {
 	fprintf(f, "import Character character[%zu];\n", ADF_get_charactercount(a));
 	for(i=0; i<ADF_get_charactercount(a); ++i) {
 		char buf[64], *p = buf, *n = ADF_get_characterscriptname(a, i);
-		*(p++) = 'c';
-		*(p++) = toupper(*(n++));
-		while(*n) *(p++) = tolower(*(n++));
-		*p = 0;
+		pfx_capitalize(ADF_get_characterscriptname(a, i), 'c', buf);
 		fprintf(f, "import Character %s;\n", buf);
 	}
 	fprintf(f, "import InventoryItem inventory[%zu];\n", ADF_get_inventorycount(a));
 	if(a->inventorynames) for(i=1; i<ADF_get_inventorycount(a); ++i) {
 		fprintf(f, "import InventoryItem %s;\n", ADF_get_inventoryname(a, i));
+	}
+	for(i=0; i<ADF_get_guicount(a); ++i) {
+		char buf[64];
+		pfx_capitalize(ADF_get_guiname(a, i), 'g', buf);
+		fprintf(f, "import GUI %s;\n", buf);
 	}
 	fprintf(f, "#endif\n");
 	for(i=0; i<ADF_get_charactercount(a); ++i)
