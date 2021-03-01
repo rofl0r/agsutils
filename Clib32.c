@@ -438,15 +438,42 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 
 	f->pack_off = 0;
 	if (strncmp(clbuff, "CLIB", 4) != 0) {
+		/* CLIB signature not found at the beginning of file
+		   so it's probably an exe and we need to lookup the tail
+		   signature. */
 		ByteArray_set_position(ba,  ba_len - 12);
 		ByteArray_readMultiByte(ba, clbuff, 12);
 
 		if (strncmp(clbuff, clibendfilesig, 12) != 0)
 			return -2;
-		// it's an appended-to-end-of-exe thing
-		ByteArray_set_position(ba,  ba_len - 16);
-		absoffs = ByteArray_readUnsignedInt(ba);
-		ByteArray_set_position(ba, absoffs + 5);
+		// it's an appended-to-end-of-exe thing.
+		// there's a new format using a 64bit offset, we need to try
+		// that first.
+
+		uint64_t off64;
+		ByteArray_set_position(ba,  ba_len - 20);
+		off64 = ByteArray_readUnsignedLongLong(ba);
+		if(off64 < ba_len &&
+		   ByteArray_set_position(ba, off64) &&
+		   ByteArray_readMultiByte(ba, clbuff, 5) &&
+		   !strncmp(clbuff, "CLIB", 4)) {
+			if(off64 > 0xffffffff) {
+				dprintf(2, "error: gamepacks > 4GB not supported at this time\n");
+				return -21;
+			}
+			absoffs = off64;
+		} else {
+			ByteArray_set_position(ba,  ba_len - 16);
+			absoffs = ByteArray_readUnsignedInt(ba);
+		}
+
+		ByteArray_set_position(ba, absoffs);
+		ByteArray_readMultiByte(ba, clbuff, 5);
+		if(strncmp(clbuff, "CLIB", 4)) {
+			dprintf(2, "error: ags clib header signature not found\n");
+			return -22;
+		}
+
 		f->pack_off = absoffs;
 	}
 
