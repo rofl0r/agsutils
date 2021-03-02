@@ -480,6 +480,10 @@ static int pack(char* file, char* dir) {
 			} else if(!strcmp("info", buf)) {
 			} else if(!strcmp("spritecacheversion", buf)) {
 				sf.version = atoi(p);
+				if(sf.version > 6) {
+					fprintf(stderr, "warning: converting to spritecache version 6\n");
+					sf.version = 6;
+				}
 			} else if(!strcmp("spritecount", buf)) {
 				sf.num_sprites = atoi(p);
 			} else if(!strcmp("id", buf)) {

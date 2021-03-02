@@ -250,19 +250,26 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 	if(n != 13) return 0;
 	if(memcmp(buf, " Sprite File ", 13)) return 0;
 	sf->id = 0;
-	if(sf->version < 4 || sf->version > 6) return 0;
-	if(sf->version == 4) sf->compressed = 0;
-	else if(sf->version == 5) sf->compressed = 1;
-	else if(sf->version >= 6) {
-		AF_read(f, buf, 1);
-		sf->compressed = (buf[0] == 1);
-		sf->id = AF_read_int(f);
+	switch(sf->version) {
+		case 4:
+			sf->compressed = 0;
+			sf->palette = malloc(256*3);
+			AF_read(f, sf->palette, 256*3);
+			break;
+		case 5:
+			sf->compressed = 1;
+			break;
+		case 6: case 10:
+			AF_read(f, buf, 1);
+			sf->compressed = (buf[0] == 1);
+			sf->id = AF_read_int(f);
+			break;
+		default:
+			dprintf(2, "unsupported sprite file version %d\n", (int) sf->version);
+			return 0;
 	}
 
-	if(sf->version < 5) {
-		sf->palette = malloc(256*3);
-		AF_read(f, sf->palette, 256*3);
-	} else sf->palette = 0;
+	if(sf->version >= 5) sf->palette = 0;
 
 	sf->num_sprites = AF_read_ushort(f);
 	if(sf->version < 4) sf->num_sprites = 200;
