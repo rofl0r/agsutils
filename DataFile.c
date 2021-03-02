@@ -310,8 +310,8 @@ static int ADF_read_gui_object(ADF *a, unsigned guiver) {
 	if(guiver >= 108) {
 		unsigned numev = AF_read_uint(a->f);
 		for(i=0; i<numev; ++i) {
-			char buf[MAX_GUIOBJ_EVENTHANDLER_LEN+1];
-			if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+			char buf2[MAX_GUIOBJ_EVENTHANDLER_LEN+1];
+			if(!AF_read_string(a->f, buf2, sizeof buf2)) return 0;
 		}
 	}
 	return 1;
