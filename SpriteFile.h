@@ -7,7 +7,7 @@
 
 typedef struct SpriteFile {
 	short version;
-	unsigned short num_sprites;
+	unsigned num_sprites;
 	int compressed;
 	int id;
 

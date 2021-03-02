@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#define MAX_OLD_SPRITES 32768
+
 static int alloc_sprite_index(SpriteFile *si, int nsprites) {
 	si->offsets = calloc(4, nsprites);
 	return 1;
@@ -237,6 +239,10 @@ int SpriteFile_add(FILE *f, SpriteFile *sf, ImageData *data) {
 }
 
 int SpriteFile_finalize(FILE* f, SpriteFile *sf) {
+	if(sf->num_sprites >= MAX_OLD_SPRITES) {
+		fprintf(stderr, "error: 64bit spritefile support not implemented yet\n");
+		return 0;
+	}
 	f_set_pos(f, sf->sc_off);
 	f_write_ushort(f, sf->num_sprites -1);
 	return 1;
@@ -259,7 +265,7 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 		case 5:
 			sf->compressed = 1;
 			break;
-		case 6: case 10:
+		case 6: case 10: case 11:
 			AF_read(f, buf, 1);
 			sf->compressed = (buf[0] == 1);
 			sf->id = AF_read_int(f);
@@ -271,7 +277,10 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 
 	if(sf->version >= 5) sf->palette = 0;
 
-	sf->num_sprites = AF_read_ushort(f);
+	if(sf->version >= 11)
+		sf->num_sprites = AF_read_uint(f);
+	else
+		sf->num_sprites = AF_read_ushort(f);
 	if(sf->version < 4) sf->num_sprites = 200;
 	sf->num_sprites++;
 	alloc_sprite_index(sf, sf->num_sprites);
@@ -297,6 +306,10 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 /* create sprindex.dat, use after SpriteFile_read() */
 int SpriteFile_write_sprindex(AF* f, SpriteFile *sf, FILE *outf)
 {
+	if(sf->num_sprites >= MAX_OLD_SPRITES) {
+		fprintf(stderr, "error: support for 64bit sprindex files not supported, too many sprites\n");
+		return 0;
+	}
 	unsigned short *h = calloc(2, sf->num_sprites);
 	unsigned short *w = calloc(2, sf->num_sprites);
 	f_write(outf, "SPRINDEX", 8);
