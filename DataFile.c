@@ -386,7 +386,9 @@ int ADF_read_guis(ADF *a) {
 		} else {
 			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
 		}
-		if(guiver >= 111) {
+		if(guiver >= 119) {
+			if(!AF_read_junk(a->f, 4 /*alignment*/)) return 0;
+		} else if(guiver >= 111) {
 			if(!AF_read_junk(a->f, 4+4 /*alignment,reserved*/)) return 0;
 		}
 	}
