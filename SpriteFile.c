@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define MAX_OLD_SPRITES 32768
+#define MAX_OLD_SPRITES 0xfffe
 
 static int alloc_sprite_index(SpriteFile *si, int nsprites) {
 	si->offsets = calloc(4, nsprites);
