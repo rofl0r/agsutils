@@ -29,19 +29,19 @@ static void write_bmp(char *name, ImageData *d) {
 	FILE *f = fopen(name, "w");
 	if(f) {
 		struct BITMAPINFOHEADER_X hdr = {
-			.bfType = le16(0x4D42),
-			.bfSize = le32(sizeof(hdr) + d->data_size),
-			.bfOffsetBits = le32(sizeof(hdr)),
-			.biSize = le32(sizeof(hdr)-14),
-			.biWidth = le32(d->width),
+			.bfType = end_htole16(0x4D42),
+			.bfSize = end_htole32(sizeof(hdr) + d->data_size),
+			.bfOffsetBits = end_htole32(sizeof(hdr)),
+			.biSize = end_htole32(sizeof(hdr)-14),
+			.biWidth = end_htole32(d->width),
 			/* negative height means bmp is stored from top to bottom */
-			.biHeight = le32( - d->height),
-			.biPlanes = le32(1),
-			.biBitCount = le32(d->bytesperpixel * 8),
+			.biHeight = end_htole32( - d->height),
+			.biPlanes = end_htole32(1),
+			.biBitCount = end_htole32(d->bytesperpixel * 8),
 			.biCompression = 0,
 			.biSizeImage = 0,
-			.biXPelsPerMeter = le32(0xb11),
-			.biYPelsPerMeter = le32(0xb11),
+			.biXPelsPerMeter = end_htole32(0xb11),
+			.biYPelsPerMeter = end_htole32(0xb11),
 		};
 		fwrite(&hdr, 1, sizeof hdr, f);
 		pad_bmp(d);

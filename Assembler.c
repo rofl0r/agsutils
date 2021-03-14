@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include "endianness.h"
 #include "File.h"
 #include "ByteArray.h"
 #include "MemGrow.h"
@@ -504,11 +505,9 @@ static int asm_text(AS *a) {
 	
 	return 1;
 }
-#include "endianness.h"
+
 static void write_int(FILE* o, int val) {
-#ifndef IS_LITTLE_ENDIAN
-	val = byteswap32(val);
-#endif
+	val = end_htole32(val);
 	fwrite(&val, 4, 1, o);
 }
 

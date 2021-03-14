@@ -281,11 +281,7 @@ void AgsFile_setDataFileCount(struct AgsFile *f, size_t count) {
 
 
 static int get_int_le(int val) {
-#ifdef IS_LITTLE_ENDIAN
-	return val;
-#else
-	return byteswap32(val);
-#endif
+	return end_htole32(val);
 }
 
 static void write_int(int fd, int val) {
@@ -294,11 +290,7 @@ static void write_int(int fd, int val) {
 }
 
 static short get_short_le(short val) {
-#ifdef IS_LITTLE_ENDIAN
-	return val;
-#else
-	return byteswap16(val);
-#endif
+	return end_htole16(val);
 }
 
 static void write_short(int fd, short val) {

@@ -5,6 +5,7 @@
 #include "ByteArray.h"
 #include "debug.h"
 #include "endianness.h"
+
 #include <stdlib.h>
 #include <sys/mman.h>
 
@@ -42,11 +43,7 @@ void ByteArray_ctor(struct ByteArray* self) {
 	
 	self->bytesAvailable = ByteArray_bytesAvailable;
 	
-#ifdef IS_LITTLE_ENDIAN
-	self->sys_endian = BAE_LITTLE;
-#else
-	self->sys_endian = BAE_BIG;
-#endif
+	self->sys_endian = ENDIANNESS_BE ? BAE_BIG : BAE_LITTLE;
 }
 
 struct ByteArray* ByteArray_new(void) {
@@ -240,7 +237,7 @@ unsigned long long ByteArray_readUnsignedLongLong(struct ByteArray* self) {
 	} buf;
 	self->readMultiByte(self, (char*) buf.charval, 8);
 	if(self->endian != self->sys_endian) {
-		buf.intval = byteswap64(buf.intval);
+		buf.intval = end_bswap64(buf.intval);
 	}
 	return buf.intval;
 }
@@ -252,7 +249,7 @@ unsigned int ByteArray_readUnsignedInt(struct ByteArray* self) {
 	} buf;
 	self->readMultiByte(self, (char*) buf.charval, 4);
 	if(self->endian != self->sys_endian) {
-		buf.intval = byteswap32(buf.intval);
+		buf.intval = end_bswap32(buf.intval);
 	}
 	return buf.intval;
 }
@@ -264,7 +261,7 @@ int ByteArray_readInt(struct ByteArray* self) {
 	} buf;
 	self->readMultiByte(self, (char*) buf.charval, 4);
 	if(self->endian != self->sys_endian) {
-		buf.intval = byteswap32(buf.intval);
+		buf.intval = end_bswap32(buf.intval);
 	}
 	return buf.intval;
 }
@@ -276,7 +273,7 @@ unsigned short ByteArray_readUnsignedShort(struct ByteArray* self) {
 	} buf;
 	self->readMultiByte(self, (char*) buf.charval, 2);
 	if(self->endian != self->sys_endian) {
-		buf.intval = byteswap16(buf.intval);
+		buf.intval = end_bswap16(buf.intval);
 	}
 	return buf.intval;
 }
@@ -288,7 +285,7 @@ short ByteArray_readShort(struct ByteArray* self) {
 	} buf;
 	self->readMultiByte(self, (char*) buf.charval, 2);
 	if(self->endian != self->sys_endian) {
-		buf.intval = byteswap16(buf.intval);
+		buf.intval = end_bswap16(buf.intval);
 	}
 	return buf.intval;
 }
@@ -345,7 +342,7 @@ off_t ByteArray_writeShort(struct ByteArray* self, signed short what) {
 	} u;
 	u.intval = what;
 	if(self->sys_endian != self->endian) {
-		u.intval = byteswap16(u.intval);
+		u.intval = end_bswap16(u.intval);
 	}
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
@@ -357,7 +354,7 @@ off_t ByteArray_writeUnsignedShort(struct ByteArray* self, unsigned short what) 
 	} u;
 	u.intval = what;
 	if(self->sys_endian != self->endian) {
-		u.intval = byteswap16(u.intval);
+		u.intval = end_bswap16(u.intval);
 	}
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
@@ -369,7 +366,7 @@ off_t ByteArray_writeInt(struct ByteArray* self, signed int what) {
 	} u;
 	u.intval = what;
 	if(self->sys_endian != self->endian) {
-		u.intval = byteswap32(u.intval);
+		u.intval = end_bswap32(u.intval);
 	}
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
@@ -381,7 +378,7 @@ off_t ByteArray_writeUnsignedInt(struct ByteArray* self, unsigned int what) {
 	} u;
 	u.intval = what;
 	if(self->sys_endian != self->endian) {
-		u.intval = byteswap32(u.intval);
+		u.intval = end_bswap32(u.intval);
 	}
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
@@ -431,7 +428,7 @@ off_t ByteArray_writeFloat(struct ByteArray* self, float what) {
 	} u;
 	u.floatval = what;
 	if(self->sys_endian != self->endian) {
-		u.intval = byteswap32(u.intval);
+		u.intval = end_bswap32(u.intval);
 	}
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }

@@ -155,19 +155,19 @@ static void write_tga(char *name, ImageData* d, unsigned char *palette)
 				(use_rle ? TIT_RLE_COLOR_MAPPED : TIT_COLOR_MAPPED) :
 				(use_rle ? TIT_RLE_TRUE_COLOR : TIT_TRUE_COLOR),
 		.colourmaporigin = 0,
-		.colourmaplength = bpp == 1 ? le16(palcount) : 0,
+		.colourmaplength = bpp == 1 ? end_htole16(palcount) : 0,
 		.colourmapdepth = bpp == 1 ? 24 : 0,
 		.x_origin = 0,
-		.y_origin = le16(d->height), /* image starts at the top */
-		.width = le16(d->width),
-		.height = le16(d->height),
+		.y_origin = end_htole16(d->height), /* image starts at the top */
+		.width = end_htole16(d->width),
+		.height = end_htole16(d->height),
 		.bitsperpixel = bpp*8,
 		.imagedescriptor = 0x20, /* image starts at the top */
 	};
 	fwrite(&hdr, 1, sizeof hdr, f);
 	unsigned tmp;
 	if(bpp == 1) for(i=0; i<palcount; ++i) {
-		tmp = le32(pal[i]);
+		tmp = end_htole32(pal[i]);
 		fwrite(&tmp, 1, 3, f);
 	}
 	fwrite(data, 1, data_size, f);
@@ -265,12 +265,12 @@ static int read_tga(FILE *f, ImageData *idata, int skip_palette) {
 		if(!memcmp(ftr.signature, TARGA_FOOTER_SIGNATURE, sizeof ftr.signature))
 			fs -= sizeof ftr;
 	}
-	hdr.colourmaplength = le16(hdr.colourmaplength);
-	hdr.colourmapdepth = le16(hdr.colourmapdepth);
-	hdr.x_origin = le16(hdr.x_origin);
-	hdr.y_origin = le16(hdr.y_origin);
-	hdr.width = le16(hdr.width);
-	hdr.height = le16(hdr.height);
+	hdr.colourmaplength = end_htole16(hdr.colourmaplength);
+	hdr.colourmapdepth = end_htole16(hdr.colourmapdepth);
+	hdr.x_origin = end_htole16(hdr.x_origin);
+	hdr.y_origin = end_htole16(hdr.y_origin);
+	hdr.width = end_htole16(hdr.width);
+	hdr.height = end_htole16(hdr.height);
 
 	fseek(f, sizeof hdr + hdr.idlength, SEEK_SET);
 	fs -= ftello(f);
