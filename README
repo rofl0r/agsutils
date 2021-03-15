@@ -153,6 +153,23 @@ simply run `make`.
 if you need any special CFLAGS, LDFLAGS etc put them into config.mak
 or append them to the make command, i.e. `make CFLAGS="-O2 -g"`
 
+compilation on windos:
+----------------------
+
+mingw is not supported. it' s a half-baked PoS, which lacks a dozen or more of
+the POSIX APIs we require. worse than that, it even has *wrong* prototypes
+for some of them, for example it defines mkdir(char*), but the proper prototype
+is mkdir(char*, int), so we'd have to litter the code with #ifdefs and remove
+parts of the functionality to support it. that's not gonna happen.
+
+use cygwin. with cygwin, every works just fine without *any* changes. you can
+even run `make` and it produces files with .exe extensions even though we don't
+have a rule for that anywhere. you only need to ship cygwin-1.dll together with
+the binaries.
+
+alternatively you can use WSL/WSL2 and just use native linux compiler and the
+binaries inside the WSL environment.
+
 third-party library requirements:
 ---------------------------------
 none. \o/
