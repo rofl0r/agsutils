@@ -7,7 +7,14 @@
 #include "endianness.h"
 
 #include <stdlib.h>
+#ifndef NO_MMAN /* lame OS like winblows */
 #include <sys/mman.h>
+#define BLOWS 0
+#else
+#define mmap(...) (void*)0xffffffff
+#define MAP_FAILED (void*)0xffffffff
+#define BLOWS 1
+#endif
 
 void ByteArray_defaults(struct ByteArray* self) {
 	memset(self, 0, sizeof(*self));
@@ -158,7 +165,7 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 	if (self->source.fd == -1) return 0;
 	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source.fd, 0);
 	if(addr == MAP_FAILED) {
-		perror("mmap");
+		if(!BLOWS) perror("mmap");
 		return 1;
 	}
 	return ByteArray_open_mem(self, addr, self->size);
