@@ -69,7 +69,7 @@ rcb:
 	make -f Makefile.binary FNAME=agssim
 
 clean:
-	rm -f $(CPROGS) $(LIB_OBJS) $(PROGS_OBJS)
+	rm -f $(CPROGS) $(LIB_OBJS) $(PROGS_OBJS) $(ASM_OBJS)
 	rm -f *.out
 	rm -f *.o
 	rm -f *.rcb
