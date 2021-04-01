@@ -78,7 +78,7 @@ rcb:
 	make -f Makefile.binary FNAME=agssim
 
 clean:
-	$(RM_F) $(CPROGS) $(LIB_OBJS) $(PROGS_OBJS) $(ASM_OBJS)
+	$(RM_F) $(CPROGS) $(LIB_OBJS) $(PROGS_OBJS) $(ASM_OBJS) $(SPRITE_OBJS)
 	$(RM_F) *.out *.o *.rcb *.exe
 
 install: $(PROGS:%=$(DESTDIR)$(bindir)/%)
