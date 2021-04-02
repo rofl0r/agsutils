@@ -240,13 +240,10 @@ static int asm_data(AS* a) {
 }
 
 ssize_t get_import_index(AS* a, char* name, size_t len) {
-	size_t i;
-	struct string *item;
-	for(i = 0; i < List_size(a->import_list); i++) {
-		assert((item = List_getptr(a->import_list, i)));
-		if(len == item->len && !strcmp(name, item->ptr)) return i;
-	}
-	return -1;
+	(void) len;
+	htab_value *v = htab_find(a->import_map, name);
+	if(!v) return -1;
+	return v->n;
 }
 
 void add_import(AS *a, char* name) {
@@ -255,7 +252,8 @@ void add_import(AS *a, char* name) {
 	struct string item;
 	item.ptr = strdup(name);
 	item.len = l;
-	List_add(a->import_list, &item);
+	assert(List_add(a->import_list, &item));
+	assert(htab_insert(a->import_map, item.ptr, HTV_N(List_size(a->import_list)-1)));
 }
 
 static int find_export(AS *a, int type, char* name, unsigned *offset) {
@@ -621,6 +619,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	a->variable_list = &a->variable_list_b;
 	a->import_list = &a->import_list_b;
 	a->label_map = htab_create(128);
+	a->import_map = htab_create(128);
 
 	List_init(a->export_list, sizeof(struct export));
 	List_init(a->fixup_list , sizeof(struct fixup));
