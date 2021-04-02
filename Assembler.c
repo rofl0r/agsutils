@@ -81,39 +81,27 @@ static int add_fixup(AS *a, int type, size_t offset) {
 	return List_add(a->fixup_list, &item);
 }
 
-static int add_or_get_string(AS* a, char* str) {
-	/* return index of string in string table
+static size_t add_or_get_string__offset(AS* a, char* str) {
+	/* return offset of string in string table
 	 * add to string table if not yet existing */
 	str++; /* leading '"' */
-	size_t l = strlen(str);
+	size_t l = strlen(str), o;
 	l--;
 	str[l] = 0; /* trailing '"' */
-	struct string item = {.ptr = str, .len = l }, *iter;
-	size_t i = 0;
-	for(; i < List_size(a->string_list); i++) {
-		assert((iter = List_getptr(a->string_list, i)));
-		if(iter->len == item.len && !strcmp(iter->ptr, str)) {
-			return i;
-		}
-	}
-	item.ptr = strdup(str);
-	List_add(a->string_list, &item);
-	return List_size(a->string_list) -1;
-}
 
-static unsigned get_string_offset(AS *a, unsigned index) {
-	assert(index <= List_size(a->string_list));
-	unsigned i = 0, ret = 0;
-	struct string *item;
-	for(; i < index; i++) {
-		assert((item = List_getptr(a->string_list, i)));
-		ret += item->len + 1;
-	}
-	return ret;
+	htab_value *v = htab_find(a->string_offset_map, str);
+	if(v) return v->n;
+
+	struct string item = {.ptr = strdup(str), .len = l };
+	o = a->string_section_length;
+	assert(List_add(a->string_list, &item));
+	assert(htab_insert(a->string_offset_map, item.ptr, HTV_N(o)));
+	a->string_section_length += l + 1;
+	return o;
 }
 
 static size_t get_string_section_length(AS* a) {
-	return get_string_offset(a, List_size(a->string_list));
+	return a->string_section_length;
 }
 
 static int add_variable(AS *a, char* name, unsigned vs, size_t offset) {
@@ -339,7 +327,7 @@ static int asm_strings(AS *a) {
 		size_t l = strlen(p);
 		assert(l>1 && p[l-1] == '\n' && p[l-2] == '"');
 		p[l-1] = 0;
-		add_or_get_string(a, p);
+		add_or_get_string__offset(a, p);
 	}
 	return 1;
 }
@@ -414,7 +402,7 @@ static int asm_text(AS *a) {
 						/* immediate can be function name, string, 
 							* variable name, stack fixup, or numeric value */
 						if(sym[0] == '"') {
-							value = get_string_offset(a, add_or_get_string(a, sym));
+							value = add_or_get_string__offset(a, sym);
 							add_fixup(a, FIXUP_STRING, pos);
 						} else if(sym[0] == '@') {
 							value = get_variable_offset(a, sym+1);
@@ -620,6 +608,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	a->label_map = htab_create(128);
 	a->import_map = htab_create(128);
 	a->export_map = htab_create(128);
+	a->string_offset_map = htab_create(128);
 
 	List_init(a->export_list, sizeof(struct export));
 	List_init(a->fixup_list , sizeof(struct fixup));
@@ -630,6 +619,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	List_init(a->import_list, sizeof(struct string));
 
 	a->in = f;
+	a->string_section_length = 0;
 	kw_init();
 }
 

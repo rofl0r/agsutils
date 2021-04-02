@@ -21,6 +21,9 @@ typedef struct AgsAssembler {
 	struct htab* label_map;
 	struct htab* import_map;
 	struct htab* export_map;
+	struct htab* string_offset_map;
+
+	size_t string_section_length;
 
 	FILE* in;
 } AS;
