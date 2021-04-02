@@ -25,7 +25,8 @@
 #define ALIGN(X, A) ((X+(A-1)) & -(A))
 
 #define BREAKPOINT_FLAG (1<<31)
-#define OPCODE_MASK (~(BREAKPOINT_FLAG))
+#define BREAKONCE_FLAG  (1<<30)
+#define OPCODE_MASK (~(BREAKPOINT_FLAG|BREAKONCE_FLAG))
 
 #define DEFAULT_STACKSIZE 16384
 
@@ -429,10 +430,11 @@ static int vm_step(int run_context) {
 			return 0;
 		}
 
-		if(*eip & BREAKPOINT_FLAG) {
-			*eip &= ~BREAKPOINT_FLAG;
+		if(*eip & BREAKONCE_FLAG) {
+			*eip &= ~BREAKONCE_FLAG;
 			return 0;
 		}
+		if(*eip & BREAKPOINT_FLAG) return 0;
 		if(!run_context) vm_reset_register_usage();
 		vm_update_register_usage(eip);
 	} else if(op >= SCMD_MAX) {
@@ -818,9 +820,23 @@ enum UserCommand {
 	UC_QUIT,
 	UC_HELP,
 };
+static int toggle_bp(int *eip, int on) {
+	int ret = *eip & BREAKPOINT_FLAG;
+	if(on) *eip |= BREAKPOINT_FLAG;
+	else *eip &= ~BREAKPOINT_FLAG;
+	return ret;
+}
 static void execute_user_command_i(int uc, char* param) {
+	int restore_breakpoint = 0;
 	switch(uc) {
-		case UC_STEP: if(label_check()) vm_step(0); break;
+		case UC_STEP:
+			if(label_check()) {
+				int* eip = (void*)(text + EIP);
+				restore_breakpoint = toggle_bp(eip, 0);
+				vm_step(0);
+				if(restore_breakpoint) toggle_bp(eip, 1);
+			}
+			break;
 		case UC_BP:  {
 			int addr, *ptr;
 			if(isdigit(param[0]))
@@ -843,10 +859,20 @@ static void execute_user_command_i(int uc, char* param) {
 			memcpy(text+addr, &insn, 4);
 		}
 		return;
-		case UC_NEXT: *get_next_ip((void*)(text+EIP), 1) |= BREAKPOINT_FLAG;
-				/* fall-through */
-		case UC_RUN : vm_run(); break;
-		case UC_TRACE: vm_trace(); break;
+		case UC_NEXT:
+			*get_next_ip((void*)(text+EIP), 1) |= BREAKONCE_FLAG;
+			/* fall-through */
+		case UC_TRACE:
+		case UC_RUN : {
+			int* eip = (void*)(text + EIP);
+			if(toggle_bp(eip, 0)) {
+				vm_step(1);
+				toggle_bp(eip, 1);
+			}
+			if(uc == UC_TRACE) vm_trace();
+			else vm_run();
+		}
+		break;
 		case UC_INIT: vm_init(); break;
 		case UC_QUIT: exit(0); break;
 		case UC_HELP: usage(1, "agssim"); break;
