@@ -35,6 +35,7 @@ SPRITE_OBJS =  $(SPRITE_SRCS:.c=.o)
 
 ASM_SRCS = \
 	Assembler.c \
+	hsearch.c \
 	preproc.c \
 	tokenizer.c
 

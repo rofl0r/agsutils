@@ -5,7 +5,7 @@
 #include "List.h"
 #include <stdio.h>
 #include <stddef.h>
-#include "hbmap.h"
+#include "hsearch.h"
 
 typedef struct AgsAssembler {
 	struct ByteArray obj_b, *obj;
@@ -18,8 +18,7 @@ typedef struct AgsAssembler {
 	List *function_ref_list, function_ref_list_b;
 	List *variable_list, variable_list_b;
 	List *import_list, import_list_b;
-	hbmap(char*, unsigned, 128) label_map_b;
-	hbmap(char*, unsigned, 128) *label_map;
+	struct htab* label_map;
 
 	FILE* in;
 } AS;

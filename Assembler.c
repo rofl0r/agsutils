@@ -36,17 +36,17 @@ struct variable {
 
 static int add_label(AS *a, char* name, size_t insno) {
 	char* tmp = strdup(name);
-	return hbmap_insert(a->label_map, tmp, (unsigned) insno) != -1;
+	return htab_insert(a->label_map, tmp, HTV_N(insno)) != 0;
 }
 
 static unsigned get_label_offset(AS *a, char* name) {
-	unsigned *ret = hbmap_get(a->label_map, name);
+	htab_value *ret = htab_find(a->label_map, name);
 	if(!ret) {
 		dprintf(2, "error: label '%s' not found\n", name);
 		if(strncmp(name, "label", 5)) dprintf(2, "hint: label names must start with 'label'\n");
 		exit(1);
 	}
-	return *ret;
+	return ret->n;
 }
 
 static int add_label_ref(AS *a, char * name, size_t insno) {
@@ -597,20 +597,6 @@ int AS_assemble(AS* a, char* out) {
 	return 1;
 }
 
-static int strptrcmp(const void *a, const void *b) {
-	const char * const *x = a;
-	const char * const *y = b;
-	return strcmp(*x, *y);
-}
-static unsigned string_hash(const char* s) {
-	uint_fast32_t h = 0;
-	while (*s) {
-		h = 16*h + *s++;
-		h ^= h>>24 & 0xf0;
-	}
-	return h & 0xfffffff;
-}
-
 void AS_open_stream(AS* a, FILE* f) {
 	memset(a, 0, sizeof *a);
 	a->obj = &a->obj_b;
@@ -634,7 +620,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	a->function_ref_list = &a->function_ref_list_b;
 	a->variable_list = &a->variable_list_b;
 	a->import_list = &a->import_list_b;
-	a->label_map = (void*) &a->label_map_b;
+	a->label_map = htab_create(128);
 
 	List_init(a->export_list, sizeof(struct export));
 	List_init(a->fixup_list , sizeof(struct fixup));
@@ -643,7 +629,6 @@ void AS_open_stream(AS* a, FILE* f) {
 	List_init(a->function_ref_list, sizeof(struct label));
 	List_init(a->variable_list, sizeof(struct variable));
 	List_init(a->import_list, sizeof(struct string));
-	hbmap_init(a->label_map, strptrcmp, string_hash);
 
 	a->in = f;
 	kw_init();
