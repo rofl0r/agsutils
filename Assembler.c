@@ -70,7 +70,9 @@ static int add_function_ref(AS *a, char* name, size_t insno) {
 static int add_export(AS *a, int type, char* name, size_t offset) {
 	struct export item = { .fn = strdup(name), .instr = offset, .type = type};
 	assert(item.fn);
-	return List_add(a->export_list, &item);
+	assert(List_add(a->export_list, &item));
+	assert(htab_insert(a->export_map, item.fn, HTV_N(List_size(a->export_list)-1)));
+	return 1;
 }
 
 static int add_fixup(AS *a, int type, size_t offset) {
@@ -258,15 +260,12 @@ void add_import(AS *a, char* name) {
 
 static int find_export(AS *a, int type, char* name, unsigned *offset) {
 	struct export *item;
-	size_t i;
-	for(i = 0; i < List_size(a->export_list); i++) {
-		assert((item = List_getptr(a->export_list, i)));
-		if(item->type == type && !strcmp(name, item->fn)) {
-			*offset = item->instr;
-			return 1;
-		}
-	}
-	return 0;
+	htab_value *v = htab_find(a->export_map, name);
+	if(!v) return 0;
+	assert((item = List_getptr(a->export_list, v->n)));
+	assert(item->type == type && !strcmp(name, item->fn));
+	*offset = item->instr;
+	return 1;
 }
 
 void generate_import_table(AS *a) {
@@ -620,6 +619,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	a->import_list = &a->import_list_b;
 	a->label_map = htab_create(128);
 	a->import_map = htab_create(128);
+	a->export_map = htab_create(128);
 
 	List_init(a->export_list, sizeof(struct export));
 	List_init(a->fixup_list , sizeof(struct fixup));

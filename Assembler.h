@@ -20,6 +20,7 @@ typedef struct AgsAssembler {
 	List *import_list, import_list_b;
 	struct htab* label_map;
 	struct htab* import_map;
+	struct htab* export_map;
 
 	FILE* in;
 } AS;
