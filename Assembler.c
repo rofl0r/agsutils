@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "Assembler.h"
+#include "kw_search.h"
 
 struct fixup {
 	int type;
@@ -297,25 +298,6 @@ int get_reg(char* regname) {
 	return AR_NULL;
 }
 
-static size_t mnemolen[SCMD_MAX];
-static int mnemolen_initdone = 0;
-
-static void init_mnemolen(void) {
-	size_t i = 0;
-	for(; i< SCMD_MAX; i++)
-		mnemolen[i] = strlen(opcodes[i].mnemonic);
-	mnemolen_initdone = 1;
-}
-
-static unsigned find_insn(char* sym) {
-	if(!mnemolen_initdone) init_mnemolen();
-	size_t i = 0, l = strlen(sym);
-	for(; i< SCMD_MAX; i++)
-		if(l == mnemolen[i] && memcmp(sym, opcodes[i].mnemonic, l) == 0)
-			return i;
-	return 0;
-}
-
 #include "StringEscape.h"
 /* expects a pointer to the first char after a opening " in a string,
  * converts the string into convbuf, and returns the length of that string */
@@ -403,7 +385,7 @@ static int asm_text(AS *a) {
 			}
 			continue;
 		}
-		unsigned instr = find_insn(sym);
+		unsigned instr = kw_find_insn(sym, l);
 		if(!instr) {
 			dprintf(2, "line %zu: error: unknown instruction '%s'\n", lineno, sym);
 			return 0;
@@ -670,6 +652,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	hbmap_init(a->label_map, strptrcmp, string_hash);
 
 	a->in = f;
+	kw_init();
 }
 
 int AS_open(AS* a, char* fn) {
@@ -682,4 +665,5 @@ int AS_open(AS* a, char* fn) {
 
 void AS_close(AS* a) {
 	fclose(a->in);
+	kw_finish();
 }
