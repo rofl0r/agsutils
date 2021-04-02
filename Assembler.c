@@ -86,11 +86,11 @@ static int add_or_get_string(AS* a, char* str) {
 	size_t l = strlen(str);
 	l--;
 	str[l] = 0; /* trailing '"' */
-	struct string item = {.ptr = str, .len = l }, iter;
+	struct string item = {.ptr = str, .len = l }, *iter;
 	size_t i = 0;
 	for(; i < List_size(a->string_list); i++) {
-		assert(List_get(a->string_list, i, &iter));
-		if(iter.len == item.len && !strcmp(iter.ptr, str)) {
+		assert((iter = List_getptr(a->string_list, i)));
+		if(iter->len == item.len && !strcmp(iter->ptr, str)) {
 			return i;
 		}
 	}
@@ -100,24 +100,18 @@ static int add_or_get_string(AS* a, char* str) {
 }
 
 static unsigned get_string_offset(AS *a, unsigned index) {
-	assert(index < List_size(a->string_list));
+	assert(index <= List_size(a->string_list));
 	unsigned i = 0, ret = 0;
-	struct string item;
+	struct string *item;
 	for(; i < index; i++) {
-		assert(List_get(a->string_list, i, &item));
-		ret += item.len + 1;
+		assert((item = List_getptr(a->string_list, i)));
+		ret += item->len + 1;
 	}
 	return ret;
 }
 
 static size_t get_string_section_length(AS* a) {
-	struct string item;;
-	size_t i = 0, l = 0;
-	for(; i < List_size(a->string_list); i++) {
-		assert(List_get(a->string_list, i, &item));
-		l += item.len + 1;
-	}
-	return l;
+	return get_string_offset(a, List_size(a->string_list));
 }
 
 static int add_variable(AS *a, char* name, unsigned vs, size_t offset) {
@@ -128,11 +122,11 @@ static int add_variable(AS *a, char* name, unsigned vs, size_t offset) {
 static int get_variable_offset(AS* a, char* name) {
 	/* return globaldata offset of named variable */
 	size_t i = 0;
-	struct variable item;
+	struct variable *item;
 	for(; i < List_size(a->variable_list); i++) {
-		assert(List_get(a->variable_list, i, &item));
-		if(!strcmp(item.name, name))
-			return item.offset;
+		assert((item = List_getptr(a->variable_list, i)));
+		if(!strcmp(item->name, name))
+			return item->offset;
 	}
 	assert(0);
 	return 0;
@@ -247,10 +241,10 @@ static int asm_data(AS* a) {
 
 ssize_t get_import_index(AS* a, char* name, size_t len) {
 	size_t i;
-	struct string item;
+	struct string *item;
 	for(i = 0; i < List_size(a->import_list); i++) {
-		assert(List_get(a->import_list, i, &item));
-		if(len == item.len && !strcmp(name, item.ptr)) return i;
+		assert((item = List_getptr(a->import_list, i)));
+		if(len == item->len && !strcmp(name, item->ptr)) return i;
 	}
 	return -1;
 }
@@ -265,12 +259,12 @@ void add_import(AS *a, char* name) {
 }
 
 static int find_export(AS *a, int type, char* name, unsigned *offset) {
-	struct export item;
+	struct export *item;
 	size_t i;
 	for(i = 0; i < List_size(a->export_list); i++) {
-		assert(List_get(a->export_list, i, &item));
-		if(item.type == type && !strcmp(name, item.fn)) {
-			*offset = item.instr;
+		assert((item = List_getptr(a->export_list, i)));
+		if(item->type == type && !strcmp(name, item->fn)) {
+			*offset = item->instr;
 			return 1;
 		}
 	}
@@ -279,12 +273,12 @@ static int find_export(AS *a, int type, char* name, unsigned *offset) {
 
 void generate_import_table(AS *a) {
 	size_t i;
-	struct label item;
+	struct label *item;
 	unsigned off;
 	for(i = 0; i < List_size(a->function_ref_list); i++) {
-		assert(List_get(a->function_ref_list, i, &item));
-		if(!find_export(a, EXPORT_FUNCTION, item.name, &off))
-			add_import(a, item.name);
+		assert((item = List_getptr(a->function_ref_list, i)));
+		if(!find_export(a, EXPORT_FUNCTION, item->name, &off))
+			add_import(a, item->name);
 	}
 }
 
@@ -459,29 +453,29 @@ static int asm_text(AS *a) {
 
 	}
 	size_t i;
-	struct label item;
+	struct label *item;
 	for(i = 0; i < List_size(a->label_ref_list); i++) {
-		assert(List_get(a->label_ref_list, i, &item));
-		ByteArray_set_position(a->code, item.insno * 4);
-		int lbl = get_label_offset(a, item.name);
+		assert((item = List_getptr(a->label_ref_list, i)));
+		ByteArray_set_position(a->code, item->insno * 4);
+		int lbl = get_label_offset(a, item->name);
 		assert(lbl >= 0 && lbl < pos);
-		int label_insno = lbl - (item.insno+1); /* offset is calculated from next instruction */
+		int label_insno = lbl - (item->insno+1); /* offset is calculated from next instruction */
 		ByteArray_writeInt(a->code, label_insno);
 	}
 	generate_import_table(a);
 	for(i = 0; i < List_size(a->function_ref_list); i++) {
-		assert(List_get(a->function_ref_list, i, &item));
-		ssize_t imp = get_import_index(a, item.name, strlen(item.name));
+		assert((item = List_getptr(a->function_ref_list, i)));
+		ssize_t imp = get_import_index(a, item->name, strlen(item->name));
 		if(imp == -1) {
 			unsigned off;
-			assert(find_export(a, EXPORT_FUNCTION, item.name, &off));
+			assert(find_export(a, EXPORT_FUNCTION, item->name, &off));
 			imp = off;
-			add_fixup(a, FIXUP_FUNCTION, item.insno);
+			add_fixup(a, FIXUP_FUNCTION, item->insno);
 		} else {
-			add_fixup(a, FIXUP_IMPORT, item.insno);
+			add_fixup(a, FIXUP_IMPORT, item->insno);
 		}
 		assert(imp != -1);
-		ByteArray_set_position(a->code, item.insno * 4);
+		ByteArray_set_position(a->code, item->insno * 4);
 		ByteArray_writeInt(a->code, imp);
 	}
 	
@@ -509,16 +503,16 @@ static void sort_fixup_list(AS* a) {
 }
 
 static void write_fixup_list(AS* a, FILE *o) {
-	struct fixup item;
+	struct fixup *item;
 	size_t i;
 	for(i = 0; i < List_size(a->fixup_list); i++) {
-		assert(List_get(a->fixup_list, i, &item));
-		char type = item.type;
+		assert((item = List_getptr(a->fixup_list, i)));
+		char type = item->type;
 		fwrite(&type, 1, 1, o);
 	}
 	for(i = 0; i < List_size(a->fixup_list); i++) {
-		assert(List_get(a->fixup_list, i, &item));
-		write_int(o, item.offset);
+		assert((item = List_getptr(a->fixup_list, i)));
+		write_int(o, item->offset);
 	}
 }
 
