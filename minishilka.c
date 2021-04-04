@@ -52,14 +52,20 @@ struct item {
 	char *kw;
 	char *action;
 	size_t length;
+	size_t index;
 	struct item* next;
 };
+
+static int listcmp(const void *pa, const void *pb) {
+	const struct item *a = pa, *b = pb;
+	return (int)a->length - (int)b->length;
+}
 
 /* to piss off newchurch zealots :-) */
 #define master main
 
 int master(int argc, char** argv) {
-	int i = 0, o_case = 0;
+	int i = 0, j, o_case = 0;
 	char* pfx = "KR_";
 	while(++i < argc) {
 		if(argv[i][0] != '-') break;
@@ -105,7 +111,7 @@ int master(int argc, char** argv) {
 	}
 
 	int seen = 0;
-	size_t maxlen = 0;
+	size_t maxlen = 0, listcount = 0;
 	struct item *list = 0, *last = 0;
 	while(fgets(buf, sizeof buf, in)) {
 		p = strrchr(buf, '\n');
@@ -118,7 +124,6 @@ int master(int argc, char** argv) {
 		}
 		if(!seen) {
 			seen = 1;
-			print_header(out, pfx, 1);
 			continue;
 		}
 		p = buf;
@@ -144,22 +149,51 @@ int master(int argc, char** argv) {
 			last = it;
 		}
 		if(it->length > maxlen) maxlen = it->length;
+		++listcount;
 	}
 
-	fprintf(out, "\tstatic const char keywords[][%zu] = {\n", maxlen+1+o_case);
-	struct item *it;
-	for(it = list; it; it = it->next) {
-		fprintf(out, "\t\t\"\\%03o%s\",\n", (unsigned)it->length, it->kw);
+	struct item *it, *flat_list = calloc(listcount, sizeof *list);
+	for(i = 0, it = list; it; ++i, it = it->next) {
+		flat_list[i] = *it;
+		flat_list[i].index = i;
+	}
+
+	qsort(flat_list, listcount, sizeof *list, listcmp);
+
+	print_header(out, pfx, 1);
+
+	fprintf(out, "\tstatic const unsigned char ltab[%zu] = {\n\t\t", maxlen+2);
+	for(i = 0, j = 0; i <= maxlen; ++i) {
+		if(flat_list[j].length > i)
+			fprintf(out, "0, ");
+		else {
+			fprintf(out, "%d, ", j + 1);
+			while(flat_list[++j].length == i);
+		}
+	}
+	fprintf(out, "%d\n\t};\n", (int)listcount + 1);
+
+	fprintf(out, "\tstatic const unsigned char keywords[][%zu] = {\n", maxlen+1+o_case);
+
+	for(i = 0; i < listcount; ++i) {
+		it = &flat_list[i];
+		fprintf(out, "\t\t\"\\%03o%s\",\n", (unsigned)it->index, it->kw);
 	}
 
 	fprintf(out,
 		"\t};\n"
-		"\tint i;\n"
-		"\tfor(i=0; i<sizeof(keywords)/sizeof(keywords[0]); ++i) {\n"
-		"\t\tif(length == (int)keywords[i][0] && !%s(keywords[i]+1, keyword%s))\n"
+		"\tif(length>%d) goto fail;\n"
+		"\tint i = ltab[length], j, max;// = ltab[length+1];\n"
+		"\tif(!i) goto fail;\n"
+		"\tj = length+1;\n"
+		"\twhile(!ltab[j]) ++j; max = ltab[j]-1;\n"
+		"\tfor(--i; i<max; ++i) {\n"
+		"\t\tif(!%s(keywords[i]+1, keyword%s))\n"
 		"\t\t\tbreak;\n"
 		"\t}\n"
-		"\tswitch(i) {\n",
+		"\tif(i==max) goto fail;\n"
+		"\tswitch(keywords[i][0]) {\n",
+		(int) maxlen,
 		o_case ? "strcasecmp" : "memcmp", o_case ? "" : ", length"
 	);
 
@@ -167,7 +201,7 @@ int master(int argc, char** argv) {
 		fprintf(out, "\tcase %d: %s ; break;\n", i, it->action);
 	}
 
-	fprintf(out, "\tdefault: %s\n", other ? other : "return -1;");
+	fprintf(out, "\tdefault: fail:; %s\n", other ? other : "return -1;");
 	fprintf(out, "%s", "\t}\n\treturn -1;\n}\n");
 
 	fclose(in);
