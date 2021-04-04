@@ -9,7 +9,7 @@ static void print_header(FILE* out, char *pfx, int dostatic) {
 		"#include <string.h>\n"
 		"%svoid %sreset (void) {}\n"
 		"%svoid %soutput_statistics (void) {}\n"
-		"%sint  %sfind_keyword (const char *keyword, int length) {\n",
+		"%sint  %sfind_keyword (const char *keyword, unsigned length) {\n",
 		visib, pfx,
 		visib, pfx,
 		visib, pfx);
@@ -65,7 +65,7 @@ static int listcmp(const void *pa, const void *pb) {
 #define master main
 
 int master(int argc, char** argv) {
-	int i = 0, j, o_case = 0;
+	int i = 0, j, k, o_case = 0;
 	char* pfx = "KR_";
 	while(++i < argc) {
 		if(argv[i][0] != '-') break;
@@ -111,7 +111,7 @@ int master(int argc, char** argv) {
 	}
 
 	int seen = 0;
-	size_t maxlen = 0, listcount = 0;
+	size_t maxlen = 0, listcount = 0, strlensum = 0;
 	struct item *list = 0, *last = 0;
 	while(fgets(buf, sizeof buf, in)) {
 		p = strrchr(buf, '\n');
@@ -149,6 +149,7 @@ int master(int argc, char** argv) {
 			last = it;
 		}
 		if(it->length > maxlen) maxlen = it->length;
+		strlensum += it->length + o_case;
 		++listcount;
 	}
 
@@ -162,42 +163,64 @@ int master(int argc, char** argv) {
 
 	print_header(out, pfx, 1);
 
-	fprintf(out, "\tstatic const unsigned char ltab[%zu] = {\n\t\t", maxlen+2);
-	for(i = 0, j = 0; i <= maxlen; ++i) {
-		if(flat_list[j].length > i)
-			fprintf(out, "0, ");
+	// index into string table
+	char *stridx_type = strlensum > 255 ? "unsigned short" : "unsigned char";
+	fprintf(out, "\tstatic const %s sitab[%zu] = {\n\t\t", stridx_type, maxlen+1);
+	for(i = j = k = 0; i <= maxlen; ++i) {
+		if(j >= listcount || flat_list[j].length > i) fprintf(out, "0, ");
 		else {
-			fprintf(out, "%d, ", j + 1);
+			fprintf(out, "%d, ", k);
+			while(flat_list[j].length == i)
+				k += flat_list[j++].length + o_case;
+		}
+	}
+	fprintf(out, "\n\t};\n");
+
+	// count of items of length
+	fprintf(out, "\tstatic const unsigned char sctab[%zu] = {\n\t\t", maxlen+1);
+	for(i = j = 0; i <= maxlen; ++i) {
+		if(j >= listcount || flat_list[j].length > i) fprintf(out, "0, ");
+		else {
+			k = j;
+			while(flat_list[++j].length == i);
+			fprintf(out, "%d, ", j-k);
+		}
+	}
+	fprintf(out, "\n\t};\n");
+
+	// index of original item order
+	fprintf(out, "\tstatic const unsigned char itab[%zu] = {\n\t\t", maxlen+1);
+	for(i = j = 0; i <= maxlen; ++i) {
+		if(flat_list[j].length > i) fprintf(out, "0, ");
+		else {
+			fprintf(out, "%d, ", j);
 			while(flat_list[++j].length == i);
 		}
 	}
-	fprintf(out, "%d\n\t};\n", (int)listcount + 1);
+	fprintf(out, "\n\t};\n");
 
-	fprintf(out, "\tstatic const unsigned char keywords[][%zu] = {\n", maxlen+1+o_case);
-
+	fprintf(out, "\tstatic const char keywords[] = {\n");
 	for(i = 0; i < listcount; ++i) {
 		it = &flat_list[i];
-		fprintf(out, "\t\t\"\\%03o%s\",\n", (unsigned)it->index, it->kw);
+		fprintf(out, "\t\t\"%s%s\"\n", it->kw, o_case ? "\\000" : "");
 	}
 
 	fprintf(out,
 		"\t};\n"
 		"\tif(length>%d) goto fail;\n"
-		"\tint i = ltab[length], j, max;// = ltab[length+1];\n"
-		"\tif(!i) goto fail;\n"
-		"\tj = length+1;\n"
-		"\twhile(!ltab[j]) ++j; max = ltab[j]-1;\n"
-		"\tfor(--i; i<max; ++i) {\n"
-		"\t\tif(!%s(keywords[i]+1, keyword%s))\n"
-		"\t\t\tbreak;\n"
-		"\t}\n"
-		"\tif(i==max) goto fail;\n"
-		"\tswitch(keywords[i][0]) {\n",
+		"\tint i, count = sctab[length];\n"
+		"\tconst char *p = keywords + sitab[length];\n"
+		"\tfor(i = 0; i<count; ++i, p+=length+%d)\n"
+		"\t\tif(!%s(p, keyword%s)) goto lookup;\n"
+		"\tgoto fail;\n"
+		"\tlookup:; switch(itab[length]+i) {\n",
 		(int) maxlen,
+		(int) o_case,
 		o_case ? "strcasecmp" : "memcmp", o_case ? "" : ", length"
 	);
 
-	for(i = 0, it = list; it; ++i, it = it->next) {
+	for(i = 0; i < listcount ; ++i) {
+		it = &flat_list[i];
 		fprintf(out, "\tcase %d: %s ; break;\n", i, it->action);
 	}
 
