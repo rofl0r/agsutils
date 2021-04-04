@@ -51,6 +51,7 @@ static int usage() {
 struct item {
 	char *kw;
 	char *action;
+	size_t length;
 	struct item* next;
 };
 
@@ -130,9 +131,10 @@ int master(int argc, char** argv) {
 			other = q;
 			continue;
 		}
-		struct item *it = malloc(sizeof(*it));
+		struct item *it = calloc(1, sizeof(*it));
 		it->kw = strdup(buf);
 		it->action = strdup(q);
+		it->length = strlen(buf);
 		it->next = 0;
 		if(!list) {
 			list=it;
@@ -141,13 +143,13 @@ int master(int argc, char** argv) {
 			last->next = it;
 			last = it;
 		}
-		if(strlen(buf) > maxlen) maxlen = strlen(buf);
+		if(it->length > maxlen) maxlen = it->length;
 	}
 
 	fprintf(out, "\tstatic const char keywords[][%zu] = {\n", maxlen+1+o_case);
 	struct item *it;
 	for(it = list; it; it = it->next) {
-		fprintf(out, "\t\t\"\\%03o%s\",\n", (unsigned)(strlen(it->kw)), it->kw);
+		fprintf(out, "\t\t\"\\%03o%s\",\n", (unsigned)it->length, it->kw);
 	}
 
 	fprintf(out,
