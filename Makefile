@@ -17,6 +17,7 @@ CPROGS = $(PROGS_SRCS:.c=$(EXE_EXT))
 PROGS = $(CPROGS) agsoptimize agsex
 
 LIB_SRCS = \
+	ags_cpu.c \
 	ByteArray.c \
 	Clib32.c \
 	DataFile.c \
@@ -83,7 +84,7 @@ scmd_tok.h: ags_cpu.h
 	awk 'BEGIN{print("#ifndef BISON");} /#define SCMD_/{print $$1 " KW_" $$2 " (KW_TOK_SCMD_BASE + " $$3 ")";}END{print("#endif");}' < ags_cpu.h > $@
 
 scmd_tok.shilka: ags_cpu.h
-	awk 'BEGIN{print "%%";}/\[SCMD_/{w=substr($$3,3,length($$3)-4);s=length(w)>=8?"":"\t";print w s "\t{return KW_" substr($$1,2,length($$1)-2) ";}" ;}END{print "%other\t\t{return 0;}";}' < ags_cpu.h > $@
+	awk 'BEGIN{printf "%%type short\n%%%%\n";}/[\t ]\[SCMD_/{w=substr($$3,3,length($$3)-4);s=length(w)>=8?"":"\t";print w s "\t{return KW_" substr($$1,2,length($$1)-2) ";}" ;}END{print "%other\t\t{return 0;}";}' < ags_cpu.h > $@
 
 scmd_tok.c: scmd_tok.shilka
 	$(SHILKA) -inline -strip -pKW_SCMD_ -no-definitions $<

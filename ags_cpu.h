@@ -84,7 +84,26 @@ struct opcode_info {
 	const unsigned char regcount;
 };
 
-static const struct opcode_info opcodes[] = {
+/* these are called e.g. SREG_OP in upstream */
+enum ags_reg {
+	AR_NULL = 0,
+	AR_SP,  /* stack ptr */
+	AR_MAR, /* memory address register, i.e. holding pointer for mem* funcs */
+	AR_AX,  /* 4 GPRs */
+	AR_BX,
+	AR_CX,
+	AR_OP,  /* object pointer for member func calls, i.e. "this".
+		   ags engine only sets it via SCMD_CALLOBJ, otherwise, it is only ever pushed/popped */
+	AR_DX,
+	AR_MAX
+};
+
+extern const struct opcode_info opcodes[SCMD_MAX];
+extern const char *regnames[AR_MAX];
+
+#ifdef AGS_CPU_IMPL
+
+const struct opcode_info opcodes[SCMD_MAX] = {
 	[0] = {"NULL", 0, 0},
 	[SCMD_ADD] = {"addi", 2, 1},
 	[SCMD_SUB] = {"subi", 2, 1},
@@ -161,21 +180,7 @@ static const struct opcode_info opcodes[] = {
 	[SCMD_NEWUSEROBJECT] = {"newuserobject", 2, 1},
 };
 
-/* these are called e.g. SREG_OP in upstream */
-enum ags_reg {
-	AR_NULL = 0,
-	AR_SP,  /* stack ptr */
-	AR_MAR, /* memory address register, i.e. holding pointer for mem* funcs */
-	AR_AX,  /* 4 GPRs */
-	AR_BX,
-	AR_CX,
-	AR_OP,  /* object pointer for member func calls, i.e. "this".
-		   ags engine only sets it via SCMD_CALLOBJ, otherwise, it is only ever pushed/popped */
-	AR_DX,
-	AR_MAX
-};
-
-static const char *regnames[AR_MAX] = { 
+const char *regnames[AR_MAX] = {
 	[AR_NULL] = "null",
 	[AR_SP] = "sp",
 	[AR_MAR] = "mar",
@@ -185,6 +190,6 @@ static const char *regnames[AR_MAX] = {
 	[AR_OP] = "op",
 	[AR_DX] = "dx",
 };
-
+#endif
 
 #endif
