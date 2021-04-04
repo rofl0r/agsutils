@@ -48,10 +48,10 @@ static int usage() {
 		"and an action statement written in C surrounded by curly braces, e.g.\n\n"
 		"while              {return KEYWORD_TOKEN_WHILE;}\n\n"
 		"the last line in the file may be %other {action-if-no-keyword-matches;}\n"
-		"if the %other statement is not provided, -1 is returned if none of the\n"
+		"if the %other statement is not provided, 0 is returned if none of the\n"
 		"keywords match.\n"
 		"the declarations section may contain the statement `%type T`, where T is\n"
-		"the type to be returned by the find_keyword function.\n"
+		"the type to be returned by the KR_find_keyword function.\n"
 		"\nOPTIONS\n"
 		"-pprefix - use prefix instead of KR_ for the generated function names.\n"
 		"-case - use strcasecmp for keyword comparison instead of memcmp.\n"
@@ -300,15 +300,14 @@ int master(int argc, char** argv) {
 	);
 	if(simple_value) {
 		fprintf(out, "\tlookup:; return retval[itab[length]+i];\n\tfail:; %s\n}\n",
-			other ? other : "return -1;");
+			other ? other : "return 0;");
 	} else {
 		fprintf(out, "\tlookup:; switch(itab[length]+i) {\n");
 		for(i = 0; i < listcount ; ++i) {
 			it = &flat_list[i];
 			fprintf(out, "\tcase %d: %s ; break;\n", i, it->action);
 		}
-		fprintf(out, "\tdefault: fail:; %s\n", other ? other : "return -1;");
-		fprintf(out, "%s", "\t}\n\treturn -1;\n}\n");
+		fprintf(out, "\tdefault: goto fail;\n\t}\n\tfail:; %s\n}\n", other ? other : "return 0;");
 	}
 
 	fclose(in);
