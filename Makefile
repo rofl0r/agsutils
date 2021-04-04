@@ -60,6 +60,14 @@ endif
 
 -include config.mak
 
+ifeq ($(HOSTCC),)
+HOSTCC = $(CC)
+endif
+
+ifeq ($(SHILKA),)
+SHILKA = ./minishilka$(EXE_EXT)
+endif
+
 all: $(PROGS)
 
 $(PROGS_OBJS): $(LIB_OBJS)
@@ -67,18 +75,18 @@ $(PROGS_OBJS): $(LIB_OBJS)
 agssemble$(EXE_EXT): agssemble.o $(LIB_OBJS) $(ASM_OBJS)
 agsprite$(EXE_EXT): agsprite.o $(LIB_OBJS) $(SPRITE_OBJS)
 
+minishilka$(EXE_EXT): minishilka.c
+	$(HOSTCC) -g3 -O0 $< -o $@
+
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CFLAGS_WARN) -o $@ -c $<
 
 %$(EXE_EXT): %.o $(LIB_OBJS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CFLAGS_WARN) -o $@ $^ $(LDFLAGS)
 
-Assembler.o: kw_search.h
-
-ifneq ($(SHILKA),)
 kw_search.h: scmd_tok.h scmd_tok.c
-Assembler.o: CPPFLAGS += -DUSE_SHILKA
-endif
+
+Assembler.o: kw_search.h
 
 scmd_tok.h: ags_cpu.h
 	awk 'BEGIN{print("#ifndef BISON");} /#define SCMD_/{print $$1 " KW_" $$2 " (KW_TOK_SCMD_BASE + " $$3 ")";}END{print("#endif");}' < ags_cpu.h > $@
@@ -86,6 +94,7 @@ scmd_tok.h: ags_cpu.h
 scmd_tok.shilka: ags_cpu.h
 	awk 'BEGIN{printf "%%type short\n%%%%\n";}/[\t ]\[SCMD_/{w=substr($$3,3,length($$3)-4);s=length(w)>=8?"":"\t";print w s "\t{return KW_" substr($$1,2,length($$1)-2) ";}" ;}END{print "%other\t\t{return 0;}";}' < ags_cpu.h > $@
 
+scmd_tok.c: $(SHILKA)
 scmd_tok.c: scmd_tok.shilka
 	$(SHILKA) -inline -strip -pKW_SCMD_ -no-definitions $<
 
