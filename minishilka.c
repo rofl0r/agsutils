@@ -1,3 +1,10 @@
+/*
+ *  minishilka, (C) 2021 rofl0r
+ *
+ *  licensed under the LGPL 2.1+
+ *
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -35,7 +42,7 @@ static void print_header(FILE* out, char *pfx, char *return_type, int expflags, 
 static int usage() {
 	fprintf(stderr, "%s",
 		"minishilka [OPTIONS] descriptionfile.shilka\n\n"
-		"minishilka is a small replacement for shilka which generates code\n"
+		"minishilka (c) rofl0r is a small replacement for shilka which generates code\n"
 		"for fast keyword search. minishilka only supports a single usecase\n"
 		"of shilka, namely the one i use.\n"
 		"it's meant to be used if compiling the real shilka program would be too much\n"
@@ -74,7 +81,6 @@ struct item {
 	char *kw;
 	char *action;
 	size_t length;
-	size_t index;
 	struct item* next;
 };
 
@@ -177,7 +183,6 @@ int master(int argc, char** argv) {
 			other = q;
 			continue;
 		}
-		struct item *it = calloc(1, sizeof(*it));
 		if(*q != '{') {
 			fprintf(stderr, "error: shilka C statements need to be surrounded by {}!\n");
 			return 1;
@@ -203,6 +208,7 @@ int master(int argc, char** argv) {
 				}
 			} else simple_value = 0;
 		}
+		struct item *it = calloc(1, sizeof(*it));
 		it->kw = strdup(buf);
 		it->action = strdup(q);
 		it->length = strlen(buf);
@@ -220,17 +226,15 @@ int master(int argc, char** argv) {
 	}
 
 	struct item *it, *flat_list = calloc(listcount, sizeof *list);
-	for(i = 0, it = list; it; ++i, it = it->next) {
+	for(i = 0, it = list; it; ++i, it = it->next)
 		flat_list[i] = *it;
-		flat_list[i].index = i;
-	}
 
 	qsort(flat_list, listcount, sizeof *list, listcmp);
 
 	use_inline_memcmp = o_case ? 0 : (expflags & EXPORT_INLINE) && strlensum/listcount <= 16;
 	print_header(out, pfx, return_type, expflags, use_inline_memcmp);
 
-	// index into string table
+	/* index into string table */
 	char *stridx_type = strlensum > 255 ? "unsigned short" : "unsigned char";
 	fprintf(out, "\tstatic const %s sitab[%zu] = {\n\t\t", stridx_type, maxlen+1);
 	for(i = j = k = 0; i <= maxlen; ++i) {
@@ -243,7 +247,7 @@ int master(int argc, char** argv) {
 	}
 	fprintf(out, "\n\t};\n");
 
-	// count of items of length
+	/* count of items of length */
 	fprintf(out, "\tstatic const unsigned char sctab[%zu] = {\n\t\t", maxlen+1);
 	for(i = j = 0; i <= maxlen; ++i) {
 		if(j >= listcount || flat_list[j].length > i) fprintf(out, "0, ");
@@ -255,7 +259,7 @@ int master(int argc, char** argv) {
 	}
 	fprintf(out, "\n\t};\n");
 
-	// index of original item order
+	/* array index for return value assignment */
 	fprintf(out, "\tstatic const unsigned char itab[%zu] = {\n\t\t", maxlen+1);
 	for(i = j = 0; i <= maxlen; ++i) {
 		if(flat_list[j].length > i) fprintf(out, "0, ");
