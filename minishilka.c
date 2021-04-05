@@ -11,11 +11,14 @@
 #include <ctype.h>
 
 #define INLINE_MEMCMP \
+"#ifndef SHILKA_INLINE_MEMCMP_DEFINED\n" \
+"#define SHILKA_INLINE_MEMCMP_DEFINED\n" \
 "static inline size_t shilka_inline_memcmp(const void* restrict pa, const void* restrict pb, size_t n) {\n" \
 "\tconst unsigned char *l=pa, *r=pb;\n" \
 "\tfor (; n && *l == *r; n--, l++, r++);\n" \
 "\treturn n ? *l-*r : 0;" \
-"}\n"
+"}\n" \
+"#endif\n"
 
 #define EXPORT_EXPORT 0
 #define EXPORT_STATIC 1
