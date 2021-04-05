@@ -267,14 +267,8 @@ void generate_import_table(AS *a) {
 	}
 }
 
-#include "ags_cpu.h"
-
-int get_reg(char* regname) {
-	int i = AR_NULL + 1;
-	for(; i < AR_MAX; i++)
-		if(strcmp(regnames[i], regname) == 0)
-			return i;
-	return AR_NULL;
+static int get_reg(char* regname) {
+	return kw_find_reg(regname, strlen(regname));
 }
 
 #include "StringEscape.h"

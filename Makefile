@@ -46,7 +46,7 @@ LIB_OBJS =  $(LIB_SRCS:.c=.o)
 
 CFLAGS_WARN = -Wall -Wextra -Wno-unknown-pragmas -Wno-sign-compare -Wno-switch -Wno-unused -Wno-pointer-sign
 
-GEN_FILES = scmd_tok.h scmd_tok.c scmd_tok.shilka
+GEN_FILES = scmd_tok.h scmd_tok.c scmd_tok.shilka regname_tok.h regname_tok.c regname_tok.shilka
 
 
 ifeq ($(WINBLOWS),1)
@@ -84,7 +84,7 @@ minishilka$(EXE_EXT): minishilka.c
 %$(EXE_EXT): %.o $(LIB_OBJS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CFLAGS_WARN) -o $@ $^ $(LDFLAGS)
 
-kw_search.h: scmd_tok.h scmd_tok.c
+kw_search.h: scmd_tok.h scmd_tok.c regname_tok.h regname_tok.c
 
 Assembler.o: kw_search.h
 
@@ -98,8 +98,15 @@ scmd_tok.c: $(SHILKA)
 scmd_tok.c: scmd_tok.shilka
 	$(SHILKA) -inline -strip -pKW_SCMD_ -no-definitions $<
 
-#  cat ags_cpu.h | grep '\[SCMD_' | awk '{print substr($3,3,length($3)-4) "\t{return KW_" substr($1,2,length($1)-2) ";}" ;}'
-#  shilka -strip -pKW_SCMD_ -no-definitions scmd_tok.shilka
+regname_tok.h: ags_cpu.h
+	awk '/[\t ]\[AR_/{r=substr($$1,2,length($$1)-2);printf("#define RN_%s\t(RN_TOK_BASE + %s)\n",r,r);}' < ags_cpu.h > $@
+
+regname_tok.shilka: ags_cpu.h
+	awk 'BEGIN{printf "%%type short\n%%%%\n";}/[\t ]\[AR_/{r=substr($$1,2,length($$1)-2);s=substr($$3,2,length($$3)-3);printf("%s\t{return RN_%s;}\n",s,r);}END{print("%other\t\t{return 0;}");}' < ags_cpu.h > $@
+
+regname_tok.c: $(SHILKA)
+regname_tok.c: regname_tok.shilka
+	$(SHILKA) -inline -strip -pRN_ -no-definitions $<
 
 rcb:
 	make -f Makefile.binary FNAME=agstract
