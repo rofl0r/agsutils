@@ -108,6 +108,17 @@ regname_tok.c: $(SHILKA)
 regname_tok.c: regname_tok.shilka
 	$(SHILKA) -inline -strip -pRN_ -no-definitions $<
 
+lex.yy.c: scmd_tok.c regname_tok.c
+lex.yy.c: asmlex.l
+	$(LEX) $<
+
+y.tab.h: y.tab.c
+y.tab.c: asmparse.y
+	$(YACC) -d $<
+
+asmparse: y.tab.c lex.yy.c ags_cpu.o
+	$(CC) -o $@ $^
+
 rcb:
 	make -f Makefile.binary FNAME=agstract
 	make -f Makefile.binary FNAME=agspack
