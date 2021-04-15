@@ -650,10 +650,15 @@ int ADF_open(ADF* a, const char *filename) {
 		for(i=0; i<x; ++i) {
 			if(prop_version == 1) {
 				char buf[500]; /* MAX_CUSTOM_PROPERTY_VALUE_LENGTH */
+				/* note: that 20 might actually be 200,
+				   because the AGS code reserves 200 for propname,
+				   but then reads only 20 */
+				/* new AGS has a comment about it:
+				   NOTE: for some reason the property name stored in schema object was limited to only 20 characters, while the custom properties map could hold up to 200. Whether this was an error or design choice is unknown. */
 				if(!AF_read_string(a->f, buf, 20)) return 0; // propname
 				if(!AF_read_string(a->f, buf, 100)) return 0; //propdesc
 				if(!AF_read_string(a->f, buf, 500)) return 0; //defvalue
-				x = AF_read_uint(a->f); /* proptype */
+				int foo = AF_read_uint(a->f); /* proptype */
 			} else {
 				char buf[2048];
 				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
