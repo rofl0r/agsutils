@@ -665,6 +665,7 @@ int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn) {
 }
 
 void AgsFile_init(struct AgsFile *buf, char* filename) {
+	memset(buf, 0, sizeof *buf);
 	buf->fn = filename;
 }
 
