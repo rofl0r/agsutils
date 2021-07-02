@@ -7,16 +7,26 @@
 #include "version.h"
 #define ADS ":::AGSpack " VERSION "by rofl0r:::"
 
-__attribute__((noreturn))
-void usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s directory target-pack\n\n", argv0);
-	exit(1);
+static int usage(char *argv0) {
+	dprintf(2, ADS
+		"\nusage:\n%s OPTIONS directory target-pack\n\n"
+		"OPTIONS:\n"
+		"-e: recreate original exe stub\n"
+	, argv0);
+	return 1;
 }
 
 int main(int argc, char** argv) {
-	if(argc < 3) usage(argv[0]);
-	char *dir = argv[1];
-	char *pack = argv[2];
+	int c, exe_opt = 0;
+	while((c = getopt(argc, argv, "e")) != -1) switch(c) {
+		default: return usage(argv[0]);
+		case 'e': exe_opt = 1; break;
+	}
+	if (!argv[optind] || !argv[optind+1])
+		return usage(argv[0]);
+
+	char *dir = argv[optind];
+	char *pack = argv[optind+1];
 	char fnbuf[512];
 	char line[1024];
 	FILE* fp;
@@ -24,6 +34,13 @@ int main(int argc, char** argv) {
 	if(!(fp = fopen(fnbuf, "r"))) {
 		dprintf(2, "couldnt open %s\n", fnbuf);
 		return 1;
+	}
+	if(exe_opt) {
+		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, "agspack.exestub");
+		if(access(fnbuf, R_OK) == -1) {
+			dprintf(2, "exestub requested, but couldnt read %s\n", fnbuf);
+			return 1;
+		}
 	}
 	size_t index = 0;
 	struct AgsFile ags_b, *ags = &ags_b;
@@ -34,6 +51,8 @@ int main(int argc, char** argv) {
 		dprintf(2, "error: packname exceeds 20 chars");
 		return 1;
 	}
+	if(exe_opt) AgsFile_setExeStub(ags, "agspack.exestub");
+
 	while(fgets(line, sizeof(line), fp)) {
 		size_t l = strlen(line);
 		if(l) line[l - 1] = 0;

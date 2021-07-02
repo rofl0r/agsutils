@@ -34,6 +34,7 @@ struct AgsFile {
 	char* fn;
 	char *dir;
 	off_t pack_off;
+	const char *exestub_fn;
 };
 
 /* generic interface */
@@ -63,6 +64,7 @@ int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn);
 void AgsFile_setDataFileCount(struct AgsFile *f, size_t count);
 void AgsFile_setFileNumber(struct AgsFile *f, size_t index, int number);
 int AgsFile_setDataFile(struct AgsFile *f, size_t index, char* fn);
+void AgsFile_setExeStub(struct AgsFile *f, const char *fn);
 int AgsFile_write(struct AgsFile *f);
 
 #pragma RcB2 DEP "Clib32.c"

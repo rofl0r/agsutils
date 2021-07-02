@@ -304,14 +304,25 @@ static void write_int_array(int fd, int* arr, size_t len) {
 		write_int(fd, arr[i]);
 }
 
-static int copy_into_file(int fd, char *dir, char *fn, size_t filesize) {
+/* if *bytes == -1L, read entire file, and store the total amount read there */
+static int copy_into_file(int fd, const char *dir, const char *fn, size_t *bytes) {
 	char fnbuf[512];
 	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, fn);
 	int f = open(fnbuf, O_RDONLY);
 	if(f == -1) return 0;
+	size_t filesize = *bytes;
 	char readbuf[4096];
 	int ret = 1;
-	do {
+	if(filesize == -1L) {
+		*bytes = 0;
+		while(1) {
+			ssize_t r = read(f, readbuf, sizeof readbuf);
+			if(r < 0) { ret=0; goto end; }
+			if(r == 0) break;
+			*bytes += r;
+			if(write(fd, readbuf, r) != r) { ret=0; goto end; }
+		}
+	} else do {
 		size_t togo = filesize > sizeof(readbuf) ? sizeof(readbuf) : filesize;
 		if((size_t) read(f, readbuf, togo) != togo) { ret = 0; goto end; }
 		filesize -= togo;
@@ -369,28 +380,39 @@ static size_t write_header(struct AgsFile *f, int fd) {
 	return written;
 }
 
-static void write_footer(int fd) {
-	write_int(fd, 0);
+static void write_footer(int fd, unsigned offset) {
+	write_int(fd, offset);
 	write(fd, clibendfilesig, 12);
 }
 
+void AgsFile_setExeStub(struct AgsFile *f, const char *fn) {
+	f->exestub_fn = fn;
+}
 
 int AgsFile_write(struct AgsFile *f) {
 	int fd = open(f->fn, O_CREAT | O_WRONLY | O_TRUNC, 0660);
 	if(fd == -1) return 0;
 	size_t i, off;
 	if(!(off = write_header(f, fd))) return 0;
-	lseek(fd, 0, SEEK_SET);
 	for(i = 0; i < f->mflib.num_files; i++) {
 		f->mflib.offset[i] = off;
 		off += f->mflib.length[i];
 	}
+	lseek(fd, 0, SEEK_SET);
+	unsigned header_offset = 0;
+	if(f->exestub_fn) {
+		size_t stubsize = -1L;
+		if(!copy_into_file(fd, f->dir, f->exestub_fn, &stubsize))
+			return 0;
+		header_offset = stubsize;
+	}
 	write_header(f, fd);
 	for(i = 0; i < f->mflib.num_files; i++) {
-		if(!copy_into_file(fd, f->dir, f->mflib.filenames[i], f->mflib.length[i]))
+		size_t fs = f->mflib.length[i];
+		if(!copy_into_file(fd, f->dir, f->mflib.filenames[i], &fs))
 			return 0;
 	}
-	write_footer(fd);
+	write_footer(fd, header_offset);
 	close(fd);
 	return 1;
 }
