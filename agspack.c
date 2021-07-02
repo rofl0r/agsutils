@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include "version.h"
-#define ADS ":::AGSpack " VERSION "by rofl0r:::"
+#define ADS ":::AGSpack " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
 	dprintf(2, ADS
