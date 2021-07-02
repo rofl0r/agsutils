@@ -109,8 +109,7 @@ agsprite:
   one replaced with it (if one existed). agsprite has an option for that too.
   optionally, the old sprindex.dat can simply be removed by commenting out the
   line with sprindex.dat in agspack.info and reducing the filecount by 1.
-  at present, agsprite only creates and accepts TGA files saved in top-to-bottom
-  order, which is default for tools like GIMP.
+  at present, agsprite only creates and accepts TGA files.
   if you want to edit a sprite and your tool can't handle TGA format (unlikely),
   you can still convert the file into a format of your choice with e.g.
   imagemagick's `convert` tool, and then convert it back to TGA before creating
