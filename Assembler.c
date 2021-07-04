@@ -28,6 +28,11 @@ struct label {
 	unsigned insno;
 };
 
+struct sections_data {
+	char *name;
+	unsigned offset;
+};
+
 struct variable {
 	char* name;
 	unsigned vs;
@@ -79,6 +84,11 @@ static int add_fixup(AS *a, int type, size_t offset) {
 	struct fixup item = {.type = type, .offset = offset};
 	/* offset equals instruction number for non-DATADATA fixups */
 	return List_add(a->fixup_list, &item);
+}
+
+static int add_sections_name(AS *a, char* name, int value) {
+	struct sections_data item = {.name = strdup(name), .offset = value};
+	return List_add(a->sections_list, &item);
 }
 
 static size_t add_or_get_string__offset(AS* a, char* str) {
@@ -326,6 +336,32 @@ static int asm_strings(AS *a) {
 	return 1;
 }
 
+static int asm_sections(AS *a) {
+	/* add sections in .sections section */
+	size_t lineno;
+	ssize_t start = find_section(a->in, "sections", &lineno);
+	if(start == -1) return 1;
+	fseek(a->in, start, SEEK_SET);
+	char buf[1024];
+	while(fgets(buf, sizeof buf, a->in) && buf[0] != '.') {
+		char* p = buf;
+		if(strchr("#;\n\r", *p)) continue;
+		assert(*p == '"');
+		size_t l = strlen(p);
+		assert(l>1 && p[l-1] == '\n');
+		char *e = strrchr(p, '=');
+		assert(e);
+		char *f = e;
+		while(--f > p && isspace(*f));
+		assert(f > p && *f == '"');
+		*f = 0;
+		while(isspace(*(++e)));
+		int val = atoi(e);
+		add_sections_name(a, p+1, val);
+	}
+	return 1;
+}
+
 static int asm_text(AS *a) {
 	size_t lineno;
 	ssize_t start = find_section(a->in, "text", &lineno);
@@ -525,7 +561,14 @@ static void write_export_section(AS* a, FILE* o) {
 }
 
 static void write_sections_section(AS* a, FILE *o) {
-	//FIXME
+	struct sections_data item;
+	size_t i = 0;
+	for(; i < List_size(a->sections_list); i++) {
+		assert(List_get(a->sections_list, i, &item));
+		fwrite(item.name, strlen(item.name) + 1, 1, o);
+		write_int(o, item.offset);
+		break; // FIXME : currently writing only first item - dialogscripts have more than one
+	}
 }
 
 static int write_object(AS *a, char *out) {
@@ -561,7 +604,7 @@ static int write_object(AS *a, char *out) {
 	write_import_section(a, o);
 	write_int(o, List_size(a->export_list));
 	write_export_section(a, o);
-	write_int(o, 0); // FIXME sectioncount
+	write_int(o, List_size(a->sections_list) ? 1 :  0); // FIXME we currently on write first section
 	write_sections_section(a, o);
 	write_int(o, 0xbeefcafe); // magic end marker.
 	fclose(o);
@@ -572,6 +615,7 @@ int AS_assemble(AS* a, char* out) {
 	if(!asm_data(a)) return 0;
 	if(!asm_text(a)) return 0;
 	// if(!asm_strings(a)) return 0;  // emitting unneeded strings is not necessary
+	if(!asm_sections(a)) return 0;
 	if(!write_object(a, out)) return 0;
 	return 1;
 }
@@ -599,6 +643,8 @@ void AS_open_stream(AS* a, FILE* f) {
 	a->function_ref_list = &a->function_ref_list_b;
 	a->variable_list = &a->variable_list_b;
 	a->import_list = &a->import_list_b;
+	a->sections_list = &a->sections_list_b;
+
 	a->label_map = htab_create(128);
 	a->import_map = htab_create(128);
 	a->export_map = htab_create(128);
@@ -611,6 +657,7 @@ void AS_open_stream(AS* a, FILE* f) {
 	List_init(a->function_ref_list, sizeof(struct label));
 	List_init(a->variable_list, sizeof(struct variable));
 	List_init(a->import_list, sizeof(struct string));
+	List_init(a->sections_list, sizeof(struct sections_data));
 
 	a->in = f;
 	a->string_section_length = 0;

@@ -18,6 +18,7 @@ typedef struct AgsAssembler {
 	List *function_ref_list, function_ref_list_b;
 	List *variable_list, variable_list_b;
 	List *import_list, import_list_b;
+	List *sections_list, sections_list_b;
 	struct htab* label_map;
 	struct htab* import_map;
 	struct htab* export_map;
