@@ -676,8 +676,8 @@ int ADF_open(ADF* a, const char *filename) {
 
 		a->viewnames = malloc(a->game.viewcount * sizeof(char*));
 		for(i=0; i<a->game.viewcount; ++i) {
-			char buf[15+1];
-			if(!AF_read_string(a->f, buf, sizeof buf)) return 1;
+			char buf[255+1]; /* was originally MAXVIEWNAMELENGTH aka 15 bytes, however "meaningless name restrictions for Views and InvItems" was removed in 8bb1bfa30610f3c3291029b2c05e6e5b37415269 */
+			assert(AF_read_string(a->f, buf, sizeof buf));
 			assert(is_zeroterminated(buf, sizeof buf));
 			a->viewnames[i] = strdup(buf);
 		}
