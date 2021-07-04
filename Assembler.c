@@ -30,6 +30,38 @@ struct label {
 
 struct sections_data {
 	char *name;
+	/* the offset points inside .text section to denote the start
+	   of contents originating from a different file; to establish a mapping
+	   between 'sourceline' statements and original file for debugging.
+	   this happens when the editor converts and merges multiple dialog
+	   script into a single script.
+	   the number denotes the number of instructions to skip after start of
+	   .text section, or using absolute offsets: (absolute_offset - offset_of_text)/4
+	   example: when disassembled with -o, a dialogscript i tested looks
+	   like this:
+	   .text
+	   ; offset: 24 (insno 0)
+	   ...
+	   ; offset: 27856 (insno 6958)
+	   _run_dialog1$1: ; 1 args
+	          sourceline 1
+	   ; offset: 27864 (insno 6960)
+	   ...
+	   .sections
+	   "__DialogScripts.asc" = 0
+	   "Dialog 0" = 317
+	   "Dialog 1" = 6958
+	   ...
+	   so _run_dialog1 starts at physical offset 27856, -24 = 27832,
+	   27832/4= 6958.
+	   in order to keep these offsets accurate after re-assembling (especially
+	   after changes have been made, we should actually save the functionname
+	   it points to, then after assembling put the so-calculated offset of
+	   that same function there.
+	   however since these sections are only interesting for debugging,
+	   and only used (except those always at offset 0) in dialogscripts,
+	   this is currently out of scope.
+	*/
 	unsigned offset;
 };
 
