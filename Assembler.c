@@ -160,6 +160,7 @@ static int get_variable_offset(AS* a, char* name) {
 		if(!strcmp(item->name, name))
 			return item->offset;
 	}
+	dprintf(2, "error: variable '%s' not found\n", name);
 	assert(0);
 	return 0;
 }
