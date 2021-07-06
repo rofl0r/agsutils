@@ -45,6 +45,7 @@ static int inject(const char *o, const char *inj, unsigned which) {
 	if(!AF_open(f, inj)) return 0;
 	ssize_t start;
 	for(index = found = 0; 1 ; found++, index = start + 4) {
+		int room_length_bytes = 4;
 		if(!isroom && (start = ARF_find_code_start(f, index)) == -1) {
 			dprintf(2, "error, only %zu scripts found\n", found);
 			return 0;
@@ -53,6 +54,7 @@ static int inject(const char *o, const char *inj, unsigned which) {
 			struct RoomFile rinfo = {0};
 			if(!RoomFile_read(f, &rinfo)) return 0;
 			start = rinfo.blockpos[BLOCKTYPE_COMPSCRIPT3];
+			if(rinfo.version >= 32) room_length_bytes = 8;
 		}
 		if(found != which) continue;
 		char *tmp = tempnam(".", "agsinject.tmp");
@@ -60,7 +62,7 @@ static int inject(const char *o, const char *inj, unsigned which) {
 		if(!out) return 0;
 
 		/* 1) dump header */
-		AF_dump_chunk_stream(f, 0, isroom ? start -4 : start, out);
+		AF_dump_chunk_stream(f, 0, isroom ? start -room_length_bytes : start, out);
 		AF_set_pos(f, start);
 
 		/* open replacement object file */
@@ -79,6 +81,11 @@ static int inject(const char *o, const char *inj, unsigned which) {
 			ByteArray_set_flags(&c, BAF_CANGROW);
 			ByteArray_set_endian(&c, BAE_LITTLE);
 			ByteArray_writeInt(&c, l);
+			if(room_length_bytes == 8)
+				/* we should actually write one long long
+				   instead of 2 ints, but we assume that no
+				   room script will be bigger than 2 GB. */
+				ByteArray_writeInt(&c, 0);
 			ByteArray_dump_to_stream(&c, out);
 			ByteArray_close(&c);
 		}
