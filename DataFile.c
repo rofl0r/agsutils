@@ -490,6 +490,8 @@ int ADF_open(ADF* a, const char *filename) {
 		return 0;
 	}
 	if(memcmp("Adventure Creator Game File v2", fnbuf, 30)) goto err_close;
+	/* the version read here is called kGameVersion_xxx in recent AGS
+	   engine codebase, e.g. kGameVersion_350 == 50 */
 	a->version = AF_read_int(a->f);
 	/* here comes some version string with minor, major - we dont need it */
 	/* FIXME? newer ags does this only with version >= 12 */
