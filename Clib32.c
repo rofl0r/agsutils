@@ -342,7 +342,7 @@ static int copy_into_file(int fd, const char *dir, const char *fn, size_t *bytes
 
 #define WH_EWRITE(X,Y,Z) do {if(Z != write(X, Y, Z)) return 0;} while(0)
 static size_t write_header(struct AgsFile *f, int fd) {
-	int myversion = 20; //f->libversion;
+	int myversion = f->libversion >= 30 ? 30 : 20; //f->libversion;
 	unsigned char version = myversion;
 	WH_EWRITE(fd, "CLIB\x1a", 5);
 	WH_EWRITE(fd, &version, 1);
@@ -350,6 +350,10 @@ static size_t write_header(struct AgsFile *f, int fd) {
 	if(myversion >= 10) WH_EWRITE(fd, &version, 1);
 	size_t written = 7;
 	size_t i,l;
+	if(myversion == 30) {
+		write_int(fd, 0); /*reservedFlags*/
+		written += 4;
+	}
 	write_int(fd, f->mflib.num_data_files);
 	written += sizeof(int);
 	for(i = 0; i < f->mflib.num_data_files; i++) {
@@ -361,6 +365,30 @@ static size_t write_header(struct AgsFile *f, int fd) {
 
 	write_int(fd, f->mflib.num_files);
 	written += sizeof(int);
+
+	if(myversion == 30) {
+		for(i = 0; i < f->mflib.num_files; i++) {
+			l = strlen(f->mflib.filenames[i]) + 1;
+			written += l;
+			if(l != (size_t) write(fd, f->mflib.filenames[i], l))
+				return 0;
+			/* write another 0 byte as libuid */
+			WH_EWRITE(fd, &version, 1);
+			++written;
+
+			/* for now, write a 32 bit offset as 64bit in 2 writes */
+			write_int(fd, f->mflib.offset[i]);
+			write_int(fd, 0);
+			written += 8;
+
+			/* for now, write a 32 bit length as 64bit in 2 writes */
+			write_int(fd, f->mflib.length[i]);
+			write_int(fd, 0);
+			written += 8;
+		}
+		return written;
+	}
+
 	unsigned char encbuf[100];
 	for(i = 0; i < f->mflib.num_files; i++) {
 		l = strlen(f->mflib.filenames[i]) + 1;
@@ -380,8 +408,9 @@ static size_t write_header(struct AgsFile *f, int fd) {
 	return written;
 }
 
-static void write_footer(int fd, unsigned offset) {
+static void write_footer(int fd, unsigned offset, int v30) {
 	write_int(fd, offset);
+	if(v30) write_int(fd, 0);
 	write(fd, clibendfilesig, 12);
 }
 
@@ -412,7 +441,7 @@ int AgsFile_write(struct AgsFile *f) {
 		if(!copy_into_file(fd, f->dir, f->mflib.filenames[i], &fs))
 			return 0;
 	}
-	write_footer(fd, header_offset);
+	write_footer(fd, header_offset, f->libversion >= 30);
 	close(fd);
 	return 1;
 }
