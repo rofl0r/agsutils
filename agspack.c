@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
 		if(!p) return 1;
 		*p = 0; p++;
 		if(0) ;
-		else if(strcmp(line, "agsversion") == 0)
+		else if(strcmp(line, "agsversion") == 0 || strcmp(line, "mflversion") == 0)
 			AgsFile_setVersion(ags, atoi(p));
 		else if(strcmp(line, "filecount") == 0)
 			AgsFile_setFileCount(ags, atoi(p));

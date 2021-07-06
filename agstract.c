@@ -57,8 +57,8 @@ int main(int argc, char** argv) {
 	dump_exe(ags, dir);
 	int ec = 0;
 	size_t i, l = AgsFile_getFileCount(ags), ld =AgsFile_getDataFileCount(ags);
-	dprintf(1, "%s: version %d, containing %zu files.\n", fn, AgsFile_getVersion(ags), l);
-	EFPRINTF(outf, "agspackfile=%s\nagsversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
+	dprintf(1, "%s: mfl version %d, containing %zu files.\n", fn, AgsFile_getVersion(ags), l);
+	EFPRINTF(outf, "agspackfile=%s\nmflversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
 	EFPRINTF(outf, "datafilecount=%zu\n", ld);
 	for(i = 0; i < ld; i++) {
 		EFPRINTF(outf, "df%zu=%s\n", i, AgsFile_getDataFileName(ags, i));
