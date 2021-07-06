@@ -68,6 +68,33 @@ int RoomFile_read(AF *f, struct RoomFile *r) {
 		if(blocktype == BLOCKTYPE_EOF) break;
 		if(blocktype < BLOCKTYPE_MIN || blocktype > BLOCKTYPE_MAX) return 0;
 		long long blocklen;
+		if(blocktype == BLOCKTYPE_EXT) {
+			if(r->version < 32) {
+				dprintf(2, "error: found blocktype_ext in incompatible room version\n");
+				return 0;
+			}
+			char buf[16];
+			AF_read(f, buf, 16);
+			if(0);
+			else if(!strcmp(buf, "Main"))
+				blocktype = BLOCKTYPE_MAIN;
+			else if(!strcmp(buf, "TextScript"))
+				blocktype = BLOCKTYPE_SCRIPT;
+			else if(!strcmp(buf, "CompScript"))
+				blocktype = BLOCKTYPE_COMPSCRIPT;
+			else if(!strcmp(buf, "CompScript2"))
+				blocktype = BLOCKTYPE_COMPSCRIPT2;
+			else if(!strcmp(buf, "CompScript3"))
+				blocktype = BLOCKTYPE_COMPSCRIPT3;
+			else if(!strcmp(buf, "ObjNames"))
+				blocktype = BLOCKTYPE_OBJECTNAMES;
+			else if(!strcmp(buf, "AnimBg"))
+				blocktype = BLOCKTYPE_ANIMBKGRND;
+			else if(!strcmp(buf, "Properties"))
+				blocktype = BLOCKTYPE_PROPERTIES;
+			else if(!strcmp(buf, "ObjScNames"))
+				blocktype = BLOCKTYPE_OBJECTSCRIPTNAMES;
+		}
 		if(r->version < 32) blocklen = AF_read_int(f);
 		else blocklen = AF_read_longlong(f);
 		off_t curr_pos = AF_get_pos(f), next_block = curr_pos + blocklen;
