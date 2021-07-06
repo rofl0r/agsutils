@@ -425,7 +425,10 @@ static int prep_multifiles(struct AgsFile *f) {
 	for (aa = 1; aa < f->mflib.num_data_files; aa++) {
 		ba = &f->f[aa];
 		ByteArray_ctor(ba);
-		if(!ByteArray_open_file(ba, f->mflib.data_filenames[aa])) return -1;
+		if(!ByteArray_open_file(ba, f->mflib.data_filenames[aa])) {
+			dprintf(2, "error opening mfl datafile %s\n", f->mflib.data_filenames[aa]);
+			return -1;
+		}
 		ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.
 	}
 	return 0;
