@@ -39,14 +39,14 @@ int usage(char *argv0) {
 static int inject(const char *o, const char *inj, unsigned which) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
-	size_t index, found;
+	unsigned long long index, found;
 	int isroom = !strcmp(".crm", inj + strlen(inj) - 4);
 	if(isroom && which != 0) return -1;
 	if(!AF_open(f, inj)) return 0;
-	ssize_t start;
+	long long start;
 	for(index = found = 0; 1 ; found++, index = start + 4) {
 		int room_length_bytes = 4;
-		if(!isroom && (start = ARF_find_code_start(f, index)) == -1) {
+		if(!isroom && (start = ARF_find_code_start(f, index)) == -1LL) {
 			dprintf(2, "error, only %zu scripts found\n", found);
 			return 0;
 		} else if(isroom) {

@@ -1,8 +1,8 @@
 #include "RoomFile.h"
 #include <stdlib.h>
 
-ssize_t ARF_find_code_start(AF* f, size_t start) {
-	if(!AF_set_pos(f, start)) return -1;
+off_t ARF_find_code_start(AF* f, off_t start) {
+	if(!AF_set_pos(f, start)) return -1LL;
 	char buf[4];
 	unsigned match = 0;
 	while(1) {
@@ -28,7 +28,7 @@ ssize_t ARF_find_code_start(AF* f, size_t start) {
 				assert(0);
 		}
 	}
-	return -1;
+	return -1LL;
 }
 
 static void roomfile_decrypt_text(char *s, int len) {

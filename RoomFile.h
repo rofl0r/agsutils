@@ -34,7 +34,7 @@ char *RoomFile_extract_source(AF *f, struct RoomFile *r, size_t *sizep);
 
 /* this function actually isn't room specific at all, it works with all
    script containers as it looks out for the start signature. */
-ssize_t ARF_find_code_start(AF* f, size_t start);
+off_t ARF_find_code_start(AF* f, off_t start);
 
 
 #pragma RcB2 DEP "RoomFile.c"

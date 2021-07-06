@@ -21,8 +21,8 @@ struct MultiFileLibNew {
 	char data_filenames[MAXMULTIFILES][50];
 	size_t num_data_files;
 	char filenames[MAX_FILES][100];
-	unsigned offset[MAX_FILES];
-	unsigned length[MAX_FILES];
+	unsigned long long offset[MAX_FILES];
+	unsigned long long length[MAX_FILES];
 	char file_datafile[MAX_FILES];        // number of datafile
 	size_t num_files;
 };

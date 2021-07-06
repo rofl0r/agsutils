@@ -148,11 +148,9 @@ static int read_v30_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout) 
 		ByteArray_readUnsignedByte(wout); /* "LibUid" */
 		unsigned long long tmp;
 		tmp = ByteArray_readUnsignedLongLong(wout);
-		assert(tmp < UINT_MAX);
-		mfl->offset[aa] = tmp&0xffffffff;
+		mfl->offset[aa] = tmp;
 		tmp = ByteArray_readUnsignedLongLong(wout);
-		assert(tmp < UINT_MAX);
-		mfl->length[aa] = tmp&0xffffffff;
+		mfl->length[aa] = tmp;
 	}
 
 //	for(aa = 0; aa < mfl->num_files; aa++)
@@ -178,10 +176,11 @@ static int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct Byt
 
 	for (aa = 0; aa < mfl->num_files; aa++)
 		fgetstring_enc(mfl->filenames[aa], wout, 100);
-	
-	fread_data_intarray_enc(wout, mfl->offset, mfl->num_files);
-	fread_data_intarray_enc(wout, mfl->length, mfl->num_files);
-	for(aa = 0; aa < mfl->num_files; aa++)
+	for (aa = 0; aa < mfl->num_files; aa++)
+		mfl->offset[aa] = fread_data_enc_int(wout);
+	for (aa = 0; aa < mfl->num_files; aa++)
+		mfl->length[aa] = fread_data_enc_int(wout);
+	for (aa = 0; aa < mfl->num_files; aa++)
 		mfl->file_datafile[aa] = fread_data_enc_byte(wout);
 	return 0;
 }
@@ -201,8 +200,10 @@ static int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArra
 		ByteArray_readMultiByte(wout, mfl->filenames[aa], nameLength);
 		clib_decrypt_text(mfl->filenames[aa]);
 	}
-	fread_data_intarray(wout, mfl->offset, mfl->num_files);
-	fread_data_intarray(wout, mfl->length, mfl->num_files);
+	for (aa = 0; aa < mfl->num_files; aa++)
+		mfl->offset[aa] = ByteArray_readInt(wout);
+	for (aa = 0; aa < mfl->num_files; aa++)
+		mfl->length[aa] = ByteArray_readInt(wout);
 	ByteArray_readMultiByte(wout, mfl->file_datafile, mfl->num_files);
 	return 0;
 }
@@ -279,6 +280,10 @@ void AgsFile_setDataFileCount(struct AgsFile *f, size_t count) {
 	f->mflib.num_data_files = count;
 }
 
+static void write_ull(int fd, unsigned long long val) {
+	unsigned long long le = end_htole64(val);
+	write(fd, &le, sizeof(le));
+}
 
 static int get_int_le(int val) {
 	return end_htole32(val);
@@ -376,14 +381,10 @@ static size_t write_header(struct AgsFile *f, int fd) {
 			WH_EWRITE(fd, &version, 1);
 			++written;
 
-			/* for now, write a 32 bit offset as 64bit in 2 writes */
-			write_int(fd, f->mflib.offset[i]);
-			write_int(fd, 0);
+			write_ull(fd, f->mflib.offset[i]);
 			written += 8;
 
-			/* for now, write a 32 bit length as 64bit in 2 writes */
-			write_int(fd, f->mflib.length[i]);
-			write_int(fd, 0);
+			write_ull(fd, f->mflib.length[i]);
 			written += 8;
 		}
 		return written;
@@ -398,10 +399,14 @@ static size_t write_header(struct AgsFile *f, int fd) {
 		written += sizeof(short) + l;
 	}
 	l = f->mflib.num_files;
-	write_int_array(fd, (int*) f->mflib.offset, l);
+	for(i = 0; i < l; ++i)
+		write_int(fd, f->mflib.offset[i]);
 	written += sizeof(int) * l;
-	write_int_array(fd, (int*) f->mflib.length, l);
+
+	for(i = 0; i < l; ++i)
+		write_int(fd, f->mflib.length[i]);
 	written += sizeof(int) * l;
+
 	if(l != (size_t) write(fd, f->mflib.file_datafile, l))
 		return 0;
 	written += l;
@@ -421,14 +426,15 @@ void AgsFile_setExeStub(struct AgsFile *f, const char *fn) {
 int AgsFile_write(struct AgsFile *f) {
 	int fd = open(f->fn, O_CREAT | O_WRONLY | O_TRUNC, 0660);
 	if(fd == -1) return 0;
-	size_t i, off;
+	size_t i;
+	unsigned long long off;
 	if(!(off = write_header(f, fd))) return 0;
 	for(i = 0; i < f->mflib.num_files; i++) {
 		f->mflib.offset[i] = off;
 		off += f->mflib.length[i];
 	}
 	lseek(fd, 0, SEEK_SET);
-	unsigned header_offset = 0;
+	unsigned header_offset = 0; /* we can safely assume the exe stub fits into 4 GB */
 	if(f->exestub_fn) {
 		size_t stubsize = -1L;
 		if(!copy_into_file(fd, f->dir, f->exestub_fn, &stubsize))
@@ -556,8 +562,10 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 			// convert to newer format
 			f->mflib.num_files = mflibOld->num_files;
 			f->mflib.num_data_files = mflibOld->num_data_files;
-			memcpy(f->mflib.offset, mflibOld->offset, sizeof(int) * f->mflib.num_files);
-			memcpy(f->mflib.length, mflibOld->length, sizeof(int) * f->mflib.num_files);
+			for(aa = 0; aa < f->mflib.num_files; ++aa)
+				f->mflib.offset[aa] = mflibOld->offset[aa];
+			for(aa = 0; aa < f->mflib.num_files; ++aa)
+				f->mflib.length[aa] = mflibOld->length[aa];
 			memcpy(f->mflib.file_datafile, mflibOld->file_datafile, sizeof(char) * f->mflib.num_files);
 			assert(MAXMULTIFILES >= f->mflib.num_data_files);
 			for (aa = 0; aa < f->mflib.num_data_files; aa++)
@@ -568,7 +576,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 
 		strcpy(f->mflib.data_filenames[0], filename);
 		for (aa = 0; aa < f->mflib.num_files; aa++) {
-			// correct offsetes for EXE file
+			// correct offsets for EXE file
 			if (f->mflib.file_datafile[aa] == 0)
 				f->mflib.offset[aa] += absoffs;
 		}
