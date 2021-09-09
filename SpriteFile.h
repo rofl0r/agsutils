@@ -1,9 +1,12 @@
 #ifndef SPRITEFILE_H
 #define SPRITEFILE_H
 
+
+/* Targa.h needs to be included to get ImageData typedef */
+#include "Targa.h"
+
 #include <stdio.h>
 #include "File.h"
-#include "ImageData.h"
 
 typedef struct SpriteFile {
 	short version;
