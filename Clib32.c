@@ -145,7 +145,7 @@ static int read_v30_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout) 
 
 	for (aa = 0; aa < mfl->num_files; aa++) {
 		fgetnulltermstring(mfl->filenames[aa], wout, 100);
-		ByteArray_readUnsignedByte(wout); /* "LibUid" */
+		mfl->file_datafile[aa] = ByteArray_readUnsignedByte(wout); /* "LibUid" */
 		unsigned long long tmp;
 		tmp = ByteArray_readUnsignedLongLong(wout);
 		mfl->offset[aa] = tmp;
