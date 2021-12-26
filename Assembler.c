@@ -193,6 +193,7 @@ static int asm_data(AS* a) {
 		unsigned vs = 0;
 		if(*p == '#' || *p == ';') continue;
 		while(isspace(*p) && p < pend) p++;
+		if(*p == ';') continue;
 		if(!memcmp(p, "export", 6) && isspace(p[6])) {
 			p += 7;
 			exportflag = 1;
@@ -409,7 +410,7 @@ static int asm_text(AS *a) {
 		if(*p == '#' || *p == ';') continue;
 		while(isspace(*p) && p < pend) p++;
 		assert(p < pend);
-		if(!*p) continue;
+		if(!*p || *p == ';') continue;
 		char* sym = p;
 		while(!isspace(*p) && p < pend) p++;
 		*p = 0; p++;
