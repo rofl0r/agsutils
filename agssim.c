@@ -789,8 +789,8 @@ void vm_trace(void) {
 	}
 }
 
-static int usage(int fd, char *a0) {
-	dprintf(fd,
+static int usage(FILE *out, char *a0) {
+	fprintf(out,
 		"%s [OPTIONS] [filename.s] [-- arguments for ags program]\n"
 		"simple ags vm simulator\n"
 		"useful to examine how a chunk of code modifies VM state\n"
@@ -875,7 +875,7 @@ static void execute_user_command_i(int uc, char* param) {
 		break;
 		case UC_INIT: vm_init(); break;
 		case UC_QUIT: exit(0); break;
-		case UC_HELP: usage(1, "agssim"); break;
+		case UC_HELP: usage(stdout, "agssim"); break;
 	}
 	lastcommand = uc;
 	vm_state();
@@ -910,7 +910,7 @@ int main(int argc, char** argv) {
 	while((c = getopt(argc, argv, "is:")) != EOF) switch(c) {
 	case 'i': interactive = 0; break;
 	case 's': stacksize = ALIGN(atoi(optarg) * 1024, 4096); break;
-	default: return usage(2, argv[0]);
+	default: return usage(stderr, argv[0]);
 	}
 	if(argv[optind] && optind >= 1 && strcmp(argv[optind-1], "--")) {
 		in = fopen(argv[optind], "r");
