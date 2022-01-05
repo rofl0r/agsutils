@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 		}
 	}
 	size_t index = 0;
-	struct AgsFile ags_b, *ags = &ags_b;
+	struct AgsFile *ags = calloc(1, sizeof(*ags));
 	AgsFile_init(ags, pack);
 	AgsFile_setSourceDir(ags, dir);
 	AgsFile_setDataFileCount(ags, 1); //TODO
@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
 	int ret = AgsFile_write(ags);
 	if(!ret) perror("write");
 	AgsFile_close(ags);
+	free(ags);
 	return !ret;
 }
 

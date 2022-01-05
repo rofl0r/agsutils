@@ -31,7 +31,7 @@ static FILE* open_packfile(const char* fn) {
 int main(int argc, char** argv) {
 	if(argc < 3) usage(argv[0]);
 	fprintf(stdout, ADS "\n");
-	struct AgsFile ags_b, *ags = &ags_b;
+	struct AgsFile *ags = calloc(1, sizeof(*ags));
 	char *fn = argv[1];
 	char *dir = argv[2];
 	char fnbuf[512];
@@ -77,6 +77,7 @@ int main(int argc, char** argv) {
 	}
 
 	AgsFile_close(ags);
+	free(ags);
 	fclose(outf);
 	ec = !!ec;
 	return ec;
