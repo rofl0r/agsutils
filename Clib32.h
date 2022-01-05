@@ -2,7 +2,7 @@
 #define CLIB32_H
 
 #include <stdio.h>
-#include "./ByteArray.h"
+#include "ByteArray.h"
 
 #define MAX_FILES 10000
 #define MAXMULTIFILES 25
