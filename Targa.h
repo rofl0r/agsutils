@@ -12,6 +12,7 @@ typedef struct ImageData {
 	unsigned char* data;
 } ImageData;
 
+#pragma(pack(push, 1))
 struct TargaHeader {
 	char  idlength;
 	char  colourmaptype;
@@ -25,7 +26,8 @@ struct TargaHeader {
 	short height;
 	char  bitsperpixel;
 	char  imagedescriptor;
-} __attribute__((packed, aligned (1)));
+};
+#pragma(pack(pop))
 
 enum TargaImageType {
 	TIT_COLOR_MAPPED = 1,
@@ -36,13 +38,15 @@ enum TargaImageType {
 	TIT_RLE_BLACK_WHITE = 11,
 };
 
+#pragma(pack(push, 1))
 struct TargaFooter {
    unsigned extensionareaoffset;
    unsigned developerdirectoryoffset;
    char signature[16];
    char dot;
    char null;
-} __attribute__((packed, aligned (1)));
+};
+#pragma(pack(pop))
 
 #ifndef TARGA_IMPL
 #define TARGA_EXPORT extern
