@@ -9,7 +9,7 @@
 #define ADS ":::AGSsemble " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s [-E] [-i file.i] [-I includedir] [-D preproc define] file.s [file.o]\n"
+	fprintf(stderr, ADS "\nusage:\n%s [-E] [-i file.i] [-I includedir] [-D preproc define] file.s [file.o]\n"
 	"pass an ags assembly filename.\n"
 	"-E: invoke built-in C preprocessor 'tinycpp' on the input file before assembling\n"
 	"-I includedir - add include dir for CPP\n"
@@ -54,13 +54,13 @@ int main(int argc, char** argv) {
 		outn = out;
 	} else outn = argv[optind+1];
 	if(!strcmp(outn, file)) {
-		dprintf(2, "error: input and output file (%s) identical!\n", file);
+		fprintf(stderr, "error: input and output file (%s) identical!\n", file);
 		return 1;
 	}
 
 	FILE *in = fopen(file, "r");
 	if(!in) {
-		dprintf(2, "error opening file %s\n", file);
+		fprintf(stderr, "error opening file %s\n", file);
 		return 1;
 	}
 
@@ -72,13 +72,13 @@ int main(int argc, char** argv) {
 		} output = {0};
 		if(!cppoutfn) output.f = open_memstream(&output.buf, &output.len);
 		else output.f = fopen(cppoutfn, "w");
-		dprintf(1, "preprocessing %s ...", file);
+		fprintf(stdout, "preprocessing %s ...", file);
 		int ret = cpp_run(cpp, in, output.f, file);
 		if(!ret) {
-			dprintf(1, "FAIL\n");
+			fprintf(stdout, "FAIL\n");
 			return 1;
 		}
-		dprintf(1, "OK\n");
+		fprintf(stdout, "OK\n");
 		fclose(in);
 		if(!cppoutfn) in = freopen_r(output.f, &output.buf, &output.len);
 		else {
@@ -91,11 +91,11 @@ int main(int argc, char** argv) {
 	AS a_b, *a = &a_b;
 	AS_open_stream(a, in);
 
-	dprintf(1, "assembling %s -> %s ... ", file, outn);
+	fprintf(stdout, "assembling %s -> %s ... ", file, outn);
 	int ret = AS_assemble(a, outn);
 	AS_close(a);
 
-	if(!ret) dprintf(1, "FAIL\n");
-	else dprintf(1, "OK\n");
+	if(!ret) fprintf(stdout, "FAIL\n");
+	else fprintf(stdout, "OK\n");
 	return !ret;
 }

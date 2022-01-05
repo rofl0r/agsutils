@@ -8,7 +8,7 @@
 #define ADS ":::AGSpack " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
-	dprintf(2, ADS
+	fprintf(stderr, ADS
 		"\nusage:\n%s OPTIONS directory target-pack\n\n"
 		"OPTIONS:\n"
 		"-e: recreate original exe stub\n"
@@ -32,13 +32,13 @@ int main(int argc, char** argv) {
 	FILE* fp;
 	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, "agspack.info");
 	if(!(fp = fopen(fnbuf, "r"))) {
-		dprintf(2, "couldnt open %s\n", fnbuf);
+		fprintf(stderr, "couldnt open %s\n", fnbuf);
 		return 1;
 	}
 	if(exe_opt) {
 		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, "agspack.exestub");
 		if(access(fnbuf, R_OK) == -1) {
-			dprintf(2, "exestub requested, but couldnt read %s\n", fnbuf);
+			fprintf(stderr, "exestub requested, but couldnt read %s\n", fnbuf);
 			return 1;
 		}
 	}
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
 	AgsFile_setSourceDir(ags, dir);
 	AgsFile_setDataFileCount(ags, 1); //TODO
 	if(!AgsFile_setDataFile(ags, 0, "AGSPACKv" VERSION)) {
-		dprintf(2, "error: packname exceeds 20 chars");
+		fprintf(stderr, "error: packname exceeds 20 chars\n");
 		return 1;
 	}
 	if(exe_opt) AgsFile_setExeStub(ags, "agspack.exestub");

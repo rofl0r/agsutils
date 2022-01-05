@@ -271,7 +271,7 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 			sf->id = AF_read_int(f);
 			break;
 		default:
-			dprintf(2, "unsupported sprite file version %d\n", (int) sf->version);
+			fprintf(stderr, "unsupported sprite file version %d\n", (int) sf->version);
 			return 0;
 	}
 

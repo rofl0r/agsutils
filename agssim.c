@@ -57,16 +57,16 @@ static int vm_return;
 static void vm_signal(int sig, int param) {
 	switch(sig) {
 		case VM_SIGILL:
-			dprintf(2, "illegal instruction at IP %u\n", EIP);
+			fprintf(stderr, "illegal instruction at IP %u\n", EIP);
 			break;
 		case VM_SIGSEGV:
-			dprintf(2, "segmentation fault: invalid access at %u\n", EIP);
+			fprintf(stderr, "segmentation fault: invalid access at %u\n", EIP);
 			break;
 		case VM_SIGABRT:
-			dprintf(2, "aborted (assertlte check failed at IP %u)\n", EIP);
+			fprintf(stderr, "aborted (assertlte check failed at IP %u)\n", EIP);
 			break;
 		default:
-			dprintf(2, "unknown signal\n");
+			fprintf(stderr, "unknown signal\n");
 	}
 	vm_return = 1;
 }
@@ -252,7 +252,7 @@ static int vm_init_stack(unsigned size) {
 	unsigned want = ALIGN(size, 4096);
 	unsigned char *p = realloc(mem.mem, mem.capa+want);
 	if(!p) {
-		dprintf(2, "error: could not allocate stack!\n");
+		fprintf(stderr, "error: could not allocate stack!\n");
 		return 0;
 	}
 	mem.mem = p;
@@ -271,13 +271,13 @@ static int grow_text(size_t req) {
 	size_t need = mem.ltext + req;
 	if(need > mem.capa-mem.lheap-mem.lstack) {
 		if(mem.lstack) {
-			dprintf(2, "error: cannot enlarge text segment once execution started!\n");
+			fprintf(stderr, "error: cannot enlarge text segment once execution started!\n");
 			return 0;
 		}
 		size_t want = ALIGN(need, 4096);
 		unsigned char *p = realloc(mem.mem, want);
 		if(!p) {
-			dprintf(2, "error: allocating memory failed!\n");
+			fprintf(stderr, "error: allocating memory failed!\n");
 			return 0;
 		}
 		mem.mem = p;
@@ -402,11 +402,11 @@ static int vm_syscall(void) {
 
 static int label_check() {
 	if(tglist_getsize(label_refs)) {
-		dprintf(2, "error: unresolved label refs!\n");
+		fprintf(stderr, "error: unresolved label refs!\n");
 		size_t i; struct label_ref *l;
 		for(i=0; i<tglist_getsize(label_refs); ++i) {
 			l = &tglist_get(label_refs, i);
-			dprintf(2, "%s@%u\n", l->name, l->insoff);
+			fprintf(stderr, "%s@%u\n", l->name, l->insoff);
 		}
 		return 0;
 	}
@@ -448,7 +448,7 @@ static int vm_step(int run_context) {
 		case 0:
 			/* don't modify IP */
 			if(!run_context)
-				dprintf(2, "no code at IP %u.\n", EIP);
+				fprintf(stderr, "no code at IP %u.\n", EIP);
 			return 0;
 		case SCMD_ADD:
 			REGI(1) += CODE_INT(2);
@@ -573,7 +573,7 @@ static int vm_step(int run_context) {
 		case SCMD_WRITELIT:
 			tmp = CODE_INT(1);
 			if(tmp <= 0 || tmp > 4 || tmp == 3) {
-				dprintf(2, "VM: invalid memcpy use at IP %u\n", EIP);
+				fprintf(stderr, "VM: invalid memcpy use at IP %u\n", EIP);
 				break;
 			}
 			val = CODE_INT(2);
@@ -678,7 +678,7 @@ static int vm_step(int run_context) {
 		case SCMD_SUBREALSTACK:
 		case SCMD_PUSHREAL:
 		case SCMD_CALLEXT:
-			dprintf(2, "info: %s not implemented yet\n", opcodes[*eip].mnemonic);
+			fprintf(stderr, "info: %s not implemented yet\n", opcodes[*eip].mnemonic);
 			{
 				size_t i, l = opcodes[*eip].argcount;
 				for(i = 0; i < l; i++) ++(*eip);
@@ -844,13 +844,13 @@ static void execute_user_command_i(int uc, char* param) {
 			else {
 				ptr = get_label_offset(param);
 				if(!ptr) {
-					dprintf(2, "label %s not found!\n", param);
+					fprintf(stderr, "label %s not found!\n", param);
 					return;
 				}
 				addr = *ptr;
 			}
 			if(addr >= text_end) {
-				dprintf(2, "breakpoint offset %d out of bounds\n", addr);
+				fprintf(stderr, "breakpoint offset %d out of bounds\n", addr);
 				return;
 			}
 			int insn;
@@ -896,7 +896,7 @@ static void execute_user_command(char *cmd) {
 	else if(*cmd == 't') uc = UC_TRACE;
 	else if(*cmd == 'b') uc = UC_BP;
 	else {
-		dprintf(2, "unknown command\n");
+		fprintf(stderr, "unknown command\n");
 		return;
 	}
 	execute_user_command_i(uc, param);
@@ -915,7 +915,7 @@ int main(int argc, char** argv) {
 	if(argv[optind] && optind >= 1 && strcmp(argv[optind-1], "--")) {
 		in = fopen(argv[optind], "r");
 		if(!in) {
-			dprintf(2, "error opening %s\n", argv[optind]);
+			fprintf(stderr, "error opening %s\n", argv[optind]);
 			return 1;
 		}
 		optind++;
@@ -962,13 +962,13 @@ mainloop:
 			sym[l-1] = 0;
 			resolve_label(sym, mem.ltext);
 			unsigned *loff = get_label_offset(sym);
-			if(loff) dprintf(2, "warning: label %s overwritten\n", sym);
+			if(loff) fprintf(stderr, "warning: label %s overwritten\n", sym);
 			add_label(sym, mem.ltext);
 			continue;
 		}
 		unsigned instr = find_insn(sym);
 		if(!instr) {
-			dprintf(2, "line %zu: error: unknown instruction '%s'\n", lineno, sym);
+			fprintf(stderr, "line %zu: error: unknown instruction '%s'\n", lineno, sym);
 			continue;
 		}
 		code[pos++] = instr;
@@ -976,7 +976,7 @@ mainloop:
 		for(arg = 0; arg < opcodes[instr].argcount; arg++) {
 			sym = finalize_arg(&p, pend, convbuf, sizeof(convbuf));
 			if(sym == 0) {
-				dprintf(2, "line %zu: error: expected \"\n", lineno);
+				fprintf(stderr, "line %zu: error: expected \"\n", lineno);
 				goto loop_footer;
 			}
 			int value = 0;
@@ -984,7 +984,7 @@ mainloop:
 				value=get_reg(sym);
 				if(value == AR_NULL) {
 			needreg_err:
-					dprintf(2, "line %zu: error: expected register name!\n", lineno);
+					fprintf(stderr, "line %zu: error: expected register name!\n", lineno);
 					goto loop_footer;
 				}
 				if(instr == SCMD_REGTOREG) {
@@ -1019,14 +1019,14 @@ mainloop:
 							}
 							value = tl+8;
 						} else if(sym[0] == '@') {
-							dprintf(2, "error: global variable handling not implemented\n");
+							fprintf(stderr, "error: global variable handling not implemented\n");
 							goto loop_footer;
 						} else if(sym[0] == '.') {
 							if(memcmp(sym+1, "stack", 5)) {
-								dprintf(2, "error: expected stack\n");
+								fprintf(stderr, "error: expected stack\n");
 								goto loop_footer;;
 							}
-							dprintf(2, "error: stack fixup not implemented\n");
+							fprintf(stderr, "error: stack fixup not implemented\n");
 							goto loop_footer;
 						} else if(isdigit(sym[0]) || sym[0] == '-') {
 							if(sym[0] == '-') assert(isdigit(sym[1]));
@@ -1045,7 +1045,7 @@ mainloop:
 						} break;
 					default:
 						if(!isdigit(sym[0])) {
-							dprintf(2, "line %zu: error: expected number\n", lineno);
+							fprintf(stderr, "line %zu: error: expected number\n", lineno);
 							goto loop_footer;
 						}
 						value = atoi(sym);

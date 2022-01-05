@@ -461,7 +461,7 @@ static int prep_multifiles(struct AgsFile *f) {
 		ba = &f->f[aa];
 		ByteArray_ctor(ba);
 		if(!ByteArray_open_file(ba, f->mflib.data_filenames[aa])) {
-			dprintf(2, "error opening mfl datafile %s\n", f->mflib.data_filenames[aa]);
+			fprintf(stderr, "error opening mfl datafile %s\n", f->mflib.data_filenames[aa]);
 			return -1;
 		}
 		ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.
@@ -510,7 +510,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 		   ByteArray_readMultiByte(ba, clbuff, 5) &&
 		   !strncmp(clbuff, "CLIB", 4)) {
 			if(off64 > 0xffffffff) {
-				dprintf(2, "error: gamepacks > 4GB not supported at this time\n");
+				fprintf(stderr, "error: gamepacks > 4GB not supported at this time\n");
 				return -21;
 			}
 			absoffs = off64;
@@ -522,7 +522,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 		ByteArray_set_position(ba, absoffs);
 		ByteArray_readMultiByte(ba, clbuff, 5);
 		if(strncmp(clbuff, "CLIB", 4)) {
-			dprintf(2, "error: ags clib header signature not found\n");
+			fprintf(stderr, "error: ags clib header signature not found\n");
 			return -22;
 		}
 
@@ -689,7 +689,7 @@ int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len,
 			perror("write");
 			break;
 		} else if(ret != togo) {
-			dprintf(2, "short write\n");
+			fprintf(stderr, "short write\n");
 			break;
 		}
 		written += togo;

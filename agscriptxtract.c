@@ -8,7 +8,7 @@
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s [-oblf] dir [outdir]\n"
+	fprintf(stderr, ADS "\nusage:\n%s [-oblf] dir [outdir]\n"
 		   "extract all scripts from game files in dir\n"
 		   "pass a directory with extracted game files.\n"
 		   "options:\n"
@@ -30,9 +30,9 @@ static void disas(const char*inp, char *o, int flags) {
 		memcpy(s, o, l + 1);
 		s[l-1] = 's';
 		ASI *i = ASI_read_script(f, &sc) ? &sc : 0;
-		dprintf(1, "disassembling [%s] %s -> %s", inp, o, s);
-		if(!i || !ASI_disassemble(f, i, s, flags)) dprintf(1, " FAIL");
-		dprintf(1, "\n");
+		fprintf(stdout, "disassembling [%s] %s -> %s", inp, o, s);
+		if(!i || !ASI_disassemble(f, i, s, flags)) fprintf(stdout, " FAIL");
+		fprintf(stdout, "\n");
 		AF_close(f);
 	}
 }
@@ -63,7 +63,7 @@ static int dumprooms(const char* dir, const char* out, int flags) {
 			assert(off == rinfo.blockpos[BLOCKTYPE_COMPSCRIPT3]);
 			AF_set_pos(&f, off);
 			if(!ASI_read_script(&f, &s)) {
-				dprintf(2, "trouble finding script in %s\n", di->d_name);
+				fprintf(stderr, "trouble finding script in %s\n", di->d_name);
 				continue;
 			}
 			char buf[256];
@@ -84,7 +84,7 @@ static int dumprooms(const char* dir, const char* out, int flags) {
 				buf[l] = 0;
 				FILE *f = fopen(filename(out, buf, outbuf, sizeof outbuf), "w");
 				if(f) {
-					dprintf(1, "extracting room source %s -> %s\n", di->d_name, outbuf);
+					fprintf(stdout, "extracting room source %s -> %s\n", di->d_name, outbuf);
 					fwrite(source, 1, sourcelen, f);
 					fclose(f);
 				}
@@ -92,7 +92,7 @@ static int dumprooms(const char* dir, const char* out, int flags) {
 			}
 			continue;
 			extract_error:
-			dprintf(2, "warning: extraction of file %s failed\n", di->d_name);
+			fprintf(stderr, "warning: extraction of file %s failed\n", di->d_name);
 			++errors;
 		}
 	}
@@ -117,7 +117,7 @@ static char *pfx_capitalize(char *in, char prefix, char *out) {
 
 void dump_header(ADF *a, char *fn) {
 	unsigned i;
-	dprintf(1, "regenerating script header %s\n", fn);
+	fprintf(stdout, "regenerating script header %s\n", fn);
 	FILE *f = fopen(fn, "w");
 	fprintf(f, "#if SCRIPT_API < 300000 && SCRIPT_API > 262000\n");
 	if(ADF_get_cursorcount(a)) fprintf(f, "enum CursorMode {\n");
@@ -167,7 +167,7 @@ static void dump_old_dialogscripts(ADF *a, char *dir) {
 	for(i=0; i<n; ++i) {
 		char fnbuf[512];
 		snprintf(fnbuf, sizeof(fnbuf), "%s/dialogscript%03d.ads", dir, (int)i);
-		dprintf(1, "extracting dialogscript source %s\n", fnbuf);
+		fprintf(stdout, "extracting dialogscript source %s\n", fnbuf);
 		FILE *f = fopen(fnbuf, "w");
 		if(!f) {
 			perror("fopen");
@@ -217,7 +217,7 @@ int main(int argc, char**argv) {
 	dump_old_dialogscripts(a, out);
 	ADF_close(a);
 	errors += dumprooms(dir, out, flags);
-	if(errors) dprintf(2, "agscriptxtract: got %d errors\n", errors);
+	if(errors) fprintf(stderr, "agscriptxtract: got %d errors\n", errors);
 
 	return !!errors;
 }

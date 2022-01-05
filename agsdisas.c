@@ -7,7 +7,7 @@
 #define ADS ":::AGSdisas " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s [-oblf] file.o [file.s]\n"
+	fprintf(stderr, ADS "\nusage:\n%s [-oblf] file.o [file.s]\n"
 		   "pass input and optionally output filename.\n"
 		   "options:\n"
 		   "-v : verbose (show filenames)\n"
@@ -56,7 +56,7 @@ int main(int argc, char**argv) {
 		s = out;
 	} else s = argv[optind+1];
 	if(!strcmp(o, s)) {
-		dprintf(2, "error: input and output file (%s) identical!\n", o);
+		fprintf(stderr, "error: input and output file (%s) identical!\n", o);
 		return 1;
 	}
 

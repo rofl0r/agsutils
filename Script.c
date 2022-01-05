@@ -192,7 +192,7 @@ static struct labels get_labels(unsigned *code, size_t count) {
 			insno++;
 			if(isjmp) {
 				if((int) insno + val < 0 || insno + val >= count || code[insno + val] > SCMD_MAX) {
-					dprintf(2, "error: label referenced from jump at %zu is out of bounds\n"
+					fprintf(stderr, "error: label referenced from jump at %zu is out of bounds\n"
 					"or points to non-instruction start code.\n", insno);
 					assert(0);
 				}
@@ -225,10 +225,10 @@ static struct strings get_strings(AF* a, size_t start, size_t size) {
 			corrupt++;
 	}
 	if(corrupt) {
-		dprintf(2, "warning: %d unusual bytes in string data section, file may be corrupted\n", corrupt);
+		fprintf(stderr, "warning: %d unusual bytes in string data section, file may be corrupted\n", corrupt);
 	}
 	if(ret.data[size-1]) {
-		dprintf(2, "warning: string data section doesn't end with 0, data probably corrupted\n");
+		fprintf(stderr, "%s", "warning: string data section doesn't end with 0, data probably corrupted\n");
 		strcnt++;
 		ret.data[size-1] = 0;
 	}
@@ -441,7 +441,7 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 						/* don't bother guessing the varsize if we already determined it */
 						ret.varsize = oldvarsize;
 					}
-					dprintf(2, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
+					fprintf(stderr, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
 						opcodes[code[x+1]].mnemonic, x+1, offset);
 					COMMENT(f, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
 						opcodes[code[x+1]].mnemonic, x+1, offset);

@@ -524,7 +524,7 @@ string_handling:
 int tokenizer_next(struct tokenizer *t, struct token* out) {
 	int ret = tokenizer_next_real(t, out);
 #if TDEBUG
-	dprintf(2, "<%s:%p> <%s>'%c' = \"%s\"\n", t->filename, t->input,
+	fprintf(stderr, "<%s:%p> <%s>'%c' = \"%s\"\n", t->filename, t->input,
 	tokentype_to_str(out->type),
 	out->value, t->buf);
 #endif

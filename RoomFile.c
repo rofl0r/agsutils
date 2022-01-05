@@ -70,7 +70,7 @@ int RoomFile_read(AF *f, struct RoomFile *r) {
 		long long blocklen;
 		if(blocktype == BLOCKTYPE_EXT) {
 			if(r->version < 32) {
-				dprintf(2, "error: found blocktype_ext in incompatible room version\n");
+				fprintf(stderr, "%s", "error: found blocktype_ext in incompatible room version\n");
 				return 0;
 			}
 			char buf[16];

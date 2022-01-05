@@ -11,7 +11,7 @@
 #define ADS ":::AGSinject " VERSION " by rofl0r:::"
 
 int usage(char *argv0) {
-	dprintf(2,
+	fprintf(stderr,
 	ADS "\n"
 	"usage (simple):\n"
 	"---------------\n"
@@ -47,7 +47,7 @@ static int inject(const char *o, const char *inj, unsigned which) {
 	for(index = found = 0; 1 ; found++, index = start + 4) {
 		int room_length_bytes = 4;
 		if(!isroom && (start = ARF_find_code_start(f, index)) == -1LL) {
-			dprintf(2, "error, only %zu scripts found\n", found);
+			fprintf(stderr, "error, only %llu scripts found\n", (long long)found);
 			return 0;
 		} else if(isroom) {
 			/* use roomfile specific script lookup, as it's faster */
@@ -95,7 +95,7 @@ static int inject(const char *o, const char *inj, unsigned which) {
 
 		ASI s;
 		if(!ASI_read_script(f, &s)) {
-			dprintf(2, "trouble finding script in %s\n", inj);
+			fprintf(stderr, "trouble finding script in %s\n", inj);
 			return 0;
 		}
 		/* 3) dump rest of file */
@@ -110,7 +110,7 @@ static int inject(const char *o, const char *inj, unsigned which) {
 static int check_objname(const char* o) {
 	const char* p;
 	if(!(p = strrchr(o, '.')) || strcmp(p, ".o")) {
-		dprintf(2, "error: object file has no .o extension\n");
+		fprintf(stderr, "error: object file has no .o extension\n");
 		return 0;
 	}
 	return 1;
@@ -123,7 +123,7 @@ static int injectpr(const char *obj, const char *out, unsigned which) {
 	else {
 		printf("FAIL\n");
 		if(ret == -1) {
-			dprintf(2, "invalid index %d for roomfile, only 0 possible\n", which);
+			fprintf(stderr, "invalid index %d for roomfile, only 0 possible\n", which);
 			ret = 0;
 		} else perror("error:");
 	}

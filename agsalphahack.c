@@ -7,7 +7,7 @@
 #define ADS ":::AGSalphahack " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
-	dprintf(2, ADS "\nusage:\n%s [-s spriteno] DIR\n"
+	fprintf(stderr, ADS "\nusage:\n%s [-s spriteno] DIR\n"
 		   "removes alphachannel flag from specified sprite in game file.\n"
 		   "if spriteno is -1 (default), all flags are removed.\n"
 		   "gamefile is typically ac2game.dta or game28.dta inside DIR.\n"

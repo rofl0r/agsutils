@@ -79,8 +79,8 @@ static int add_label(AS *a, char* name, size_t insno) {
 static unsigned get_label_offset(AS *a, char* name) {
 	htab_value *ret = htab_find(a->label_map, name);
 	if(!ret) {
-		dprintf(2, "error: label '%s' not found\n", name);
-		if(strncmp(name, "label", 5)) dprintf(2, "hint: label names must start with 'label'\n");
+		fprintf(stderr, "error: label '%s' not found\n", name);
+		if(strncmp(name, "label", 5)) fprintf(stderr, "hint: label names must start with 'label'\n");
 		exit(1);
 	}
 	return ret->n;
@@ -160,7 +160,7 @@ static int get_variable_offset(AS* a, char* name) {
 		if(!strcmp(item->name, name))
 			return item->offset;
 	}
-	dprintf(2, "error: variable '%s' not found\n", name);
+	fprintf(stderr, "error: variable '%s' not found\n", name);
 	assert(0);
 	return 0;
 }
@@ -210,7 +210,7 @@ static int asm_data(AS* a) {
 				char *q = p+5;
 				while(isdigit(*q) && q < pend) q++;
 				if(vs == 0 || *q != ']') {
-					dprintf(2, "error: expected number > 0 and ']' after '['\n");
+					fprintf(stderr, "error: expected number > 0 and ']' after '['\n");
 					return 0;
 				}
 			}
@@ -218,7 +218,7 @@ static int asm_data(AS* a) {
 		} else if(memcmp(p, "string", 6) == 0)
 			vs = 200;
 		else {
-			dprintf(2, "error: expected int, short, char, or string\n");
+			fprintf(stderr, "error: expected int, short, char, or string\n");
 			return 0;
 		}
 		while(!isspace(*p) && p < pend) p++;
@@ -243,7 +243,7 @@ static int asm_data(AS* a) {
 				add_fixup(a, FIXUP_DATADATA, data_pos);
 				goto write_var;
 			} else {
-				dprintf(2, "error: expected \"data\"\n");
+				fprintf(stderr, "error: expected \"data\"\n");
 				return 0;
 			}
 		} else {
@@ -430,7 +430,7 @@ static int asm_text(AS *a) {
 		}
 		unsigned instr = kw_find_insn(sym, l);
 		if(!instr) {
-			dprintf(2, "line %zu: error: unknown instruction '%s'\n", lineno, sym);
+			fprintf(stderr, "line %zu: error: unknown instruction '%s'\n", lineno, sym);
 			return 0;
 		}
 		if(instr == SCMD_THISBASE) continue; /* we emit this instruction ourselves when a new function starts. */
@@ -441,7 +441,7 @@ static int asm_text(AS *a) {
 		for(arg = 0; arg < opcodes[instr].argcount; arg++) {
 			sym = finalize_arg(&p, pend, convbuf, sizeof(convbuf));
 			if(sym == 0) {
-				dprintf(2, "line %zu: error: expected \"\n", lineno);
+				fprintf(stderr, "line %zu: error: expected \"\n", lineno);
 				return 0;
 			}
 			int value = 0;
@@ -473,7 +473,7 @@ static int asm_text(AS *a) {
 							add_fixup(a, FIXUP_GLOBALDATA, pos);
 						} else if(sym[0] == '.') {
 							if(memcmp(sym+1, "stack", 5)) {
-								dprintf(2, "error: expected stack\n");
+								fprintf(stderr, "error: expected stack\n");
 								return 0;
 							}
 							sym += 6;
