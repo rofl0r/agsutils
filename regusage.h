@@ -5,12 +5,14 @@ enum RegisterAccess {
 	RA_READWRITE = 1 << 2,
 };
 
+#pragma(pack(push, 1))
 struct regaccess_info {
 	/* enum RegisterAccess */ unsigned char ra_reg1;
 	/* enum RegisterAccess */ unsigned char ra_reg2;
 	/* enum RegisterAccess */ unsigned char ra_mar;
 	/* enum RegisterAccess */ unsigned char ra_sp;
-} __attribute__((packed));
+};
+#pragma(pack(pop))
 
 static const struct regaccess_info regaccess_info[] = {
 	[0] = {RA_NONE, RA_NONE, RA_NONE, RA_NONE},
