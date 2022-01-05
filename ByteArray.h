@@ -41,6 +41,7 @@ struct ByteArray {
 		MG mem;
 		int fd;
 	} source;
+	const char *filename;
 	ssize_t (*readMultiByte)(struct ByteArray*, char*, size_t);
 	unsigned long long (*readUnsignedLongLong)(struct ByteArray*);
 	unsigned int (*readUnsignedInt)(struct ByteArray*);

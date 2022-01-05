@@ -101,14 +101,15 @@ static void neg_off() {
 	assert_dbg(0);
 }
 
-static void oob() {
-	fprintf(stderr, "oob access attempted\n");
+static void oob(const char *fn, off_t want, off_t have) {
+	fprintf(stderr, "%s: oob access attempted (want: %jd, have %jd)\n", fn ? fn : "<unknown>", (intmax_t) want, (intmax_t) have);
+	fflush(stderr);
 	assert_dbg(0);
 }
 
 void ByteArray_set_length(struct ByteArray* self, off_t len) {
 	if(len > self->size) {
-		oob();
+		oob(self->filename, len, self->size);
 		return;
 	}
 	self->size = len;
@@ -129,7 +130,7 @@ int ByteArray_set_position_rel(struct ByteArray* self, int rel) {
 int ByteArray_set_position(struct ByteArray* self, off_t pos) {
 	if(pos == self->pos) return 1;
 	if(pos > self->size) {
-		oob();
+		oob(self->filename, pos, self->size);
 		return 0;
 	}
 		
@@ -161,6 +162,7 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 	self->size = 0;
 	if(stat(filename, &st) == -1) return 0;
 	self->size = st.st_size;
+	self->filename = filename;
 	self->source.fd = open(filename, O_RDONLY);
 	if (self->source.fd == -1) return 0;
 	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source.fd, 0);
@@ -214,12 +216,12 @@ off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, off_t 
 	off_t left = self->size - self->pos;
 	if(len == 0) len = left;
 	else if(len > left) {
-		oob();
+		oob(self->filename, len, left);
 		len = left;
 	}
 	if(len == 0) return 0;
 	else if (len > start + dest->size) {
-		oob();
+		oob(self->filename, len, start + dest->size);
 		len = start + dest->size;
 		if(len == 0) return 0;
 	}
