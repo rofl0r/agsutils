@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "ByteArray.h"
 
-typedef struct AgsFile {
+typedef struct AFile {
 	struct ByteArray b_b;
 	struct ByteArray *b;
 } AF;
