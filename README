@@ -172,6 +172,9 @@ even run `make` and it produces files with .exe extensions even though we don't
 have a rule for that anywhere. you only need to ship cygwin-1.dll together with
 the binaries.
 
+NEW!!! agsutils can now also be compiled using [PellesC](http://www.smorgasbordet.com/pellesc/)
+(use [pellescc wrapper](https://github.com/rofl0r/pellescc) to build from Makefile).
+
 alternatively you can use WSL/WSL2 and just use native linux compiler and the
 binaries inside the WSL environment.
 
