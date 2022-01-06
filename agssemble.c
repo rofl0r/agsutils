@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
 			in = fopen(cppoutfn, "r");
 		}
 	}
-	cpp_free(cpp);
+	// cpp_free(cpp); // FIXME this crashes on windows, find out why
 
 	AS a_b, *a = &a_b;
 	AS_open_stream(a, in);
