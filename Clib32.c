@@ -36,6 +36,13 @@
 #include "Clib32.h"
 #include "endianness.h"
 
+#ifndef _WIN32
+#define O_BINARY 0
+#define PSEP '/'
+#else
+#define PSEP '\\'
+#endif
+
 #define RAND_SEED_SALT 9338638
 
 static char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
@@ -260,8 +267,8 @@ static off_t filelength(int fd) {
 int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn) {
 	strncpy(f->mflib.filenames[index], fn, 100);
 	char fnbuf[512];
-	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", f->dir, f->mflib.filenames[index]);
-	int fd = open(fnbuf, O_RDONLY);
+	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", f->dir, PSEP, f->mflib.filenames[index]);
+	int fd = open(fnbuf, O_RDONLY|O_BINARY);
 	if(fd == -1) return 0;
 	off_t fl = filelength(fd);
 	close(fd);
@@ -312,8 +319,8 @@ static void write_int_array(int fd, int* arr, size_t len) {
 /* if *bytes == -1L, read entire file, and store the total amount read there */
 static int copy_into_file(int fd, const char *dir, const char *fn, size_t *bytes) {
 	char fnbuf[512];
-	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, fn);
-	int f = open(fnbuf, O_RDONLY);
+	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, fn);
+	int f = open(fnbuf, O_RDONLY|O_BINARY);
 	if(f == -1) return 0;
 	size_t filesize = *bytes;
 	char readbuf[4096];
@@ -424,7 +431,7 @@ void AgsFile_setExeStub(struct AgsFile *f, const char *fn) {
 }
 
 int AgsFile_write(struct AgsFile *f) {
-	int fd = open(f->fn, O_CREAT | O_WRONLY | O_TRUNC, 0660);
+	int fd = open(f->fn, O_CREAT | O_WRONLY | O_TRUNC | O_BINARY, 0660);
 	if(fd == -1) return 0;
 	size_t i;
 	unsigned long long off;
@@ -672,8 +679,8 @@ static ssize_t AgsFile_read(struct AgsFile *f, int multifileno, void* buf, size_
 }
 
 int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len, const char* outfn) {
-	int fd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, 0660);
-	if(fd == -1) return 0;
+	FILE *fo = fopen(outfn, "wb");
+	if(fo == 0) return 0;
 	char buf[4096];
 	size_t written = 0, l = len;
 	off_t save_pos = ByteArray_get_position(&f->f[multifileno]);
@@ -684,17 +691,14 @@ int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len,
 		if(togo == 0) break;
 		ssize_t ret = AgsFile_read(f, multifileno, buf, togo);
 		if(ret <= 0) break;
-		ret = write(fd, buf, togo);
-		if(ret == -1) {
-			perror("write");
-			break;
-		} else if(ret != togo) {
+		ret = fwrite(buf, 1, togo, fo);
+		if(ret != togo) {
 			fprintf(stderr, "short write\n");
 			break;
 		}
 		written += togo;
 	}
-	close(fd);
+	fclose(fo);
 	AgsFile_seek(f, multifileno, save_pos);
 	return written == l;
 }

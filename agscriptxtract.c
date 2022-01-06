@@ -5,6 +5,16 @@
 #include <unistd.h>
 #include <ctype.h>
 #include "version.h"
+
+#ifdef _WIN32
+#include <direct.h>
+#define MKDIR(D) mkdir(D)
+#define PSEP '\\'
+#else
+#define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
+#define PSEP '/'
+#endif
+
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
@@ -38,7 +48,7 @@ static void disas(const char*inp, char *o, int flags) {
 }
 
 static char *filename(const char *dir, const char *fn, char *buf, size_t bsize) {
-	snprintf(buf, bsize, "%s/%s", dir, fn);
+	snprintf(buf, bsize, "%s%c%s", dir, PSEP, fn);
 	return buf;
 }
 
@@ -54,7 +64,7 @@ static int dumprooms(const char* dir, const char* out, int flags) {
 		size_t l = strlen(di->d_name);
 		if(l > 4 + 4 && !memcmp(di->d_name, "room", 4) && !memcmp(di->d_name + l - 4, ".crm", 4)) {
 			char fnbuf[512];
-			snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, di->d_name);
+			snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, di->d_name);
 			AF f; ssize_t off; ASI s;
 			if(!AF_open(&f, fnbuf)) goto extract_error;
 			struct RoomFile rinfo = {0};
@@ -82,7 +92,7 @@ static int dumprooms(const char* dir, const char* out, int flags) {
 				buf[l-2] = 's';
 				buf[l-1] = 'c';
 				buf[l] = 0;
-				FILE *f = fopen(filename(out, buf, outbuf, sizeof outbuf), "w");
+				FILE *f = fopen(filename(out, buf, outbuf, sizeof outbuf), "wb");
 				if(f) {
 					fprintf(stdout, "extracting room source %s -> %s\n", di->d_name, outbuf);
 					fwrite(source, 1, sourcelen, f);
@@ -166,7 +176,7 @@ static void dump_old_dialogscripts(ADF *a, char *dir) {
 	size_t i, n =a->game.dialogcount;
 	for(i=0; i<n; ++i) {
 		char fnbuf[512];
-		snprintf(fnbuf, sizeof(fnbuf), "%s/dialogscript%03d.ads", dir, (int)i);
+		snprintf(fnbuf, sizeof(fnbuf), "%s%cdialogscript%03d.ads", dir, PSEP, (int)i);
 		fprintf(stdout, "extracting dialogscript source %s\n", fnbuf);
 		FILE *f = fopen(fnbuf, "w");
 		if(!f) {
@@ -191,7 +201,7 @@ int main(int argc, char**argv) {
 	char *dir = argv[optind];
 	char *out = argv[optind+1];
 	if(!out) out = ".";
-	else mkdir(out, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+	else MKDIR(out);
 
 	int errors = 0;
 	ADF a_b, *a = &a_b;

@@ -6,10 +6,18 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include "version.h"
+#ifdef _WIN32
+#include <direct.h>
+#define MKDIR(D) mkdir(D)
+#define PSEP '\\'
+#else
+#define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
+#define PSEP '/'
+#endif
+
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
-__attribute__((noreturn))
-void usage(char *argv0) {
+static void usage(char *argv0) {
 	fprintf(stderr, ADS "\nusage:\n%s agsgame.exe targetdir\n\n", argv0);
 	exit(1);
 }
@@ -17,7 +25,7 @@ void usage(char *argv0) {
 static void dump_exe(struct AgsFile *ags, const char *dir) {
 	if(ags->pack_off) {
 		char fnbuf[512];
-		snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.exestub", dir);
+		snprintf(fnbuf, sizeof(fnbuf), "%s%cagspack.exestub", dir, PSEP);
 		AgsFile_extract(ags, 0, 0, ags->pack_off, fnbuf);
 	}
 }
@@ -26,8 +34,8 @@ static FILE* open_packfile(const char* fn) {
 	return fopen(fn, "w");
 }
 
-#define EFPRINTF(F, FMT, ARGS...) \
-	do{if(fprintf(F, FMT, ## ARGS) < 0) {perror("fprintf"); return 1;}}while(0)
+#define EFPRINTF(F, FMT, ...) \
+	do{if(fprintf(F, FMT, __VA_ARGS__) < 0) {perror("fprintf"); return 1;}}while(0)
 int main(int argc, char** argv) {
 	if(argc < 3) usage(argv[0]);
 	fprintf(stdout, ADS "\n");
@@ -35,10 +43,10 @@ int main(int argc, char** argv) {
 	char *fn = argv[1];
 	char *dir = argv[2];
 	char fnbuf[512];
-	snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.info", dir);
+	snprintf(fnbuf, sizeof(fnbuf), "%s%cagspack.info", dir, PSEP);
 	FILE *outf = open_packfile(fnbuf);
 	if(outf == 0 && errno == ENOENT) {
-		mkdir(dir,  S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+		MKDIR(dir);
 		outf = open_packfile(fnbuf);
 	}
 	if(outf == 0) {
@@ -70,7 +78,7 @@ int main(int argc, char** argv) {
 	}
 	for(i = 0; i < l; i++) {
 		char *currfn = AgsFile_getFileName(ags, i);
-		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, currfn);
+		snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, currfn);
 		fprintf(stdout, "%s -> %s\n", currfn, fnbuf);
 		EFPRINTF(outf, "%zu=%s\n", i, currfn);
 		if(!AgsFile_dump(ags, i, fnbuf)) ec++;

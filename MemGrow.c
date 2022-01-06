@@ -70,7 +70,7 @@ int mem_write_stream(MG* mem, FILE* out) {
 }
 
 int mem_write_file(MG* mem, char* fn) {
-	FILE *out = fopen(fn, "w");
+	FILE *out = fopen(fn, "wb");
 	if(!out) return 0;
 	int ret = mem_write_stream(mem, out);
 	fclose(out);

@@ -10,13 +10,17 @@
 #include "SpriteFile.h"
 #include <assert.h>
 #include "version.h"
-#define ADS ":::AGSprite " VERSION " by rofl0r:::"
-
-#ifdef __x86_64__
-#define breakpoint() __asm__("int3")
+#include "debug.h"
+#ifdef _WIN32
+#include <direct.h>
+#define MKDIR(D) mkdir(D)
+#define PSEP '\\'
 #else
-#define breakpoint() do{}while(0)
+#define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
+#define PSEP '/'
 #endif
+
+#define ADS ":::AGSprite " VERSION " by rofl0r:::"
 
 #define FL_EXTRACT 1<<0
 #define FL_PACK 1<<1
@@ -30,7 +34,7 @@ static int debug_pic = -1, flags, filenr;
 
 static int extract(char* file, char* dir) {
 	if(access(dir, R_OK) == -1 && errno == ENOENT) {
-		mkdir(dir,  S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+		MKDIR(dir);
 	}
 	AF f;
 	SpriteFile sf;
@@ -50,13 +54,13 @@ static int extract(char* file, char* dir) {
 	{
 		char buf[1024];
 		if(sf.palette) {
-			snprintf(buf, sizeof buf, "%s/agsprite.pal", dir);
-			FILE *pal = fopen(buf, "w");
+			snprintf(buf, sizeof buf, "%s%cagsprite.pal", dir, PSEP);
+			FILE *pal = fopen(buf, "wb");
 			if(!pal) goto ferr;
 			fwrite(sf.palette, 1, 256*3, pal);
 			fclose(pal);
 		}
-		snprintf(buf, sizeof buf, "%s/agsprite.info", dir);
+		snprintf(buf, sizeof buf, "%s%cagsprite.info", dir, PSEP);
 		info = fopen(buf, "w");
 		if(!info) {
 		ferr:
@@ -83,7 +87,7 @@ static int extract(char* file, char* dir) {
 			fprintf(info, "%d=%s\n", i, namebuf);
 			if(flags & FL_VERBOSE) printf("extracting sprite %d (%s)\n", i, namebuf);
 			char filename[1024];
-			snprintf(filename, sizeof filename, "%s/%s", dir, namebuf);
+			snprintf(filename, sizeof filename, "%s%c%s", dir, PSEP, namebuf);
 			if(!Targa_writefile(filename, &d, sf.palette))
 				fprintf(stderr, "error opening %s\n", filename);
 			free(d.data);
@@ -216,7 +220,7 @@ static int pack(char* file, char* dir) {
 	}
 	FILE *info = 0, *out = 0;
 	char buf[1024];
-	snprintf(buf, sizeof buf, "%s/agsprite.info", dir);
+	snprintf(buf, sizeof buf, "%s%cagsprite.info", dir, PSEP);
 	info = fopen(buf, "r");
 	if(!info) {
 		fprintf(stderr, "error opening %s\n", buf);
@@ -255,7 +259,7 @@ static int pack(char* file, char* dir) {
 			} else if(!strcmp("palette", buf)) {
 				if (*p) {
 					char buf2[1024];
-					snprintf(buf2, sizeof buf2, "%s/%s", dir, p);
+					snprintf(buf2, sizeof buf2, "%s%c%s", dir, PSEP, p);
 					FILE *pal = fopen(buf2, "r");
 					if(!pal) {
 						fprintf(stderr, "error opening %s\n", buf2);
@@ -291,7 +295,7 @@ static int pack(char* file, char* dir) {
 
 			while(sf.num_sprites < n) SpriteFile_add(out, &sf, &(ImageData){0});
 			char fnbuf[1024];
-			snprintf(fnbuf, sizeof fnbuf, "%s/%s", dir, p);
+			snprintf(fnbuf, sizeof fnbuf, "%s%c%s", dir, PSEP, p);
 			ImageData data;
 			int skip_palette =
 				(sf.version == 4 && org_bpp != 1) ||

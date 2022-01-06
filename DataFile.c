@@ -5,6 +5,12 @@
 #include "DataFile.h"
 #include "Script.h"
 
+#ifdef _WIN32
+#define PSEP '\\'
+#else
+#define PSEP '/'
+#endif
+
 void ADF_close(ADF* a) {
 	AF_close(a->f);
 }
@@ -242,7 +248,7 @@ int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen)
 	if(l >= flen - 20) return 0;
 	memcpy(fnbuf, dir, l);
 	char* p = fnbuf + l;
-	*p = '/'; p++;
+	*p = PSEP; p++;
 	memcpy(p, "game28.dta", sizeof("game28.dta"));
 	AF f;
 	if(!AF_open(&f, fnbuf)) {

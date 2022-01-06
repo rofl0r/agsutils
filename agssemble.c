@@ -1,8 +1,9 @@
 #define _GNU_SOURCE
+#define __STDC_WANT_LIB_EXT2__ 1
+#include <stdio.h>
 #include "Assembler.h"
 #include "DataFile.h"
 #include "preproc.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "version.h"

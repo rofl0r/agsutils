@@ -68,7 +68,7 @@ int AF_dump_chunk_stream(AF* a, size_t start, size_t len, FILE* out) {
 }
 
 int AF_dump_chunk(AF* a, size_t start, size_t len, char* fn) {
-	FILE *out = fopen(fn, "w");
+	FILE *out = fopen(fn, "wb");
 	if(!out) return 0;
 	int ret = AF_dump_chunk_stream(a, start, len, out);
 	fclose(out);

@@ -607,7 +607,7 @@ static void write_sections_section(AS* a, FILE *o) {
 
 static int write_object(AS *a, char *out) {
 	FILE *o;
-	if(!(o = fopen(out, "w"))) return 0;
+	if(!(o = fopen(out, "wb"))) return 0;
 	fprintf(o, "SCOM");
 	write_int(o, 83); //version
 	write_int(o, ByteArray_get_length(a->data)); // globaldatasize
@@ -699,7 +699,7 @@ void AS_open_stream(AS* a, FILE* f) {
 }
 
 int AS_open(AS* a, char* fn) {
-	FILE *f = fopen(fn, "r");
+	FILE *f = fopen(fn, "rb");
 	if(!f) return 0;
 	AS_open_stream(a, f);
 	return 1;

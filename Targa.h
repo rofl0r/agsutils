@@ -274,7 +274,7 @@ TARGA_EXPORT int
 Targa_readfile(const char *name, ImageData *idata, int skip_palette) {
 	struct TargaHeader hdr;
 	struct TargaFooter ftr;
-	FILE *f = fopen(name, "r");
+	FILE *f = fopen(name, "rb");
 	if(!f) return 0;
 	fread(&hdr, 1, sizeof hdr, f);
 	fseek(f, 0, SEEK_END);
@@ -360,7 +360,7 @@ Targa_writefile(const char *name, ImageData* d, unsigned char *palette)
 	int palcount = 256;
 	int i;
 
-	FILE *f = fopen(name, "w");
+	FILE *f = fopen(name, "wb");
 	if(!f) {
 		fprintf(stderr, "error opening %s\n", name);
 		return 0;

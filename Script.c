@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define COMMENT(F, FMT, ...) fprintf(F, "; " FMT, ##__VA_ARGS__)
+#define COMMENT(F, FMT, ...) fprintf(F, "; " FMT, __VA_ARGS__)
 
 static int dump_sections(AF* a, FILE *f, size_t start, size_t count) {
 	if(count) {
@@ -583,8 +583,8 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 				}
 				break;
 		}
-		char* vn = get_varname(exp, expcount, i),
-		*tn = get_varsize_typename(vi.varsize), buf[32];
+		char* vn = get_varname(exp, expcount, i), buf[32];
+		const char *tn = get_varsize_typename(vi.varsize);
 		if(!tn || (vi.varsize == 200 && !is_str)) {
 			snprintf(buf, sizeof buf, "char[%u]", vi.varsize);
 			tn = buf;
@@ -777,7 +777,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 int ASI_disassemble(AF* a, ASI* s, char *fn, int flags) {
 	FILE *f;
 	int ret = 1;
-	if((f = fopen(fn, "w")) == 0)
+	if((f = fopen(fn, "wb")) == 0)
 		return 0;
 	AF_set_pos(a, s->start);
 	struct fixup_data fxd = {0};

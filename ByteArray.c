@@ -6,6 +6,10 @@
 #include "debug.h"
 #include "endianness.h"
 
+#ifndef _WIN32
+#define O_BINARY 0
+#endif
+
 #include <stdlib.h>
 #ifndef NO_MMAN /* lame OS like winblows */
 #include <sys/mman.h>
@@ -163,7 +167,7 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 	if(stat(filename, &st) == -1) return 0;
 	self->size = st.st_size;
 	self->filename = filename;
-	self->source.fd = open(filename, O_RDONLY);
+	self->source.fd = open(filename, O_RDONLY|O_BINARY);
 	if (self->source.fd == -1) return 0;
 	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source.fd, 0);
 	if(addr == MAP_FAILED) {

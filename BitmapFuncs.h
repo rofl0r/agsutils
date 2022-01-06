@@ -26,7 +26,7 @@ static int pad_bmp(ImageData *d) {
 	return 1;
 }
 static void write_bmp(char *name, ImageData *d) {
-	FILE *f = fopen(name, "w");
+	FILE *f = fopen(name, "wb");
 	if(f) {
 		struct BITMAPINFOHEADER_X hdr = {
 			.bfType = end_htole16(0x4D42),

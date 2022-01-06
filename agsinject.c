@@ -10,6 +10,22 @@
 #include "version.h"
 #define ADS ":::AGSinject " VERSION " by rofl0r:::"
 
+#ifdef __POCC__
+#include <time.h>
+static char *tempnam(const char *dir, const char *pfx) {
+	(void) dir;
+	char buf[L_tmpnam + 64];
+	buf[0] = 0;
+	tmpnam(buf);
+	int i; char *p = buf + strlen(buf);
+	for(i = 0; pfx[i] && i < 8; ++i, ++p)
+		*p = pfx[i];
+	*p = 0;
+	sprintf(p, "%016llx", (unsigned long long) _rdtsc());
+	return strdup(buf);
+}
+#endif
+
 int usage(char *argv0) {
 	fprintf(stderr,
 	ADS "\n"
@@ -58,7 +74,7 @@ static int inject(const char *o, const char *inj, unsigned which) {
 		}
 		if(found != which) continue;
 		char *tmp = tempnam(".", "agsinject.tmp");
-		FILE *out = fopen(tmp, "w");
+		FILE *out = fopen(tmp, "wb");
 		if(!out) return 0;
 
 		/* 1) dump header */
@@ -130,20 +146,19 @@ static int injectpr(const char *obj, const char *out, unsigned which) {
 	return ret;
 }
 
-static int getstamp(const char* fn, struct timespec *stamp) {
+static int getstamp(const char* fn, time_t *stamp) {
 	struct stat st;
 	if(stat(fn, &st) == -1) {
 		perror("stat");
 		return 0;
 	}
-	*stamp = st.st_mtim;
+	*stamp = st.st_mtime;
 	return 1;
 }
 
-static int ts_is_newer(const struct timespec *t1, const struct timespec *t2)
+static int ts_is_newer(const time_t *t1, const time_t *t2)
 {
-	return t2->tv_sec > t1->tv_sec ||
-		(t2->tv_sec == t1->tv_sec && t2->tv_nsec > t1->tv_nsec);
+	return *t2 > *t1;
 }
 
 int main(int argc, char**argv) {
@@ -167,7 +182,7 @@ int main(int argc, char**argv) {
 		return usage(argv[0]);
 
 	out = argv[optind];
-	struct timespec stamp;
+	time_t stamp;
 
 	if(usestamps && !getstamp(out, &stamp)) return 1;
 
@@ -180,7 +195,7 @@ int main(int argc, char**argv) {
 		obj = ++p;
 		if(!check_objname(obj)) return 1;
 		if(usestamps) {
-			struct timespec ostamp;
+			time_t ostamp;
 			if(!getstamp(obj, &ostamp)) return 1;
 			if(!ts_is_newer(&stamp, &ostamp)) continue;
 		}
