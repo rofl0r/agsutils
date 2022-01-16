@@ -12,7 +12,15 @@ typedef struct ImageData {
 	unsigned char* data;
 } ImageData;
 
-#pragma(pack(push, 1))
+#ifndef TARGA_IMPL
+#define TARGA_EXPORT extern
+TARGA_EXPORT int
+Targa_writefile(const char *name, ImageData* d, unsigned char *palette);
+TARGA_EXPORT int
+Targa_readfile(const char *name, ImageData *idata, int skip_palette);
+
+#else
+
 struct TargaHeader {
 	char  idlength;
 	char  colourmaptype;
@@ -27,7 +35,70 @@ struct TargaHeader {
 	char  bitsperpixel;
 	char  imagedescriptor;
 };
-#pragma(pack(pop))
+
+#define THO(f) THO_ ## f
+enum TargaHeader_offsets {
+	THO(idlength) = 0,
+	THO(colourmaptype) = 1,
+	THO(datatypecode) = 2,
+	THO(colourmaporigin) = 3,
+	THO(colourmaplength) = 5,
+	THO(colourmapdepth) = 7,
+	THO(x_origin) = 8,
+	THO(y_origin) = 10,
+	THO(width) = 12,
+	THO(height) = 14,
+	THO(bitsperpixel) = 16,
+	THO(imagedescriptor) = 17,
+};
+
+static inline uint8_t read_header_field1(unsigned char *hdr, unsigned offset) {
+	return hdr[offset];
+}
+
+static inline uint16_t read_header_field2(unsigned char *hdr, unsigned offset) {
+	uint16_t tmp;
+	memcpy(&tmp, hdr+offset, 2);
+	return end_le16toh(tmp);
+}
+
+static void TargaHeader_from_buf(struct TargaHeader *hdr, unsigned char* hdr_buf) {
+	hdr->idlength = read_header_field1(hdr_buf, THO(idlength));
+	hdr->colourmaptype = read_header_field1(hdr_buf, THO(colourmaptype));
+	hdr->datatypecode = read_header_field1(hdr_buf, THO(datatypecode));
+	hdr->colourmaporigin = read_header_field2(hdr_buf, THO(colourmaporigin));
+	hdr->colourmaplength = read_header_field2(hdr_buf, THO(colourmaplength));
+	hdr->colourmapdepth = read_header_field1(hdr_buf, THO(colourmapdepth));
+	hdr->x_origin = read_header_field2(hdr_buf, THO(x_origin));
+	hdr->y_origin = read_header_field2(hdr_buf, THO(y_origin));
+	hdr->width = read_header_field2(hdr_buf, THO(width));
+	hdr->height = read_header_field2(hdr_buf, THO(height));
+	hdr->bitsperpixel = read_header_field1(hdr_buf, THO(bitsperpixel));
+	hdr->imagedescriptor = read_header_field1(hdr_buf, THO(imagedescriptor));
+}
+
+static inline void write_header_field1(unsigned char* buf, unsigned off, uint8_t v) {
+	buf[off] = v;
+}
+static inline void write_header_field2(unsigned char* buf, unsigned off, uint16_t v) {
+	uint16_t tmp = end_htole16(v);
+	memcpy(buf+off, &tmp, 2);
+}
+
+static void TargaHeader_to_buf(struct TargaHeader *hdr, unsigned char* hdr_buf) {
+	write_header_field1(hdr_buf, THO(idlength), hdr->idlength);
+	write_header_field1(hdr_buf, THO(colourmaptype), hdr->colourmaptype);
+	write_header_field1(hdr_buf, THO(datatypecode), hdr->datatypecode);
+	write_header_field2(hdr_buf, THO(colourmaporigin), hdr->colourmaporigin);
+	write_header_field2(hdr_buf, THO(colourmaplength), hdr->colourmaplength);
+	write_header_field1(hdr_buf, THO(colourmapdepth), hdr->colourmapdepth);
+	write_header_field2(hdr_buf, THO(x_origin), hdr->x_origin);
+	write_header_field2(hdr_buf, THO(y_origin), hdr->y_origin);
+	write_header_field2(hdr_buf, THO(width), hdr->width);
+	write_header_field2(hdr_buf, THO(height), hdr->height);
+	write_header_field1(hdr_buf, THO(bitsperpixel), hdr->bitsperpixel);
+	write_header_field1(hdr_buf, THO(imagedescriptor), hdr->imagedescriptor);
+}
 
 enum TargaImageType {
 	TIT_COLOR_MAPPED = 1,
@@ -38,7 +109,6 @@ enum TargaImageType {
 	TIT_RLE_BLACK_WHITE = 11,
 };
 
-#pragma(pack(push, 1))
 struct TargaFooter {
    unsigned extensionareaoffset;
    unsigned developerdirectoryoffset;
@@ -46,16 +116,10 @@ struct TargaFooter {
    char dot;
    char null;
 };
-#pragma(pack(pop))
 
-#ifndef TARGA_IMPL
-#define TARGA_EXPORT extern
-TARGA_EXPORT int
-Targa_writefile(const char *name, ImageData* d, unsigned char *palette);
-TARGA_EXPORT int
-Targa_readfile(const char *name, ImageData *idata, int skip_palette);
 
-#else
+#define STATIC_ASSERT(COND) static char static_assert_ ## __LINE__ [COND ? 1 : -1]
+//STATIC_ASSERT(sizeof(struct TargaHeader) == 18);
 
 #ifndef TARGA_EXPORT
 #define TARGA_EXPORT static
@@ -269,30 +333,26 @@ static void convert_bottom_left_tga(ImageData *d) {
 	free(swp);
 }
 
+
+
 /* exports */
 TARGA_EXPORT int
 Targa_readfile(const char *name, ImageData *idata, int skip_palette) {
-	struct TargaHeader hdr;
-	struct TargaFooter ftr;
+	struct TargaHeader hdr; unsigned char hdr_buf[18];
+	unsigned char ftr_buf[18+8];
 	FILE *f = fopen(name, "rb");
 	if(!f) return 0;
-	fread(&hdr, 1, sizeof hdr, f);
+	fread(&hdr_buf, 1, sizeof(hdr_buf), f);
 	fseek(f, 0, SEEK_END);
 	off_t fs = ftello(f);
-	if(fs > sizeof ftr) {
-		fseek(f, 0-sizeof ftr, SEEK_END);
-		fread(&ftr, 1, sizeof ftr, f);
-		if(!memcmp(ftr.signature, TARGA_FOOTER_SIGNATURE, sizeof ftr.signature))
-			fs -= sizeof ftr;
+	if(fs > sizeof ftr_buf) {
+		fseek(f, 0-sizeof ftr_buf, SEEK_END);
+		fread(ftr_buf, 1, sizeof ftr_buf, f);
+		if(!memcmp(ftr_buf+8, TARGA_FOOTER_SIGNATURE, 16))
+			fs -= sizeof ftr_buf;
 	}
-	hdr.colourmaplength = end_htole16(hdr.colourmaplength);
-	hdr.colourmapdepth = end_htole16(hdr.colourmapdepth);
-	hdr.x_origin = end_htole16(hdr.x_origin);
-	hdr.y_origin = end_htole16(hdr.y_origin);
-	hdr.width = end_htole16(hdr.width);
-	hdr.height = end_htole16(hdr.height);
-
-	fseek(f, sizeof hdr + hdr.idlength, SEEK_SET);
+	TargaHeader_from_buf(&hdr, hdr_buf);
+	fseek(f, sizeof(hdr_buf) + hdr.idlength, SEEK_SET);
 	fs -= ftello(f);
 	unsigned char *data = malloc(fs), *palette = 0;
 	unsigned palsz = 0;
@@ -400,16 +460,18 @@ Targa_writefile(const char *name, ImageData* d, unsigned char *palette)
 				(use_rle ? TIT_RLE_COLOR_MAPPED : TIT_COLOR_MAPPED) :
 				(use_rle ? TIT_RLE_TRUE_COLOR : TIT_TRUE_COLOR),
 		.colourmaporigin = 0,
-		.colourmaplength = bpp == 1 ? end_htole16(palcount) : 0,
+		.colourmaplength = bpp == 1 ? palcount : 0,
 		.colourmapdepth = bpp == 1 ? 24 : 0,
 		.x_origin = 0,
-		.y_origin = end_htole16(d->height), /* image starts at the top */
-		.width = end_htole16(d->width),
-		.height = end_htole16(d->height),
+		.y_origin = d->height, /* image starts at the top */
+		.width = d->width,
+		.height = d->height,
 		.bitsperpixel = bpp*8,
 		.imagedescriptor = 0x20, /* image starts at the top */
 	};
-	fwrite(&hdr, 1, sizeof hdr, f);
+	unsigned char hdr_buf[18];
+	TargaHeader_to_buf(&hdr, hdr_buf);
+	fwrite(&hdr_buf, 1, sizeof hdr_buf, f);
 	unsigned tmp;
 	if(bpp == 1) for(i=0; i<palcount; ++i) {
 		tmp = end_htole32(pal[i]);
