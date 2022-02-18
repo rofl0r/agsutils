@@ -128,7 +128,7 @@ rcb:
 	make -f Makefile.binary FNAME=agssim
 
 clean:
-	$(RM_F) $(CPROGS) $(LIB_OBJS) $(PROGS_OBJS) $(ASM_OBJS) $(SPRITE_OBJS)
+	$(RM_F) $(CPROGS) minishilka$(EXE_EXT) $(LIB_OBJS) $(PROGS_OBJS) $(ASM_OBJS) $(SPRITE_OBJS)
 	$(RM_F) $(GEN_FILES)
 	$(RM_F) *.out *.o *.rcb *.exe
 
