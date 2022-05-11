@@ -295,6 +295,7 @@ static int pack(char* file, char* dir) {
 				}
 				/* default to compressed, if possible, and unless overridden */
 				sf.compressed = !(flags&FL_UNCOMPRESSED);
+				/* SpriteFile_write_header also resets sf.compressed, if needed */
 				SpriteFile_write_header(out, &sf);
 			}
 		}
@@ -311,9 +312,7 @@ static int pack(char* file, char* dir) {
 			char fnbuf[1024];
 			snprintf(fnbuf, sizeof fnbuf, "%s%c%s", dir, PSEP, p);
 			ImageData data;
-			int skip_palette =
-				(sf.version == 4 && org_bpp != 1) ||
-				(sf.version >= 4 && org_bpp == 1);
+			int skip_palette = org_bpp == 1;
 			if(!Targa_readfile(fnbuf, &data, skip_palette)) {
 				fprintf(stderr, "error reading tga file %s\n", p);
 				return 1;
