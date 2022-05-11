@@ -260,7 +260,7 @@ static int pack(char* file, char* dir) {
 				if (*p) {
 					char buf2[1024];
 					snprintf(buf2, sizeof buf2, "%s%c%s", dir, PSEP, p);
-					FILE *pal = fopen(buf2, "r");
+					FILE *pal = fopen(buf2, "rb");
 					if(!pal) {
 						fprintf(stderr, "error opening %s\n", buf2);
 						return 1;
@@ -274,7 +274,7 @@ static int pack(char* file, char* dir) {
 					fprintf(stderr, "unexpected keyword %s\n", buf);
 					return 1;
 				}
-				out = fopen(file, "w");
+				out = fopen(file, "wb");
 				if(!out) {
 					fprintf(stderr, "error opening %s\n", file);
 					return 1;
