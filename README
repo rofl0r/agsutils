@@ -53,11 +53,19 @@ agspack:
   without arguments, agspack produces a game pack missing the original
   windows exe stub, but is compatible with the opensource AGS engine,
   as well as with scummvm ags port.
-  that way, a game is about 500 KB smaller after extract and repack as it originally was.
+  that way, a game is about 500 KB smaller after extract and repack than it
+  originally was.
 
   using the -e option, the original exestub is prepended to the game pack,
   and the offset to the start of the pack data encoded into the end signature,
   which reproduces the fully working windows executable with the new content.
+
+  note that agspack always produces a version 20/30 packfile, compatible only
+  with ags 3.0 or newer, so if your exe stub is from an earlier game, it
+  will fail to recognize the attached game data. in such a case you can
+  use the exestub from a newer version, e.g.
+  https://github.com/ags-archives/engines/blob/master/ags302sp1/acwin.exe
+  save it as agspack.exestub in your extract directory.
 
 agscriptxtract:
   detects and unpacks all binary scripts embedded in room and game files.
