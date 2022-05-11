@@ -30,6 +30,16 @@
 #define FL_HICOLOR_SIMPLE (1<<5)
 #define FL_SPRINDEX (1<<6)
 
+/*
+sprite file versions:
+    kSprfVersion_Uncompressed = 4,
+    kSprfVersion_Compressed = 5,
+    kSprfVersion_Last32bit = 6,
+    kSprfVersion_64bit = 10,
+    kSprfVersion_HighSpriteLimit = 11,
+    kSprfVersion_StorageFormats = 12,
+*/
+
 static int debug_pic = -1, flags, filenr;
 
 static int extract(char* file, char* dir) {
@@ -248,8 +258,12 @@ static int pack(char* file, char* dir) {
 			} else if(!strcmp("info", buf)) {
 			} else if(!strcmp("spritecacheversion", buf)) {
 				sf.version = atoi(p);
+				if(sf.version >= 12) {
+					fprintf(stderr, "error: support for spritefile version 12+ not implemented\n");
+					return 1;
+				}
 				if(sf.version > 6) {
-					fprintf(stderr, "warning: converting to spritecache version 6\n");
+					fprintf(stderr, "warning: converting spritecache version %d to version 6\n", sf.version);
 					sf.version = 6;
 				}
 			} else if(!strcmp("spritecount", buf)) {
