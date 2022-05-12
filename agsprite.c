@@ -258,10 +258,6 @@ static int pack(char* file, char* dir) {
 			} else if(!strcmp("info", buf)) {
 			} else if(!strcmp("spritecacheversion", buf)) {
 				sf.version = atoi(p);
-				if(sf.version >= 12) {
-					fprintf(stderr, "error: support for spritefile version 12+ not implemented\n");
-					return 1;
-				}
 				if(sf.version > 6) {
 					fprintf(stderr, "warning: converting spritecache version %d to version 6\n", sf.version);
 					sf.version = 6;
