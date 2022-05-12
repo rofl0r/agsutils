@@ -302,7 +302,7 @@ static int ImageData_create_palette_pic(const ImageData* d, unsigned *palette, u
 			r = *(p++);
 			if(d->bytesperpixel == 4) a = *(p++);
 			break;
-		default: break;
+		default: b=g=r=0; break;
 		}
 		col = a << 24 | r << 16 | g << 8 | b;
 		int n = lookup_palette(col, palette, ret);
