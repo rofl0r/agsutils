@@ -410,6 +410,9 @@ Targa_readfile(const char *name, ImageData *idata, int skip_palette) {
 	return 1;
 }
 
+/* palette needs to be either 24bit rgb data of 256*3 bytes, or NULL.
+   it's only used if imagedata.bytesperpixel is 1. in this case, if
+   NULL, a random palette is used. */
 TARGA_EXPORT int
 Targa_writefile(const char *name, ImageData* d, unsigned char *palette)
 {

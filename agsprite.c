@@ -30,6 +30,8 @@
 #define FL_HICOLOR_SIMPLE (1<<5)
 #define FL_SPRINDEX (1<<6)
 
+extern unsigned char defpal[];
+
 /*
 sprite file versions:
     kSprfVersion_Uncompressed = 4,
@@ -87,6 +89,7 @@ static int extract(char* file, char* dir) {
 		, sf.version, sf.num_sprites, sf.id, sf.palette ? "agsprite.pal" : ""
 		);
 	}
+	if(!sf.palette) sf.palette = defpal;
 	int i;
 	for(i=0; i<sf.num_sprites; i++) {
 		if(debug_pic == i) breakpoint();
@@ -397,8 +400,8 @@ static int usage(char *a) {
 		"extracts all sprites from acsprset.spr to DIR\n"
 		"due to the way sprite packs work, for some versions\n"
 		"8 bit images are stored without palette (dynamically\n"
-		"assigned during game). in such a case a random palette\n"
-		"is generated.\n\n"
+		"assigned during game). in such a case a standard palette\n"
+		"is assigned.\n\n"
 		"pack mode:\n"
 		"packs files in DIR to acsprset.spr\n"
 		"image files need to be in tga format\n\n"

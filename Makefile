@@ -29,6 +29,7 @@ LIB_SRCS = \
 	StringEscape.c
 
 SPRITE_SRCS = \
+	defpal.c \
 	SpriteFile.c
 
 SPRITE_OBJS =  $(SPRITE_SRCS:.c=.o)

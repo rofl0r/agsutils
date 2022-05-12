@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+extern unsigned char defpal[];
+
 #define MAX_OLD_SPRITES 0xfffe
 
 static int alloc_sprite_index(SpriteFile *si, int nsprites) {
@@ -214,7 +216,7 @@ int SpriteFile_write_header(FILE *f, SpriteFile *sf) {
 		if(1 != f_write(f, "\0\1"+(!!sf->compressed), 1)) return 0;
 		f_write_int(f, sf->id);
 	} else if (sf->version < 5) {
-		if(3*256 != f_write(f, sf->palette, 3*256))
+		if(3*256 != f_write(f, sf->palette ? sf->palette : defpal, 3*256))
 			return 0;
 	}
 	sf->sc_off = f_get_pos(f);
