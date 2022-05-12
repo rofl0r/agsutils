@@ -319,8 +319,7 @@ int SpriteFile_write_sprindex(AF* f, SpriteFile *sf, FILE *outf)
 	unsigned short *h = calloc(2, sf->num_sprites);
 	unsigned short *w = calloc(2, sf->num_sprites);
 	f_write(outf, "SPRINDEX", 8);
-	int version = 2;
-	/* version, TODO: figure out when v1 is needed */
+	int version = "\1\2"[!!(sf->version > 5)];
 	f_write_int(outf, version);
 	if(version >= 2) f_write_int(outf, sf->id);
 	f_write_uint(outf, sf->num_sprites-1);
