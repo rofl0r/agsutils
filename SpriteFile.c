@@ -251,7 +251,7 @@ int SpriteFile_finalize(FILE* f, SpriteFile *sf) {
 int SpriteFile_read(AF* f, SpriteFile *sf) {
 	AF_set_pos(f, 0);
 	sf->version = AF_read_short(f);
-	char buf[16];
+	unsigned char buf[16];
 	ssize_t n = AF_read(f, buf, 13);
 	if(n != 13) return 0;
 	if(memcmp(buf, " Sprite File ", 13)) return 0;
@@ -268,6 +268,10 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 		case 6: case 10: case 11:
 			AF_read(f, buf, 1);
 			sf->compressed = (buf[0] == 1);
+			if(buf[0] > 1) {
+				fprintf(stderr, "unsupported compression method %d\n", buf[0]);
+				return 0;
+			}
 			sf->id = AF_read_int(f);
 			break;
 		default:
@@ -307,14 +311,14 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 int SpriteFile_write_sprindex(AF* f, SpriteFile *sf, FILE *outf)
 {
 	if(sf->num_sprites >= MAX_OLD_SPRITES) {
-		fprintf(stderr, "error: support for 64bit sprindex files not supported, too many sprites\n");
+		fprintf(stderr, "error: 64bit sprindex files not supported, too many sprites\n");
 		return 0;
 	}
 	unsigned short *h = calloc(2, sf->num_sprites);
 	unsigned short *w = calloc(2, sf->num_sprites);
 	f_write(outf, "SPRINDEX", 8);
 	int version = 2;
-	/* version, figure out when v1 is needed */
+	/* version, TODO: figure out when v1 is needed */
 	f_write_int(outf, version);
 	if(version >= 2) f_write_int(outf, sf->id);
 	f_write_uint(outf, sf->num_sprites-1);
