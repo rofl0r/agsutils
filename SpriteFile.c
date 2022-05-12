@@ -326,13 +326,15 @@ int SpriteFile_write_sprindex(AF* f, SpriteFile *sf, FILE *outf)
 	f_write_uint(outf, sf->num_sprites);
 	int i;
 	for(i=0; i<sf->num_sprites;++i) {
+		if(!sf->offsets[i]) continue;
 		AF_set_pos(f, sf->offsets[i]);
 		int coldep = AF_read_short(f);
-		if(coldep == 0) sf->offsets[i] = 0;
-		else {
-			w[i] = AF_read_short(f);
-			h[i] = AF_read_short(f);
+		if(coldep == 0) {
+			fprintf(stderr, "data error: color depth shouldn't be 0\n");
+			return 0;
 		}
+		w[i] = AF_read_short(f);
+		h[i] = AF_read_short(f);
 	}
 	for(i=0; i<sf->num_sprites;++i)
 		f_write_short(outf, w[i]);
