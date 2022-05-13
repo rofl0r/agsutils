@@ -44,7 +44,7 @@ ASM_OBJS =  $(ASM_SRCS:.c=.o)
 
 LIB_OBJS =  $(LIB_SRCS:.c=.o)
 
-CFLAGS_WARN = -Wall -Wextra -Wno-unknown-pragmas -Wno-sign-compare -Wno-switch -Wno-unused -Wno-pointer-sign
+CFLAGS_WARN = -Wall -Wextra -Wno-unknown-pragmas -Wno-sign-compare -Wno-switch -Wno-unused -Wno-pointer-sign -Wno-empty-body -Wno-type-limits
 
 GEN_FILES = scmd_tok.h scmd_tok.c scmd_tok.shilka regname_tok.h regname_tok.c regname_tok.shilka
 
