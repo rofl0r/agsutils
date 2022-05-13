@@ -182,7 +182,7 @@ int main(int argc, char**argv) {
 		return usage(argv[0]);
 
 	out = argv[optind];
-	time_t stamp;
+	time_t stamp = {0};
 
 	if(usestamps && !getstamp(out, &stamp)) return 1;
 
