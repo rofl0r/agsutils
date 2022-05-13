@@ -198,7 +198,7 @@ oops:
 #define f_get_pos(F) ftello(F)
 #define f_write(F, P, L) fwrite(P, 1, L, F)
 #define f_write_int64(F, I) do { uint64_t _x = end_htole64(I); f_write(F, &_x, 8); } while(0)
-#define f_write_uint64(F, I) f_write_int(F, I)
+#define f_write_uint64(F, I) f_write_int64(F, I)
 #define f_write_int(F, I) do { unsigned _x = end_htole32(I); f_write(F, &_x, 4); } while(0)
 #define f_write_uint(F, I) f_write_int(F, I)
 #define f_write_short(F, I) do { unsigned short _x = end_htole16(I); f_write(F, &_x, 2); } while(0)
