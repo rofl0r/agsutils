@@ -251,12 +251,13 @@ int SpriteFile_extract(AF* f, SpriteFile *sf, int spriteno, ImageData *data) {
 	struct sprv12data v12 = {0};
 	unsigned char *v12pal = 0;
 	unsigned v12_pal_sz = 0;
+	unsigned bpp_save;
 	data->data = 0;
 
 	if(spriteno >= sf->num_sprites+1) return 0;
 	if(sf->offsets[spriteno] == 0) return 0;
 	AF_set_pos(f, sf->offsets[spriteno]);
-	data->bytesperpixel = AF_read_uchar(f);
+	bpp_save = data->bytesperpixel = AF_read_uchar(f);
 	v12.fmt = AF_read_uchar(f);
 	if (sf->version >= 12) {
 		v12.palsz = AF_read_uchar(f) + 1;
@@ -288,8 +289,13 @@ oops:
 	}
 	if(sf->version >= 12 && v12.compr > 1)
 		err_unsupported_compr(v12.compr);
-	if((sf->compressed || (sf->version >= 12 && v12.compr == 1)) &&
-	   !ags_unpack(data)) goto oops;
+	int do_rle = sf->version >= 12 ? v12.compr == 1 : sf->compressed;
+	if(sf->version >= 12) {
+		/* the RLE used by v12 format is only for palettized 8bit data */
+		data->bytesperpixel = 1;
+	}
+	if(do_rle && !ags_unpack(data)) goto oops;
+	data->bytesperpixel = bpp_save; /* restore real bpp of image */
 	if(v12pal) {
 		return unpack_v12_palette(data, v12pal, &v12);
 	}
