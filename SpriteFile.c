@@ -1,10 +1,16 @@
 #include "SpriteFile.h"
 #include <stdlib.h>
 #include <assert.h>
+#include <stdint.h>
 
 extern unsigned char defpal[];
 
 #define MAX_OLD_SPRITES 0xfffe
+
+static void err_unsupported_compr(int nr) {
+	fprintf(stderr, "unsupported compression method %d\n", nr);
+	exit(1);
+}
 
 static int alloc_sprite_index(SpriteFile *si, int nsprites) {
 	si->offsets = calloc(4, nsprites);
@@ -172,24 +178,119 @@ static int ags_pack(ImageData *d) {
 	return 1;
 }
 
+struct sprv12data {
+	char fmt;
+	char compr;
+	unsigned short palsz;
+};
+
+enum fmtv12 {
+	fmt_none = 0,
+	fmt_888 = 32, /* old-style palette for 8bpp images with 24bpp global pal*/
+	fmt_8888 = 33, /* palette with 32bit data */
+	fmt_565 = 34, /* palette with 16 bit rgb565 encoding */
+};
+
+static unsigned v12_pal_bpp(struct sprv12data *v12) {
+	switch(v12->fmt) {
+		case fmt_none: return 0;
+		case fmt_888: return 3;
+		case fmt_8888: return 4;
+		case fmt_565: return 2;
+		default:
+			fprintf(stderr, "data error: unknown sprite data format %d\n", v12->fmt);
+			exit(1);
+	}
+}
+
+static unsigned v12_palbytes(struct sprv12data *v12) {
+	return v12_pal_bpp(v12) * v12->palsz;
+}
+
+static int unpack_v12_palette(ImageData *d, unsigned char *pal, struct sprv12data *v12) {
+	unsigned palbpp = v12_pal_bpp(v12);
+	unsigned char *o, *e, *p, *tmp;
+	size_t ds = d->width * d->height * d->bytesperpixel;
+	o = tmp = malloc(ds);
+	if(!tmp) {
+		free(pal);
+		free(d->data);
+		d->data = 0;
+		return 0;
+	}
+	e = tmp + ds;
+	p = d->data;
+	while(tmp < e) {
+		union {
+			unsigned char b[4];
+			uint16_t s[2];
+			uint32_t i;
+		} col = {0};
+		unsigned char *cp = &col.b[0];
+		unsigned i, idx;
+		idx = *(p++);
+		if(idx >= v12->palsz) idx = 0;
+		idx *= palbpp;
+		for(i = 0; i < palbpp; ++i, ++cp) {
+			*cp = pal[idx++];
+		}
+		if(d->bytesperpixel == 2) *((uint16_t*)tmp) = col.s[0];
+		else if(d->bytesperpixel == 4) *((uint32_t*)tmp) = col.i;
+		tmp += d->bytesperpixel;
+	}
+	free(d->data);
+	free(pal);
+	d->data = o;
+	d->data_size = ds;
+	return 1;
+}
+
 int SpriteFile_extract(AF* f, SpriteFile *sf, int spriteno, ImageData *data) {
+	struct sprv12data v12 = {0};
+	unsigned char *v12pal = 0;
+	unsigned v12_pal_sz = 0;
+	data->data = 0;
+
 	if(spriteno >= sf->num_sprites+1) return 0;
 	if(sf->offsets[spriteno] == 0) return 0;
 	AF_set_pos(f, sf->offsets[spriteno]);
-	data->bytesperpixel = AF_read_short(f);
+	data->bytesperpixel = AF_read_uchar(f);
+	v12.fmt = AF_read_uchar(f);
+	if (sf->version >= 12) {
+		v12.palsz = AF_read_uchar(f) + 1;
+		v12.compr = AF_read_uchar(f);
+	}
 	data->width  = AF_read_short(f);
 	data->height = AF_read_short(f);
-	if(sf->compressed) data->data_size = AF_read_uint(f);
-	else data->data_size = data->bytesperpixel * data->width * data->height;
+	if(sf->version < 12) {
+		if(sf->compressed) data->data_size = AF_read_uint(f);
+		else data->data_size = data->bytesperpixel * data->width * data->height;
+	} else {
+		v12_pal_sz = v12_palbytes(&v12);
+		if(v12_pal_sz) {
+			v12pal = malloc(v12_pal_sz);
+			if(!v12pal) return 0;
+			if(AF_read(f, v12pal, v12_pal_sz) != v12_pal_sz)
+				goto oops;
+		}
+		data->data_size = AF_read_uint(f);
+	}
 	data->data = malloc(data->data_size);
-	if(!data->data) return 0;
+	if(!data->data) goto oops;
 	if(AF_read(f, data->data, data->data_size) != data->data_size) {
 oops:
+		free(v12pal);
 		free(data->data);
 		data->data = 0;
 		return 0;
 	}
-	if(sf->compressed && !ags_unpack(data)) goto oops;
+	if(sf->version >= 12 && v12.compr > 1)
+		err_unsupported_compr(v12.compr);
+	if((sf->compressed || (sf->version >= 12 && v12.compr == 1)) &&
+	   !ags_unpack(data)) goto oops;
+	if(v12pal) {
+		return unpack_v12_palette(data, v12pal, &v12);
+	}
 	return 1;
 }
 
@@ -269,12 +370,11 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 		case 5:
 			sf->compressed = 1;
 			break;
-		case 6: case 10: case 11:
+		case 6: case 10: case 11: case 12:
 			AF_read(f, buf, 1);
 			sf->compressed = (buf[0] == 1);
 			if(buf[0] > 1) {
-				fprintf(stderr, "unsupported compression method %d\n", buf[0]);
-				return 0;
+				err_unsupported_compr(buf[0]);
 			}
 			sf->id = AF_read_int(f);
 			break;
@@ -293,19 +393,34 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 	sf->num_sprites++;
 	alloc_sprite_index(sf, sf->num_sprites);
 
+	/* https://github.com/adventuregamestudio/ags/pull/1461 */
+	if(sf->version >= 12) AF_read_int(f); /* In the file's header 4 more bytes are appended to the end of meta data. First byte contains "sprite storage flags", which is a collection of flags describing which storage methods were allowed when writing this file. This is purely for information, for Editor or other tools that may want to know this. Other 3 bytes are reserved. */
+
 	int i;
+	struct sprv12data v12 = {0};
 	for(i = 0; i < sf->num_sprites; ++i) {
 		sf->offsets[i] = AF_get_pos(f);
-		int coldep = AF_read_short(f);
+		int coldep = AF_read_uchar(f); /* abuse little endian byte order, as this was short in formats < 12 */
+		v12.fmt = AF_read_uchar(f); /* this is always 0 in pre-12 */
 		if(!coldep) {
 			sf->offsets[i] = 0;
 			continue;
 		}
+		if (sf->version >= 12) {
+			v12.palsz = AF_read_uchar(f) + 1;
+			v12.compr = AF_read_uchar(f);
+		}
 		int w = AF_read_short(f);
 		int h = AF_read_short(f);
 		unsigned sprite_data_size;
-		if(sf->compressed) sprite_data_size = AF_read_uint(f);
-		else sprite_data_size = coldep * w * h;
+		if(sf->version < 12) {
+			if(sf->compressed) sprite_data_size = AF_read_uint(f);
+			else sprite_data_size = coldep * w * h;
+		} else {
+			unsigned pal_sz = v12_palbytes(&v12);
+			if(pal_sz) AF_read_junk(f, pal_sz);
+			sprite_data_size = AF_read_uint(f);
+		}
 		AF_read_junk(f, sprite_data_size);
 	}
 	return 1;
