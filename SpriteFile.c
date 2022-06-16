@@ -76,12 +76,14 @@ static char* unpackl(signed char *out, signed char *in, int size, int bpp)
 }
 
 static int ags_unpack(ImageData *d) {
-	unsigned y;
 	unsigned outsize = d->width*d->height*d->bytesperpixel;
 	unsigned char *out = malloc(outsize), *p = d->data, *q = out;
 	if(!out) return 0;
-	for(y = 0; y < d->height; ++y, q+=d->width*d->bytesperpixel) {
-		p = unpackl(q, p, d->width, d->bytesperpixel);
+	if(!unpackl(q, p, d->width*d->height, d->bytesperpixel)) {
+		free(d->data);
+		d->data = 0;
+		free(out);
+		return 0;
 	}
 	free(d->data);
 	d->data = out;
