@@ -94,7 +94,8 @@ static int extract(char* file, char* dir) {
 	for(i=0; i<sf.num_sprites; i++) {
 		if(debug_pic == i) breakpoint();
 		ImageData d;
-		if(SpriteFile_extract(&f, &sf, i, &d)) {
+		int ret = SpriteFile_extract(&f, &sf, i, &d);
+		if(ret == 1) {
 			char namebuf[64];
 			snprintf(namebuf, sizeof namebuf, "sprite%06d_%02d_%dx%d.tga", i, d.bytesperpixel*8, d.width, d.height);
 			fprintf(info, "%d=%s\n", i, namebuf);
@@ -104,6 +105,8 @@ static int extract(char* file, char* dir) {
 			if(!Targa_writefile(filename, &d, sf.palette))
 				fprintf(stderr, "error opening %s\n", filename);
 			free(d.data);
+		} else if (ret == 0) {
+			fprintf(stderr, "warning: failed to extract sprite %d\n", i);
 		}
 	}
 	fclose(info);

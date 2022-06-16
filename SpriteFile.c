@@ -254,8 +254,8 @@ int SpriteFile_extract(AF* f, SpriteFile *sf, int spriteno, ImageData *data) {
 	unsigned bpp_save;
 	data->data = 0;
 
-	if(spriteno >= sf->num_sprites+1) return 0;
-	if(sf->offsets[spriteno] == 0) return 0;
+	if(spriteno >= sf->num_sprites+1) return -1;
+	if(sf->offsets[spriteno] == 0) return -1;
 	AF_set_pos(f, sf->offsets[spriteno]);
 	bpp_save = data->bytesperpixel = AF_read_uchar(f);
 	v12.fmt = AF_read_uchar(f);
