@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 extern unsigned char defpal[];
+extern int lzwdecomp(unsigned char* in, unsigned long insz,
+              unsigned char* out, unsigned long outsz);
 
 #define MAX_OLD_SPRITES 0xfffe
 
@@ -73,6 +75,28 @@ static char* unpackl(signed char *out, signed char *in, int size, int bpp)
 		}
 	}
 	return in;
+}
+
+static int ags_unpack_lzw(ImageData *d) {
+	unsigned outsize = d->width*d->height*d->bytesperpixel,
+	insize =d->data_size;
+	unsigned char *out = malloc(outsize);
+	if(!out) return 0;
+	if(outsize < 16 || insize < 16) {
+		// data is unpacked already.
+		return 1;
+	} else {
+		if(!lzwdecomp(d->data, insize, out, outsize)) {
+			free(d->data);
+			d->data = 0;
+			free(out);
+			return 0;
+		}
+	}
+	free(d->data);
+	d->data = out;
+	d->data_size = outsize;
+	return 1;
 }
 
 static int ags_unpack(ImageData *d) {
@@ -287,14 +311,16 @@ oops:
 		data->data = 0;
 		return 0;
 	}
-	if(sf->version >= 12 && v12.compr > 1)
+	int do_lzw = sf->version >= 12 && v12.compr == 2;
+	if(sf->version >= 12 && v12.compr > 2)
 		err_unsupported_compr(v12.compr);
 	int do_rle = sf->version >= 12 ? v12.compr == 1 : sf->compressed;
-	if(sf->version >= 12) {
+	if(sf->version >= 12 && v12.fmt != fmt_none) {
 		/* the RLE used by v12 format is only for palettized 8bit data */
 		data->bytesperpixel = 1;
 	}
 	if(do_rle && !ags_unpack(data)) goto oops;
+	if(do_lzw && !ags_unpack_lzw(data)) goto oops;
 	data->bytesperpixel = bpp_save; /* restore real bpp of image */
 	if(v12pal) {
 		return unpack_v12_palette(data, v12pal, &v12);
@@ -381,7 +407,7 @@ int SpriteFile_read(AF* f, SpriteFile *sf) {
 		case 6: case 10: case 11: case 12:
 			AF_read(f, buf, 1);
 			sf->compressed = (buf[0] == 1);
-			if(buf[0] > 1) {
+			if(buf[0] > 2 || (buf[0] > 1 && sf->version < 12)) {
 				err_unsupported_compr(buf[0]);
 			}
 			sf->id = AF_read_int(f);

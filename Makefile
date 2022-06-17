@@ -30,6 +30,7 @@ LIB_SRCS = \
 
 SPRITE_SRCS = \
 	defpal.c \
+	lzw.c \
 	SpriteFile.c
 
 SPRITE_OBJS =  $(SPRITE_SRCS:.c=.o)
