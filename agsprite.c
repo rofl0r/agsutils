@@ -345,7 +345,7 @@ static int sprindex(char* infile, char* outfile) {
 		fprintf(stderr, "error reading spritefile %s\n", infile);
 		return 1;
 	}
-	FILE *out = fopen(outfile, "w");
+	FILE *out = fopen(outfile, "wb");
 	if(!out) {
 		fprintf(stderr, "error opening outfile %s\n", outfile);
 		return 1;
