@@ -79,19 +79,18 @@ static char* unpackl(signed char *out, signed char *in, int size, int bpp)
 
 static int ags_unpack_lzw(ImageData *d) {
 	unsigned outsize = d->width*d->height*d->bytesperpixel,
-	insize =d->data_size;
-	unsigned char *out = malloc(outsize);
-	if(!out) return 0;
+	insize = d->data_size;
 	if(outsize < 16 || insize < 16) {
 		// data is unpacked already.
 		return 1;
-	} else {
-		if(!lzwdecomp(d->data, insize, out, outsize)) {
-			free(d->data);
-			d->data = 0;
-			free(out);
-			return 0;
-		}
+	}
+	unsigned char *out = malloc(outsize);
+	if(!out) return 0;
+	if(!lzwdecomp(d->data, insize, out, outsize)) {
+		free(d->data);
+		d->data = 0;
+		free(out);
+		return 0;
 	}
 	free(d->data);
 	d->data = out;
