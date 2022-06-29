@@ -38,10 +38,11 @@
 
 #ifndef _WIN32
 #define O_BINARY 0
-#define PSEP '/'
+#define PSEP_STR "/"
 #else
-#define PSEP '\\'
+#define PSEP_STR "\\"
 #endif
+#define PSEP PSEP_STR[0]
 
 #define RAND_SEED_SALT 9338638
 
@@ -465,10 +466,15 @@ static int prep_multifiles(struct AgsFile *f) {
 	/* open each datafile as a byte array */
 	assert(MAXMULTIFILES >= f->mflib.num_data_files);
 	for (aa = 1; aa < f->mflib.num_data_files; aa++) {
+		char fntmp[512];
+		snprintf(fntmp, sizeof fntmp, "%s%s%s",
+			f->dir ? f->dir : "",
+			f->dir ? PSEP_STR : "",
+			f->mflib.data_filenames[aa]);
 		ba = &f->f[aa];
 		ByteArray_ctor(ba);
-		if(!ByteArray_open_file(ba, f->mflib.data_filenames[aa])) {
-			fprintf(stderr, "error opening mfl datafile %s\n", f->mflib.data_filenames[aa]);
+		if(!ByteArray_open_file(ba, fntmp)) {
+			fprintf(stderr, "error opening mfl datafile %s\n", fntmp);
 			return -1;
 		}
 		ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.

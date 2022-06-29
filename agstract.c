@@ -58,6 +58,12 @@ int main(int argc, char** argv) {
 	EFPRINTF(outf, "info=infofile created by %s\n"
 	        "info=this file is needed to reconstruct the packfile with AGSpack\n", ADS);
 	AgsFile_init(ags, fn);
+	if(strchr(fn, PSEP)) {
+		char db[512];
+		strcpy(db, fn);
+		*strrchr(db, PSEP) = 0;
+		AgsFile_setSourceDir(ags, db);
+	}
 	if(!AgsFile_open(ags)) {
 		fprintf(stderr, "error opening %s\n", fn);
 		return 1;
