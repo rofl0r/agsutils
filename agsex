@@ -10,7 +10,7 @@ usage() {
 
 test $# -ne 3 && usage
 
-BINDIR=$(dirname $(readlink -f "$0"))
+BINDIR="$(dirname "$(readlink -f "$0")")"
 
 GAME="$1"
 FILES="$2"
@@ -18,8 +18,8 @@ OBJS="$3"
 
 set -e
 
-$BINDIR/agstract "$GAME" "$FILES"
-$BINDIR/agscriptxtract "$FILES" "$OBJS"
+"$BINDIR"/agstract "$GAME" "$FILES"
+"$BINDIR"/agscriptxtract "$FILES" "$OBJS"
 
 DATAFILE="$FILES"/game28.dta
 test -e "$DATAFILE" || DATAFILE="$FILES"/ac2game.dta
