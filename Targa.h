@@ -286,7 +286,7 @@ static int ImageData_create_palette_pic(const ImageData* d, unsigned *palette, u
 	unsigned char *p = d->data, *q = p + d->data_size;
 	*data = malloc(d->width * d->height);
 	unsigned char *o = *data, *e = o + (d->width * d->height);
-	unsigned i, a = 0;
+	unsigned i, a = 0xff;
 	while(p < q && o < e) {
 		unsigned col, r, g, b;
 		switch(d->bytesperpixel) {
@@ -308,10 +308,12 @@ static int ImageData_create_palette_pic(const ImageData* d, unsigned *palette, u
 			break;
 		default: b=g=r=0; break;
 		}
+		if(a != 0xff) goto nope;
 		col = a << 24 | r << 16 | g << 8 | b;
 		int n = lookup_palette(col, palette, ret);
 		if(n < 0) {
 			if(ret == 256) {
+		nope:
 				free(*data);
 				*data = 0;
 				return -1;
