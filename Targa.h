@@ -296,11 +296,15 @@ static int ImageData_create_palette_pic(const ImageData* d, unsigned *palette, u
 			rgb565_to_888(lo, hi, &r, &g, &b);
 			break; }
 		case 3:
+			b = *(p++);
+			g = *(p++);
+			r = *(p++);
+			break;
 		case 4:
 			b = *(p++);
 			g = *(p++);
 			r = *(p++);
-			if(d->bytesperpixel == 4) a = *(p++);
+			a = *(p++);
 			break;
 		default: b=g=r=0; break;
 		}
