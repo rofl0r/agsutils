@@ -308,16 +308,17 @@ static int is_zeroterminated(char *s, size_t maxsize) {
 #define MAX_GUIOBJ_EVENTHANDLER_LEN 30
 static int ADF_read_gui_object(ADF *a, unsigned guiver) {
 	if(!AF_read_junk(a->f, guiver >= 119 ? 6*4 : 7*4)) return 0;
-	char buf[MAX_GUIOBJ_SCRIPTNAME_LEN];
+	char buf[512]; /* arbitrary limit.
+		ags commit ed06eb64 made away with any length restrictions;
+		that was done when kGuiVersion_340 = 118 was current. */
 	size_t i;
 	if(guiver >= 106) {
-		if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+		if(!AF_read_string(a->f, buf, guiver >= 118 ? sizeof buf : MAX_GUIOBJ_SCRIPTNAME_LEN)) return 0;
 	}
 	if(guiver >= 108) {
 		unsigned numev = AF_read_uint(a->f);
 		for(i=0; i<numev; ++i) {
-			char buf2[MAX_GUIOBJ_EVENTHANDLER_LEN+1];
-			if(!AF_read_string(a->f, buf2, sizeof buf2)) return 0;
+			if(!AF_read_string(a->f, buf, guiver >= 118 ? sizeof buf : MAX_GUIOBJ_EVENTHANDLER_LEN+1)) return 0;
 		}
 	}
 	return 1;
