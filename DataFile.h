@@ -41,8 +41,32 @@ typedef struct AgsDataFile {
 	char **inventorynames;
 } ADF;
 
+enum ADF_open_error {
+	AOE_success = 0,
+	AOE_open,
+	AOE_read,
+	AOE_sig,
+	AOE_header,
+	AOE_gamebase,
+	AOE_cursors,
+	AOE_interaction,
+	AOE_dictionary,
+	AOE_script,
+	AOE_view,
+	AOE_character,
+	AOE_lipsync,
+	AOE_msg,
+	AOE_dialogtopic,
+	AOE_dialog,
+	AOE_guis,
+	AOE_props,
+	AOE_views,
+	AOE_inventories,
+};
+const char *AOE2str(enum ADF_open_error e);
+
 int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen);
-int ADF_open(ADF* a, const char *filename);
+enum ADF_open_error ADF_open(ADF* a, const char *filename);
 void ADF_close(ADF* a);
 
 ASI* ADF_open_objectfile(ADF* a, char* fn);

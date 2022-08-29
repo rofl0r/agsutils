@@ -451,7 +451,13 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "failed to find/open/read datafile in %s\n", fdir);
 			return 1;
 		}
-		if(!ADF_open(a, fnbuf)) goto e_1;
+		enum ADF_open_error aoe = ADF_open(a, fnbuf);
+		if(aoe != AOE_success && aoe <= AOE_gamebase) {
+			fprintf(stderr, "failed to open/process data file: %s\n", AOE2str(aoe));
+			return 1;
+		} else if (aoe != AOE_success) {
+			fprintf(stderr, "warning: failed to process some non-essential parts (%s) of gamefile, probably from a newer game format\n", AOE2str(aoe));
+		}
 
 		off_t off = ADF_get_spriteflagsstart(a);
 		unsigned nsprites = ADF_get_spritecount(a);

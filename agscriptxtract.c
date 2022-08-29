@@ -206,9 +206,16 @@ int main(int argc, char**argv) {
 	int errors = 0;
 	ADF a_b, *a = &a_b;
 	char fnbuf[512];
+	enum ADF_open_error aoe;
 	if(!ADF_find_datafile(dir, fnbuf, sizeof(fnbuf)))
 		return 1;
-	if(!ADF_open(a, fnbuf)) return 1;
+	aoe = ADF_open(a, fnbuf);
+	if(aoe != AOE_success && aoe <= AOE_script) {
+		fprintf(stderr, "failed to open/process data file: %s\n", AOE2str(aoe));
+		return 1;
+	} else if (aoe != AOE_success) {
+		fprintf(stderr, "warning: failed to process some non-essential parts (%s) of gamefile, probably from a newer game format\n", AOE2str(aoe));
+	}
 	ASI* s;
 	s = ADF_get_global_script(a);
 	char buf[256];
@@ -223,8 +230,12 @@ int main(int argc, char**argv) {
 		dump_script(a->f, s, filename(out, fnbuf, buf, sizeof buf), flags);
 	}
 
-	dump_header(a, filename(out, "builtinscriptheader.ash", buf, sizeof buf));
-	dump_old_dialogscripts(a, out);
+	if(aoe == AOE_success) {
+		dump_header(a, filename(out, "builtinscriptheader.ash", buf, sizeof buf));
+		dump_old_dialogscripts(a, out);
+	} else {
+		fprintf(stderr, "skipping scriptheader and dialogscripts due to non-fatal errors\n");
+	}
 	ADF_close(a);
 	errors += dumprooms(dir, out, flags);
 	if(errors) fprintf(stderr, "agscriptxtract: got %d errors\n", errors);

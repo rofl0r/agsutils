@@ -493,21 +493,52 @@ int ADF_read_custom_property(ADF *a) {
 	return 1;
 }
 
-int ADF_open(ADF* a, const char *filename) {
+const char *AOE2str(enum ADF_open_error e) {
+	static const char err[][12] = {
+	[AOE_success] = "success",
+	[AOE_open] = "open",
+	[AOE_read] = "read",
+	[AOE_sig] = "signature",
+	[AOE_header] = "header",
+	[AOE_gamebase] = "gamebase",
+	[AOE_cursors] = "cursors",
+	[AOE_interaction] = "interaction",
+	[AOE_dictionary] = "dictionary",
+	[AOE_script] = "script",
+	[AOE_view] = "view",
+	[AOE_character] = "character",
+	[AOE_lipsync] = "lipsync",
+	[AOE_msg] = "message",
+	[AOE_dialogtopic] = "dialogtopic",
+	[AOE_dialog] = "dialog",
+	[AOE_guis] = "guis",
+	[AOE_props] = "props",
+	[AOE_views] = "views",
+	[AOE_inventories] = "inventories",
+	};
+	return err[e];
+}
+
+enum ADF_open_error ADF_open(ADF* a, const char *filename) {
+#define FAIL(E) do { aoe = E; goto err_close; } while(0)
+#define ERR(E) do { return E; } while(0)
+	enum ADF_open_error aoe = AOE_success;
+
 	char fnbuf[512];
 	size_t l, i;
 
 	memset(a, 0, sizeof(*a));
 	a->f = &a->f_b;
 
-	if(!AF_open(a->f, filename)) return 0;
+	if(!AF_open(a->f, filename)) return AOE_open;
 
 	if(30 != AF_read(a->f, fnbuf, 30)) {
+		aoe = AOE_read;
 		err_close:
 		AF_close(a->f);
-		return 0;
+		return aoe;
 	}
-	if(memcmp("Adventure Creator Game File v2", fnbuf, 30)) goto err_close;
+	if(memcmp("Adventure Creator Game File v2", fnbuf, 30)) FAIL(AOE_sig);
 	/* the version read here is called kGameVersion_xxx in recent AGS
 	   engine codebase, e.g. kGameVersion_350 == 50 */
 	a->version = AF_read_int(a->f);
@@ -515,7 +546,7 @@ int ADF_open(ADF* a, const char *filename) {
 	/* FIXME? newer ags does this only with version >= 12 */
 	/* 4 bytes containing the length of the string, followed by the string */
 	l = AF_read_uint(a->f);
-	if(l > 20) goto err_close;
+	if(l > 20) FAIL(AOE_header);
 	if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
 
 	/* main_game_file.cpp:OpenMainGameFileBase */
@@ -525,100 +556,100 @@ int ADF_open(ADF* a, const char *filename) {
 		/* followed by l int/string pairs */
 		for(i=0; i<l; i++) {
 			size_t len = AF_read_uint(a->f);
-			if(!AF_read_junk(a->f, len)) goto err_close;
+			if(!AF_read_junk(a->f, len)) FAIL(AOE_header);
 		}
 	}
-	if(!ADF_read_gamebase(a)) goto err_close;
+	if(!ADF_read_gamebase(a)) FAIL(AOE_gamebase);
 	if(a->version > 32) {
 		/* we're at line 11798 in Engine/ac.cpp, git revision:
 		   205c56d693d903516b7b21beb454251e9489aabf - which is highly
 		   recommended as the old C-style spaghetti code is more
 		   readable than the current refactored OOP version. */
 		l = 40 /* guid */ + 20 /*savegame extension*/ + 50 /*savegame dir*/;
-		if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
+		if(l != (size_t) AF_read(a->f, fnbuf, l)) FAIL(AOE_gamebase);
 	}
 	if(a->version < 50 /* 3.5.0 */) {
 		l = a->game.fontcount * 2; /* fontflags and fontoutline arrays [each 1b/font] */
-		if(!AF_read_junk(a->f, l)) goto err_close;
+		if(!AF_read_junk(a->f, l)) FAIL(AOE_gamebase);
 		if(a->version >= 48) {
 			/* version == 3.4.1 have YOffset and versions >= 3.4.1.2 < 3.5.0 have YOffeset and LineSpacing ints */
 			l = a->game.fontcount * 4;
 			if(a->version == 49) l*=2;
-			if(!AF_read_junk(a->f, l)) goto err_close;
+			if(!AF_read_junk(a->f, l)) FAIL(AOE_gamebase);
 		}
 	} else {
 		/* 3.5.0 has 5 ints per font, see gamesetupstruct.cpp */
 		l = a->game.fontcount * 4 * 5;
-		if(!AF_read_junk(a->f, l)) goto err_close;
+		if(!AF_read_junk(a->f, l)) FAIL(AOE_gamebase);
 	}
 	// number of sprites
 	l = a->numsprites = (a->version < 24) ? 6000 : AF_read_uint(a->f);
 	a->spriteflagsstart = AF_get_pos(a->f);
 	// array of spriteflags (1 char each, max: MAX_SPRITES==30000)
-	if(!AF_read_junk(a->f, l)) goto err_close;
+	if(!AF_read_junk(a->f, l)) FAIL(AOE_gamebase);
 	l = 68 * a->game.inventorycount; /* sizeof(InventoryItemInfo) */
-	if(!AF_read_junk(a->f, l)) goto err_close;
+	if(!AF_read_junk(a->f, l)) FAIL(AOE_gamebase);
 
-	if(!ADF_read_cursors(a)) goto err_close;
+	if(!ADF_read_cursors(a)) FAIL(AOE_cursors);
 
 	if(a->version > 32) {
-		if(!ADF_read_interaction(a, it_char)) goto err_close;
-		if(!ADF_read_interaction(a, it_inventory)) goto err_close;
+		if(!ADF_read_interaction(a, it_char)) FAIL(AOE_interaction);
+		if(!ADF_read_interaction(a, it_inventory)) FAIL(AOE_interaction);
 	} else {
-		if(!ADF_read_interaction2x(a, it_char)) goto err_close;
-		if(!ADF_read_interaction2x(a, it_inventory)) goto err_close;
+		if(!ADF_read_interaction2x(a, it_char)) FAIL(AOE_interaction);
+		if(!ADF_read_interaction2x(a, it_inventory)) FAIL(AOE_interaction);
 		a->globalvarcount = AF_read_uint(a->f);
 		l = 28 /* sizeof(InteractionVariable)*/ * a->globalvarcount;
-		if(!AF_read_junk(a->f, l)) goto err_close;
+		if(!AF_read_junk(a->f, l)) FAIL(AOE_interaction);
 	}
 	if(a->game.hasdict)
-		if(!ADF_read_dictionary(a)) goto err_close;
+		if(!ADF_read_dictionary(a)) FAIL(AOE_dictionary);
 	a->scriptstart = AF_get_pos(a->f);
-	if(!ASI_read_script(a->f, &a->globalscript)) goto err_close;
+	if(!ASI_read_script(a->f, &a->globalscript)) FAIL(AOE_script);
 	if(a->version > 37)
-		if(!ASI_read_script(a->f, &a->dialogscript)) goto err_close;
+		if(!ASI_read_script(a->f, &a->dialogscript)) FAIL(AOE_script);
 	if(a->version >= 31) {
 		a->scriptcount = AF_read_uint(a->f);
 		for(l = 0; l < a->scriptcount; l++)
-			if(!ASI_read_script(a->f, &a->scripts[l])) goto err_close;
+			if(!ASI_read_script(a->f, &a->scripts[l])) FAIL(AOE_script);
 	}
 	a->scriptend = AF_get_pos(a->f);
 
 	if(a->version > 32) {
 		for(l = 0; l < a->game.viewcount; l++)
-			if(!ADF_read_view(a)) goto err_close;
+			if(!ADF_read_view(a)) FAIL(AOE_view);
 	} else {
 		for(l = 0; l < a->game.viewcount; l++)
-			if(!ADF_read_view2x(a)) goto err_close;
+			if(!ADF_read_view2x(a)) FAIL(AOE_view);
 	}
 
 	if(a->version <= 19) {
 		/* skip version <= 2.51 unknown data */
 		l = AF_read_uint(a->f) * 0x204;
-		if(!AF_read_junk(a->f, l)) goto err_close;
+		if(!AF_read_junk(a->f, l)) FAIL(AOE_view);
 	}
 
 	/* ... we are around line 11977 in ac.cpp at this point*/
-	if(!ADF_read_characters(a)) return 0;
+	if(!ADF_read_characters(a)) ERR(AOE_character);
 
 	if(a->version > 19 /* 2.51*/) // current AGS code says lipsync was added in 2.54==21
-		if(!AF_read_junk(a->f, 50*20/*MAXLIPSYNCFRAMES*/)) goto err_close;
+		if(!AF_read_junk(a->f, 50*20/*MAXLIPSYNCFRAMES*/)) ERR(AOE_lipsync);
 
 
 	if(a->version < 26) {
 		for(l = 0; l < a->game.globalmessagecount; ++l) {
 			char buf[512];
-			if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+			if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_msg);
 		}
 	} else {
 		for(l = 0; l < a->game.globalmessagecount; ++l) {
 			/* length of encrypted string */
 			size_t e = AF_read_uint(a->f);
-			if(!AF_read_junk(a->f, e)) return 0;
+			if(!AF_read_junk(a->f, e)) ERR(AOE_msg);
 		}
 	}
 
-	if(!ADF_read_dialogtopics(a)) return 0;
+	if(!ADF_read_dialogtopics(a)) ERR(AOE_dialogtopic);
 	/* Engine/ac.cpp:12045 */
 	a->old_dialogscripts = 0;
 	if(a->version <= 37) {
@@ -645,13 +676,13 @@ int ADF_open(ADF* a, const char *filename) {
 			while(1) {
 				l = AF_read_uint(a->f);
 				if(l == 0xCAFEBEEF) break;
-				if(!AF_read_junk(a->f, l)) return 0;
+				if(!AF_read_junk(a->f, l)) ERR(AOE_dialog);
 			}
 			AF_set_pos(a->f, AF_get_pos(a->f) -4);
 		}
 	}
 
-	if(!ADF_read_guis(a)) return 0;
+	if(!ADF_read_guis(a)) ERR(AOE_guis);
 
 	if(a->version >= 25) {
 		unsigned prop_version, x = AF_read_uint(a->f);
@@ -659,13 +690,13 @@ int ADF_open(ADF* a, const char *filename) {
 		x = AF_read_uint(a->f); /* numplugins */
 		for(i = 0; i < x; ++i) {
 			char buf[80];
-			if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+			if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_props);
 			unsigned psize = AF_read_uint(a->f);
 			AF_read_junk(a->f, psize); /* plugin content */
 		}
 		/* CustomPropertySchema::UnSerialize */
 		prop_version = AF_read_uint(a->f);
-		assert(prop_version <= 2);
+		if(prop_version > 2) ERR(AOE_props);
 		x = AF_read_uint(a->f); /* numprops */
 		for(i=0; i<x; ++i) {
 			if(prop_version == 1) {
@@ -675,30 +706,30 @@ int ADF_open(ADF* a, const char *filename) {
 				   but then reads only 20 */
 				/* new AGS has a comment about it:
 				   NOTE: for some reason the property name stored in schema object was limited to only 20 characters, while the custom properties map could hold up to 200. Whether this was an error or design choice is unknown. */
-				if(!AF_read_string(a->f, buf, 20)) return 0; // propname
-				if(!AF_read_string(a->f, buf, 100)) return 0; //propdesc
-				if(!AF_read_string(a->f, buf, 500)) return 0; //defvalue
+				if(!AF_read_string(a->f, buf, 20)) ERR(AOE_props); // propname
+				if(!AF_read_string(a->f, buf, 100)) ERR(AOE_props); //propdesc
+				if(!AF_read_string(a->f, buf, 500)) ERR(AOE_props); //defvalue
 				int foo = AF_read_uint(a->f); /* proptype */
 			} else {
 				char buf[2048];
-				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) ERR(AOE_props);
 				AF_read_uint(a->f);
-				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
-				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) ERR(AOE_props);
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) ERR(AOE_props);
 			}
 		}
 
 		for(i=0; i<a->game.charactercount; ++i)
-			if(!ADF_read_custom_property(a)) return 0;
+			if(!ADF_read_custom_property(a)) ERR(AOE_props);
 
 		for(i=0; i<a->game.inventorycount; ++i)
-			if(!ADF_read_custom_property(a)) return 0;
+			if(!ADF_read_custom_property(a)) ERR(AOE_props);
 
 		a->viewnames = malloc(a->game.viewcount * sizeof(char*));
 		for(i=0; i<a->game.viewcount; ++i) {
 			char buf[255+1]; /* was originally MAXVIEWNAMELENGTH aka 15 bytes, however "meaningless name restrictions for Views and InvItems" was removed in 8bb1bfa30610f3c3291029b2c05e6e5b37415269 */
-			assert(AF_read_string(a->f, buf, sizeof buf));
-			assert(is_zeroterminated(buf, sizeof buf));
+			if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_views);
+			if(!is_zeroterminated(buf, sizeof buf)) ERR(AOE_views);
 			a->viewnames[i] = strdup(buf);
 		}
 
@@ -706,8 +737,8 @@ int ADF_open(ADF* a, const char *filename) {
 			a->inventorynames = malloc(a->game.inventorycount*sizeof(char*));
 			for(i=0; i<a->game.inventorycount; ++i) {
 				char buf[20]; /* MAX_SCRIPT_NAME_LEN */
-				if(!AF_read_string(a->f, buf, sizeof buf)) return 1;
-				assert(is_zeroterminated(buf, sizeof buf));
+				if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_inventories);
+				if(!is_zeroterminated(buf, sizeof buf)) ERR(AOE_inventories);
 				a->inventorynames[i] = strdup(buf);
 			}
 
@@ -718,7 +749,9 @@ int ADF_open(ADF* a, const char *filename) {
 	}
 
 	/* at this point we have everything we need */
-	return 1;
+	return AOE_success;
+#undef FAIL
+#undef ERR
 }
 
 
