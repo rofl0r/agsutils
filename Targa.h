@@ -286,7 +286,7 @@ static int ImageData_create_palette_pic(const ImageData* d, unsigned *palette, u
 	unsigned char *p = d->data, *q = p + d->data_size;
 	*data = malloc(d->width * d->height);
 	unsigned char *o = *data, *e = o + (d->width * d->height);
-	unsigned i, a = 0xff;
+	unsigned a = 0xff;
 	while(p < q && o < e) {
 		unsigned col, r, g, b;
 		switch(d->bytesperpixel) {
