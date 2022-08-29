@@ -333,9 +333,15 @@ static int AF_read_string_with_length(AF *f, char *buf, size_t maxlen) {
 
 int ADF_read_guis(ADF *a) {
 #define MAX_OBJS_ON_GUI 30
+#define FAIL() goto fail
+#if 0
+	volatile unsigned fail_line = 0;
+#undef FAIL
+#define FAIL() do { fail_line = __LINE__; goto fail; } while(0)
+#endif
 	/* Engine/acgui.cpp:1471 */
 	unsigned x = AF_read_uint(a->f);
-	assert(x == 0xCAFEBEEF);
+	if(x != 0xCAFEBEEF) return 0;
 	int guiver, n = AF_read_uint(a->f);
 	if(n >= 100) {
 		guiver = n;
@@ -350,22 +356,22 @@ int ADF_read_guis(ADF *a) {
 	for(i = 0; i < a->guicount; ++i) {
 		char buf[512];
 		if(guiver < 119 /* 3.5.0 */) {
-			if(!AF_read_junk(a->f, 4 /*vtext*/)) return 0;
+			if(!AF_read_junk(a->f, 4 /*vtext*/)) FAIL();
 		}
 		if(guiver >= 118) /* 3.4.0 */ {
-			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) FAIL();
 		} else {
-			if(16 != AF_read(a->f, buf, 16)) return 0;
+			if(16 != AF_read(a->f, buf, 16)) FAIL();
 			assert(is_zeroterminated(buf, 16));
 		}
 		if(!buf[0]) snprintf(buf, sizeof buf, "GUI%zu", i);
 		a->guinames[i] = strdup(buf);
 		if(guiver >= 118) {
-			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) FAIL();
 		} else {
-			if(!AF_read_junk(a->f, 20 /* clickEventHandler */)) return 0;
+			if(!AF_read_junk(a->f, 20 /* clickEventHandler */)) FAIL();
 		}
-		if(!AF_read_junk(a->f, guiver<119 ? 5*4 : 4*4 )) return 0;
+		if(!AF_read_junk(a->f, guiver<119 ? 5*4 : 4*4 )) FAIL();
 		unsigned n_ctrls = AF_read_uint(a->f);
 		if(guiver < 118)
 			n_ctrls = MAX_OBJS_ON_GUI;
@@ -379,64 +385,64 @@ int ADF_read_guis(ADF *a) {
 		else
 			l = 21*4 /* some ints */
 		           +MAX_OBJS_ON_GUI*4+MAX_OBJS_ON_GUI*4;
-		if(!AF_read_junk(a->f, l)) return 0;
+		if(!AF_read_junk(a->f, l)) FAIL();
 	}
 	unsigned n_buttons = AF_read_uint(a->f);
 
 	for(i = 0; i < n_buttons; ++i) {
-		if(!ADF_read_gui_object(a, guiver)) return 0;
+		if(!ADF_read_gui_object(a, guiver)) FAIL();
 		char buf[512];
-		if(!AF_read_junk(a->f, guiver>=119? 9*4 : 12*4/*pic*/)) return 0;
+		if(!AF_read_junk(a->f, guiver>=119? 9*4 : 12*4/*pic*/)) FAIL();
 		if(guiver < 119) {
-			if(!AF_read(a->f, buf, 50 /*text*/)) return 0; // for debugging
+			if(!AF_read(a->f, buf, 50 /*text*/)) FAIL(); // for debugging
 		} else {
-			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
+			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) FAIL();
 		}
 		if(guiver >= 119) {
-			if(!AF_read_junk(a->f, 4 /*alignment*/)) return 0;
+			if(!AF_read_junk(a->f, 4 /*alignment*/)) FAIL();
 		} else if(guiver >= 111) {
-			if(!AF_read_junk(a->f, 4+4 /*alignment,reserved*/)) return 0;
+			if(!AF_read_junk(a->f, 4+4 /*alignment,reserved*/)) FAIL();
 		}
 	}
 
 	unsigned n_labels = AF_read_uint(a->f);
 
 	for(i = 0; i < n_labels; ++i) {
-		if(!ADF_read_gui_object(a, guiver)) return 0;
+		if(!ADF_read_gui_object(a, guiver)) FAIL();
 		unsigned textlen = guiver < 113 ? 200 : AF_read_uint(a->f);
-		if(!AF_read_junk(a->f, textlen + 4*3/*font*/)) return 0;
+		if(!AF_read_junk(a->f, textlen + 4*3/*font*/)) FAIL();
 	}
 
 	unsigned n_invs = AF_read_uint(a->f);
 	for(i = 0; i < n_invs; ++i) {
-		if(!ADF_read_gui_object(a, guiver)) return 0;
+		if(!ADF_read_gui_object(a, guiver)) FAIL();
 		if(guiver >= 109) {
-			if(!AF_read_junk(a->f, guiver >= 119 ? 3*4 : 4*4 /*charid,itemw,itemh,topindex*/)) return 0;
+			if(!AF_read_junk(a->f, guiver >= 119 ? 3*4 : 4*4 /*charid,itemw,itemh,topindex*/)) FAIL();
 		}
 	}
 
 	if(guiver >= 100) {
 		unsigned n_sliders = AF_read_uint(a->f);
 		for(i = 0; i < n_sliders; ++i) {
-			if(!ADF_read_gui_object(a, guiver)) return 0;
+			if(!ADF_read_gui_object(a, guiver)) FAIL();
 			unsigned n;
 			if(guiver >= 119) n = 6;
 			else if(guiver >= 104) n = 7;
 			else n = 4;
-			if(!AF_read_junk(a->f, 4*n)) return 0;
+			if(!AF_read_junk(a->f, 4*n)) FAIL();
 		}
 	}
 
 	if(guiver >= 101) {
 		unsigned n_texts = AF_read_uint(a->f);
 		for(i = 0; i < n_texts; ++i) {
-			if(!ADF_read_gui_object(a, guiver)) return 0;
+			if(!ADF_read_gui_object(a, guiver)) FAIL();
 			if(guiver >= 119) {
 				char buf[2048];
-				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) return 0;
-				if(!AF_read_junk(a->f, 3*4/*font*/)) return 0;
+				if(!AF_read_string_with_length(a->f, buf, sizeof buf)) FAIL();
+				if(!AF_read_junk(a->f, 3*4/*font*/)) FAIL();
 			} else {
-				if(!AF_read_junk(a->f, 200/*text*/+3*4/*font*/)) return 0;
+				if(!AF_read_junk(a->f, 200/*text*/+3*4/*font*/)) FAIL();
 			}
 		}
 	}
@@ -446,21 +452,27 @@ int ADF_read_guis(ADF *a) {
 		size_t l_add1 = guiver >= 119 ? 4 : (guiver >= 112 ? 8 : 0);
 		size_t l_add2 = guiver >= 107 ? 4 : 0;
 		for(i = 0; i < n_lists; ++i) {
-			if(!ADF_read_gui_object(a, guiver)) return 0;
+			if(!ADF_read_gui_object(a, guiver)) FAIL();
 			unsigned j, n_items = AF_read_uint(a->f);
-			if(!AF_read_junk(a->f, guiver>=119 ? 3*4 : 9*4)) return 0;
+			if(!AF_read_junk(a->f, guiver>=119 ? 3*4 : 9*4)) FAIL();
 			unsigned flags = AF_read_uint(a->f);
-			if((l_add1 + l_add2) && !AF_read_junk(a->f, l_add1 + l_add2)) return 0;
+			if((l_add1 + l_add2) && !AF_read_junk(a->f, l_add1 + l_add2)) FAIL();
 			for(j = 0; j < n_items; ++j) {
 				char buf[1024];
-				if(!AF_read_string(a->f, buf, sizeof buf)) return 0;
+				if(!AF_read_string(a->f, buf, sizeof buf)) FAIL();
 			}
 			if(guiver >= 114 && guiver < 119 && (flags & 4/* GLF_SGINDEXVALID */)) {
-				if(!AF_read_junk(a->f, n_items*2)) return 0;
+				if(!AF_read_junk(a->f, n_items*2)) FAIL();
 			}
 		}
 	}
 	return 1;
+fail:
+	free(a->guinames);
+	a->guinames = 0;
+	a->guicount = 0;
+	return 0;
+#undef FAIL
 }
 
 int ADF_read_custom_property(ADF *a) {
