@@ -11,6 +11,7 @@
 #include <assert.h>
 #include "version.h"
 #include "debug.h"
+#include "DataFile.h"
 #ifdef _WIN32
 #include <direct.h>
 #define MKDIR(D) mkdir(D)
@@ -43,6 +44,7 @@ sprite file versions:
 */
 
 static int debug_pic = -1, flags, filenr;
+static unsigned char *alphaflags;
 
 static int extract(char* file, char* dir) {
 	if(access(dir, R_OK) == -1 && errno == ENOENT) {
@@ -191,10 +193,17 @@ static int raw32_swap_alpha(ImageData *d) {
 #endif
 	return 1;
 }
+
+#define SPF_ALPHACHANNEL 0x10
 /* return true if alpha uses only values 0 (fully transparent)
    or 0xff (not transparent), and transparency is only used
-   for "magic magenta". */
+   for "magic magenta".
+   if alphaflags array is provided, additionally checks that
+   the image is not marked as "uses alphachannel" in AGS datafile.
+*/
 static int is_hicolor_candidate(ImageData *d) {
+	if(alphaflags && (alphaflags[filenr] & SPF_ALPHACHANNEL))
+		return 0;
 	unsigned char *p = d->data, *pe = d->data+d->data_size;
 	while(p < pe) {
 		unsigned b = *(p++);
@@ -217,7 +226,7 @@ static int tga_to_ags(ImageData *d, int org_bpp) {
 	switch(d->bytesperpixel) {
 	case 4:
 		if(flags & FL_HICOLOR) return raw32_to_ags16(d);
-		else if(flags & FL_HICOLOR_SIMPLE && is_hicolor_candidate(d)) {
+		else if((flags & FL_HICOLOR_SIMPLE) && is_hicolor_candidate(d)) {
 			if(flags & FL_VERBOSE) printf("converting %d to 16bpp\n", filenr);
 			return raw32_to_ags16(d);
 		} else return raw32_swap_alpha(d);
@@ -387,7 +396,7 @@ static int parse_argstr(char *arg)
 }
 
 static int usage(char *a) {
-	printf(	"%s ACTIONSTR acsprset.spr DIR\n"
+	printf(	"%s ACTIONSTR acsprset.spr DIR [FILES]\n"
 		"ACTIONSTR can be:\n"
 		"x - extract\n"
 		"c - pack\n"
@@ -398,6 +407,10 @@ static int usage(char *a) {
 		"u - don't use RLE compression if v >= 6 (pack)\n"
 		"h - store all 32bit sprites as 16bit (pack)\n"
 		"H - same, but only when alpha unused (pack)\n"
+		"    accepts an optional FILES parameter, which denotes\n"
+		"    the FILES directory with extracted game contents.\n"
+		"    if provided, takes information whether alpha is used\n"
+		"    from the game.\n"
 		"\n"
 		"extract mode:\n"
 		"extracts all sprites from acsprset.spr to DIR\n"
@@ -421,13 +434,37 @@ static int usage(char *a) {
 
 int main(int argc, char **argv) {
 
-	if(argc != 4 || !(flags = parse_argstr(argv[1]))
+	if(argc < 4 || !(flags = parse_argstr(argv[1]))
 	|| !((flags & FL_EXTRACT) || (flags & FL_PACK) || (flags & FL_SPRINDEX))
 	|| ((flags&FL_EXTRACT)&&(flags&FL_PACK)) )
 		return usage(argv[0]);
 
 	char* file = argv[2];
 	char *dir = argv[3];
+
+	if(flags & FL_HICOLOR_SIMPLE && argc > 4) {
+		char *fdir = argv[4];
+		ADF a_b, *a = &a_b;
+		char fnbuf[512];
+		if(!ADF_find_datafile(fdir, fnbuf, sizeof(fnbuf))) {
+		e_1:
+			fprintf(stderr, "failed to find/open/read datafile in %s\n", fdir);
+			return 1;
+		}
+		if(!ADF_open(a, fnbuf)) goto e_1;
+
+		off_t off = ADF_get_spriteflagsstart(a);
+		unsigned nsprites = ADF_get_spritecount(a);
+		ADF_close(a);
+
+		FILE *f = fopen(fnbuf, "rb");
+		if(!f) goto e_1;
+		fseeko(f, off, SEEK_SET);
+		alphaflags = malloc(nsprites);
+		if(nsprites != fread(alphaflags, 1, nsprites, f)) goto e_1;
+		fclose(f);
+	}
+
 	if(getenv("DEBUG")) debug_pic = atoi(getenv("DEBUG"));
 
 	if(flags & FL_EXTRACT) return extract(file, dir);
