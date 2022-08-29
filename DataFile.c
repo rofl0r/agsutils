@@ -88,7 +88,7 @@ static int deserialize_command_list(ADF *a) {
 
 static int ADF_read_interaction2x(ADF *a, interaction_type t) {
 	/* deserialize_new_interaction */
-	size_t *countmap[it_max] = { 
+	size_t *countmap[it_max] = {
 		[it_char] = &a->game.charactercount,
 		[it_inventory] = &a->game.inventorycount,
 	}, l = *countmap[t], i = 0;
@@ -96,7 +96,7 @@ static int ADF_read_interaction2x(ADF *a, interaction_type t) {
 		int response[32];
 		if(AF_read_uint(a->f) != 1) continue;
 		size_t evcnt = AF_read_uint(a->f);
-		assert(evcnt <= 30);
+		if(evcnt > 30) return 0;
 		AF_read_junk(a->f, evcnt * sizeof(int)); /*event types */
 		size_t j = 0;
 		for(; j < evcnt; j++)
@@ -234,8 +234,8 @@ static int ADF_read_characters(ADF *a) {
 	a->characterscriptnames = malloc(a->game.charactercount*sizeof(char*));
 	for(i=0; i<a->game.charactercount; ++i) {
 		if(sizeof(character) != AF_read(a->f, &character, sizeof(character))) return 0;
-		assert(strlen(character.name) < sizeof(character.name));
-		assert(strlen(character.scrname) < sizeof(character.scrname));
+		if(strlen(character.name) >= sizeof(character.name)) return 0;
+		if(strlen(character.scrname) >= sizeof(character.scrname)) return 0;
 		a->characternames[i] = strdup(character.name);
 		a->characterscriptnames[i] = strdup(character.scrname);
 	}
@@ -267,7 +267,7 @@ int ADF_read_cursors(ADF* a) {
 	for(i=0; i<a->game.cursorcount; ++i) {
 		char buf[24];
 		if(24 != AF_read(a->f, buf, 24)) return 0;
-		assert(buf[19] == 0);
+		if(buf[19] != 0) return 0;
 		a->cursornames[i] = strdup(buf+10);
 	}
 	return 1;
@@ -362,7 +362,7 @@ int ADF_read_guis(ADF *a) {
 			if(!AF_read_string_with_length(a->f, buf, sizeof buf)) FAIL();
 		} else {
 			if(16 != AF_read(a->f, buf, 16)) FAIL();
-			assert(is_zeroterminated(buf, 16));
+			if(!is_zeroterminated(buf, 16)) FAIL();
 		}
 		if(!buf[0]) snprintf(buf, sizeof buf, "GUI%zu", i);
 		a->guinames[i] = strdup(buf);
@@ -477,7 +477,7 @@ fail:
 
 int ADF_read_custom_property(ADF *a) {
 	unsigned i, x, propver = AF_read_uint(a->f);
-	assert(propver <= 2);
+	if(propver > 2) return 0;
 	x = AF_read_uint(a->f); /* numprops */
 	for(i=0;i<x;++i) {
 		if(propver == 1) {
@@ -686,7 +686,7 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 
 	if(a->version >= 25) {
 		unsigned prop_version, x = AF_read_uint(a->f);
-		assert(x == 1);
+		if(x != 1) ERR(AOE_props);
 		x = AF_read_uint(a->f); /* numplugins */
 		for(i = 0; i < x; ++i) {
 			char buf[80];
