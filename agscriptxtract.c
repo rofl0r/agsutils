@@ -207,8 +207,10 @@ int main(int argc, char**argv) {
 	ADF a_b, *a = &a_b;
 	char fnbuf[512];
 	enum ADF_open_error aoe;
-	if(!ADF_find_datafile(dir, fnbuf, sizeof(fnbuf)))
+	if(!ADF_find_datafile(dir, fnbuf, sizeof(fnbuf))) {
+		fprintf(stderr, "failed to find datafile\n");
 		return 1;
+	}
 	aoe = ADF_open(a, fnbuf);
 	if(aoe != AOE_success && aoe <= AOE_script) {
 		fprintf(stderr, "failed to open/process data file: %s\n", AOE2str(aoe));
