@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include "version.h"
 #define ADS ":::AGSinject " VERSION " by rofl0r:::"
@@ -24,6 +25,12 @@ static char *tempnam(const char *dir, const char *pfx) {
 	sprintf(p, "%016llx", (unsigned long long) _rdtsc());
 	return strdup(buf);
 }
+static int RENAME(const char *OLD, const char *NEW) {
+	unlink(NEW);
+	return rename(OLD, NEW);
+}
+#else
+#define RENAME(OLD, NEW) rename(OLD, NEW)
 #endif
 
 int usage(char *argv0) {
@@ -57,25 +64,25 @@ static int inject(const char *o, const char *inj, unsigned which) {
 	AF f_b, *f = &f_b;
 	unsigned long long index, found;
 	int isroom = !strcmp(".crm", inj + strlen(inj) - 4);
-	if(isroom && which != 0) return -1;
-	if(!AF_open(f, inj)) return 0;
+	if(isroom && which != 0) return -2;
+	if(!AF_open(f, inj)) return -1;
 	long long start;
 	for(index = found = 0; 1 ; found++, index = start + 4) {
 		int room_length_bytes = 4;
 		if(!isroom && (start = ARF_find_code_start(f, index)) == -1LL) {
 			fprintf(stderr, "error, only %llu scripts found\n", (long long)found);
-			return 0;
+			return -3;
 		} else if(isroom) {
 			/* use roomfile specific script lookup, as it's faster */
 			struct RoomFile rinfo = {0};
-			if(!RoomFile_read(f, &rinfo)) return 0;
+			if(!RoomFile_read(f, &rinfo)) return -3;
 			start = rinfo.blockpos[BLOCKTYPE_COMPSCRIPT3];
 			if(rinfo.version >= 32) room_length_bytes = 8;
 		}
 		if(found != which) continue;
 		char *tmp = tempnam(".", "agsinject.tmp");
 		FILE *out = fopen(tmp, "wb");
-		if(!out) return 0;
+		if(!out) return -1;
 
 		/* 1) dump header */
 		AF_dump_chunk_stream(f, 0, isroom ? start -room_length_bytes : start, out);
@@ -112,15 +119,21 @@ static int inject(const char *o, const char *inj, unsigned which) {
 		ASI s;
 		if(!ASI_read_script(f, &s)) {
 			fprintf(stderr, "trouble finding script in %s\n", inj);
-			return 0;
+			return -3;
 		}
 		/* 3) dump rest of file */
 		AF_dump_chunk_stream(f, start + s.len, ByteArray_get_length(f->b) - (start + s.len), out);
 		AF_close(f);
 		fclose(out);
-		return !rename(tmp, inj);
+
+		int rnret = RENAME(tmp, inj);
+		if(rnret == -1 && errno == EEXIST) {
+			/* windows is special, as usual */
+			fprintf(stderr, "rename failed from %s to %s\n", tmp, inj);
+		}
+		return rnret;
 	}
-	return 0;
+	return -5;
 }
 
 static int check_objname(const char* o) {
@@ -135,15 +148,16 @@ static int check_objname(const char* o) {
 static int injectpr(const char *obj, const char *out, unsigned which) {
 	printf("injecting %s into %s as %d'th script ...", obj, out, which);
 	int ret = inject(obj, out, which);
-	if(ret >= 0) printf("OK\n");
+	if(ret == 0) printf("OK\n");
 	else {
 		printf("FAIL\n");
-		if(ret == -1) {
+		if(ret == -2) {
 			fprintf(stderr, "invalid index %d for roomfile, only 0 possible\n", which);
 			ret = 0;
-		} else perror("error:");
+		} else if (ret == -1) perror("error");
+		return 0;
 	}
-	return ret;
+	return 1;
 }
 
 static int getstamp(const char* fn, time_t *stamp) {
