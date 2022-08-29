@@ -136,6 +136,9 @@ agsalphahack:
   or a single specified sprite number's alpha channel flag. this tool is a
   supplement to agsprite.
 
+agsalphainfo:
+  a tool to print alphachannel information for each sprite.
+
 agssim:
   a simple simulator for ags assembly instructions.
   run agssim --help for more info.
