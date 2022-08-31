@@ -27,7 +27,6 @@ enum ByteArray_Type {
 
 enum ByteArray_Flags {
 	BAF_CANGROW = 1,
-	
 };
 
 struct ByteArray {
@@ -37,10 +36,8 @@ struct ByteArray {
 	enum ByteArray_Endianess sys_endian;
 	off_t pos;
 	off_t size;
-	struct {
-		MG mem;
-		int fd;
-	} source;
+	MG source_mem;
+	int source_fd;
 	const char *filename;
 	ssize_t (*readMultiByte)(struct ByteArray*, char*, size_t);
 	unsigned long long (*readUnsignedLongLong)(struct ByteArray*);

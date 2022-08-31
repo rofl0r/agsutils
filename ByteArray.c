@@ -36,7 +36,7 @@ void ByteArray_ctor(struct ByteArray* self) {
 	self->readUnsignedInt = ByteArray_readUnsignedInt;
 	self->readUnsignedLongLong = ByteArray_readUnsignedLongLong;
 	self->readBytes = ByteArray_readBytes;
-	
+
 	self->writeInt = ByteArray_writeInt;
 	self->writeUnsignedInt = ByteArray_writeUnsignedInt;
 	self->writeShort = ByteArray_writeShort;
@@ -47,13 +47,13 @@ void ByteArray_ctor(struct ByteArray* self) {
 	self->writeUTFBytes = ByteArray_writeUTFBytes;
 	self->writeBytes = ByteArray_writeBytes;
 	self->writeFloat = ByteArray_writeFloat;
-	
+
 	self->set_position = ByteArray_set_position;
 	self->set_position_rel = ByteArray_set_position_rel;
 	self->get_position = ByteArray_get_position;
-	
+
 	self->bytesAvailable = ByteArray_bytesAvailable;
-	
+
 	self->sys_endian = ENDIANNESS_BE ? BAE_BIG : BAE_LITTLE;
 }
 
@@ -82,13 +82,13 @@ enum ByteArray_Endianess ByteArray_get_endian(struct ByteArray* self) {
 void ByteArray_clear(struct ByteArray* self) {
 	fprintf(stderr, "clear called\n");
 	assert_op(self->type, ==, BAT_MEMSTREAM);
-	void *p = mem_getptr(&self->source.mem, 0, self->size);
+	void *p = mem_getptr(&self->source_mem, 0, self->size);
 	if(p) memset(p, 0, self->size);
 }
 
 void ByteArray_close(struct ByteArray* self) {
 	assert_op(self->type, ==, BAT_MEMSTREAM);
-	mem_free(&self->source.mem);
+	mem_free(&self->source_mem);
 }
 
 off_t ByteArray_get_position(struct ByteArray* self) {
@@ -137,9 +137,9 @@ int ByteArray_set_position(struct ByteArray* self, off_t pos) {
 		oob(self->filename, pos, self->size);
 		return 0;
 	}
-		
+
 	if(self->type == BAT_FILESTREAM) {
-		off_t ret = lseek(self->source.fd, pos, SEEK_SET);
+		off_t ret = lseek(self->source_fd, pos, SEEK_SET);
 		if(ret == (off_t) -1) {
 			seek_error();
 			return 0;
@@ -167,9 +167,9 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 	if(stat(filename, &st) == -1) return 0;
 	self->size = st.st_size;
 	self->filename = filename;
-	self->source.fd = open(filename, O_RDONLY|O_BINARY);
-	if (self->source.fd == -1) return 0;
-	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source.fd, 0);
+	self->source_fd = open(filename, O_RDONLY|O_BINARY);
+	if (self->source_fd == -1) return 0;
+	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source_fd, 0);
 	if(addr == MAP_FAILED) {
 		if(!BLOWS) perror("mmap");
 		return 1;
@@ -178,30 +178,34 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 }
 
 void ByteArray_close_file(struct ByteArray *self) {
-	close(self->source.fd);
-	self->source.fd = -1;
+	if(self->type == BAT_MEMSTREAM) {
+		munmap(self->source_mem.mem, self->size);
+		self->source_mem.mem = 0;
+	}
+	close(self->source_fd);
+	self->source_fd = -1;
 }
 
 int ByteArray_open_mem(struct ByteArray* self, char* data, size_t size) {
 	self->size = size;
 	self->type = BAT_MEMSTREAM;
-	mem_set(&self->source.mem, data, size, size);
+	mem_set(&self->source_mem, data, size, size);
 	return 1;
 }
 
 void* ByteArray_get_mem(struct ByteArray* self, size_t offset, size_t byteswanted) {
 	assert_dbg(self->type == BAT_MEMSTREAM);
-	return mem_getptr(&self->source.mem, offset, byteswanted);
+	return mem_getptr(&self->source_mem, offset, byteswanted);
 }
 
 ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len) {
 	if(self->type == BAT_MEMSTREAM) {
 		assert_op((size_t) self->pos + len, <=, (size_t) self->size);
-		void *p = mem_getptr(&self->source.mem, self->pos, len);
+		void *p = mem_getptr(&self->source_mem, self->pos, len);
 		if(p) memcpy(buffer, p, len);
 		else return -1;
 	} else {
-		ssize_t ret = read(self->source.fd, buffer, len);
+		ssize_t ret = read(self->source_fd, buffer, len);
 		if(ret == -1) {
 			read_error();
 			return -1;
@@ -237,7 +241,7 @@ off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, off_t 
 	if(dest->type != BAT_MEMSTREAM) {
 		assert_dbg(0);
 	}
-	void *p = mem_getptr(&dest->source.mem, start, len);
+	void *p = mem_getptr(&dest->source_mem, start, len);
 	if(p) self->readMultiByte(self, p, len);
 	else return 0;
 	return len;
@@ -413,7 +417,7 @@ off_t ByteArray_writeMem(struct ByteArray* self, unsigned char* what, size_t len
 		return 0;
 	}
 
-	if(mem_write(&self->source.mem, self->pos, what, len)) {
+	if(mem_write(&self->source_mem, self->pos, what, len)) {
 		self->pos += len;
 		if(self->pos > self->size) self->size = self->pos; /* apparently CANGROW was used */
 	}
@@ -431,8 +435,8 @@ off_t ByteArray_writeBytes(struct ByteArray* self, struct ByteArray* what) {
 		assert_dbg(0);
 		return 0;
 	} else {
-		unsigned char* p = mem_getptr(&what->source.mem, what->pos, what->size - what->pos);
-		if(p) 
+		unsigned char* p = mem_getptr(&what->source_mem, what->pos, what->size - what->pos);
+		if(p)
 			return ByteArray_writeMem(self, p, what->size - what->pos);
 		return -1;
 	}
@@ -453,11 +457,11 @@ off_t ByteArray_writeFloat(struct ByteArray* self, float what) {
 
 void ByteArray_dump_to_stream(struct ByteArray* self, FILE *out) {
 	assert_op(self->type, ==, BAT_MEMSTREAM);
-	mem_write_stream(&self->source.mem, out);
+	mem_write_stream(&self->source_mem, out);
 }
 
 void ByteArray_dump_to_file(struct ByteArray* self, char* filename) {
 	assert_op(self->type, ==, BAT_MEMSTREAM);
-	mem_write_file(&self->source.mem, filename);
+	mem_write_file(&self->source_mem, filename);
 }
 
