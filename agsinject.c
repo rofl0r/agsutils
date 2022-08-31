@@ -25,9 +25,29 @@ static char *tempnam(const char *dir, const char *pfx) {
 	sprintf(p, "%016llx", (unsigned long long) _rdtsc());
 	return strdup(buf);
 }
+/* all of the below is needed because windows' rename() function
+   doesn't work like described in POSIX, it won't overwrite an
+   existing file.
+   rather than including the right header for this winapi function,
+   we define all needed types and prototypes ourselves so pelles C
+   can stay in posix mode. */
+#define MOVEFILE_REPLACE_EXISTING  0x00000001
+#define MOVEFILE_COPY_ALLOWED  0x00000002
+typedef int BOOL;
+typedef unsigned DWORD;
+typedef const char *LPCSTR;
+#define WINAPI  __stdcall
+#define WINBASEAPI
+#pragma comment(lib, "kernel32.lib")
+extern WINBASEAPI BOOL WINAPI MoveFileExA(LPCSTR, LPCSTR, DWORD);
+extern WINBASEAPI DWORD WINAPI GetLastError(void);
 static int RENAME(const char *OLD, const char *NEW) {
-	unlink(NEW);
-	return rename(OLD, NEW);
+	BOOL res = MoveFileExA(OLD, NEW, MOVEFILE_REPLACE_EXISTING|MOVEFILE_COPY_ALLOWED);
+	if(res) return 0;
+	DWORD err = GetLastError();
+	fprintf(stderr, "GetLastError(): %u\n", (unsigned) err);
+	errno = EEXIST;
+	return -1;
 }
 #else
 #define RENAME(OLD, NEW) rename(OLD, NEW)
