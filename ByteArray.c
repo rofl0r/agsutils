@@ -189,6 +189,11 @@ int ByteArray_open_mem(struct ByteArray* self, char* data, size_t size) {
 	return 1;
 }
 
+void* ByteArray_get_mem(struct ByteArray* self, size_t offset, size_t byteswanted) {
+	assert_dbg(self->type == BAT_MEMSTREAM);
+	return mem_getptr(&self->source.mem, offset, byteswanted);
+}
+
 ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len) {
 	if(self->type == BAT_MEMSTREAM) {
 		assert_op((size_t) self->pos + len, <=, (size_t) self->size);

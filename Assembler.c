@@ -616,13 +616,13 @@ static int write_object(AS *a, char *out) {
 	size_t l = ByteArray_get_length(a->data);
 	void *p;
 	if(l) {
-		p = mem_getptr(&a->data->source.mem, 0, l); // FIXME dont access directly, use some getter method
+		p = ByteArray_get_mem(a->data, 0, l);
 		assert(p);
 		fwrite(p,l,1,o); // globaldata
 	}
 	l = ByteArray_get_length(a->code);
 	if(l) {
-		p = mem_getptr(&a->code->source.mem, 0, l);
+		p = ByteArray_get_mem(a->code, 0, l);
 		assert(p);
 		fwrite(p,l,1,o); // code
 	}

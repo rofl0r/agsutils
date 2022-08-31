@@ -78,6 +78,7 @@ enum ByteArray_Endianess ByteArray_get_endian(struct ByteArray* self);
 int ByteArray_open_file(struct ByteArray* self, const char* filename);
 void ByteArray_close_file(struct ByteArray *self);
 int ByteArray_open_mem(struct ByteArray* self, char* data, size_t size);
+void* ByteArray_get_mem(struct ByteArray* self, size_t offset, size_t byteswanted);
 void ByteArray_clear(struct ByteArray* self);
 void ByteArray_close(struct ByteArray* self);
 
