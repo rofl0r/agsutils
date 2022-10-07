@@ -10,6 +10,7 @@
 #define O_BINARY 0
 #endif
 
+#include <errno.h>
 #include <stdlib.h>
 #ifndef NO_MMAN /* lame OS like winblows */
 #include <sys/mman.h>
@@ -171,8 +172,13 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 	if (self->source_fd == -1) return 0;
 	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source_fd, 0);
 	if(addr == MAP_FAILED) {
-		if(!BLOWS) perror("mmap");
-		return 1;
+		if(!BLOWS)
+			fprintf(stderr, "mmap %s failed (%s) - fd %d, size %llu\n", filename, strerror(errno), self->source_fd, (long long) self->size);
+#ifdef __POCC__
+		if(sizeof(off_t) < 8 && self->size < 0)
+			fprintf(stderr, "sorry, the PellesC compiled 32 bit windows binaries do not support files > 2GB at this point.\nplease compile from source in a linux environment, WSL or cygwin to access this file.\n");
+#endif
+		return 1; // fall back to traditional non-mmaped BAT_FILESTREAM
 	}
 	return ByteArray_open_mem(self, addr, self->size);
 }
