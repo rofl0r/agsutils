@@ -749,6 +749,10 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 		}
 	}
 
+	/* prevent usage of uninitialized data */
+	if(!a->inventorynames) a->game.inventorycount = 0;
+	if(!a->viewnames) a->game.viewcount = 0;
+
 	/* at this point we have everything we need */
 	return AOE_success;
 #undef FAIL
