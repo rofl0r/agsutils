@@ -54,6 +54,16 @@ static char *filename(const char *dir, const char *fn, char *buf, size_t bsize) 
 
 #include "RoomFile.h"
 #include <dirent.h>
+
+static int is_roomfile(const char *fn) {
+	const char *p = strrchr(fn, '.');
+	if(!p) return 0;
+	++p;
+#define LOWER(X) tolower((unsigned) (X))
+	return LOWER(p[0]) == 'c' && LOWER(p[1]) == 'r' && LOWER(p[2]) == 'm' && p[3] == 0;
+#undef LOWER
+}
+
 static int dumprooms(const char* dir, const char* out, int flags) {
 	DIR* d = opendir(dir);
 	if(!d) return 1;
@@ -62,7 +72,7 @@ static int dumprooms(const char* dir, const char* out, int flags) {
 
 	while((di = readdir(d))) {
 		size_t l = strlen(di->d_name);
-		if(l > 4 + 4 && !memcmp(di->d_name, "room", 4) && !memcmp(di->d_name + l - 4, ".crm", 4)) {
+		if(l > 4 && is_roomfile(di->d_name)) {
 			char fnbuf[512];
 			snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, di->d_name);
 			AF f; ssize_t off; ASI s;
