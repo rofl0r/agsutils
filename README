@@ -193,6 +193,14 @@ third-party library requirements:
 ---------------------------------
 none. \o/
 
+supported AGS versions:
+-----------------------
+like the opensource AGS engine, version 2.3 and 2.4 aren't properly supported
+due to lack of available format information. support for those might be
+completed at some point in the future.
+all versions >= 2.5.0 are supported, and if one of the tools bails out on them
+it's considered a bug.
+
 License:
 --------
 there is a tiny part of code left from the original AGS engine, about 150 LOC in CLib32.c.
