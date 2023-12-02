@@ -95,7 +95,7 @@ scmd_tok.h: ags_cpu.h
 	awk 'BEGIN{print("#ifndef BISON");} /#define SCMD_/{print $$1 " KW_" $$2 " (KW_TOK_SCMD_BASE + " $$3 ")";}END{print("#endif");}' < ags_cpu.h > $@
 
 scmd_tok.shilka: ags_cpu.h
-	awk 'BEGIN{printf "%%type short\n%%%%\n";}/[\t ]\[SCMD_/{w=substr($$3,3,length($$3)-4);s=length(w)>=8?"":"\t";print w s "\t{return KW_" substr($$1,2,length($$1)-2) ";}" ;}END{print "%other\t\t{return 0;}";}' < ags_cpu.h > $@
+	awk 'BEGIN{print("%type short\n%%\n");}/[\t ]\[SCMD_/{w=substr($$3,3,length($$3)-4);s=length(w)>=8?"":"\t";print w s "\t{return KW_" substr($$1,2,length($$1)-2) ";}" ;}END{print "%other\t\t{return 0;}";}' < ags_cpu.h > $@
 
 scmd_tok.c: $(SHILKA)
 scmd_tok.c: scmd_tok.shilka
@@ -105,7 +105,7 @@ regname_tok.h: ags_cpu.h
 	awk '/[\t ]\[AR_/{r=substr($$1,2,length($$1)-2);printf("#define RN_%s\t(RN_TOK_BASE + %s)\n",r,r);}' < ags_cpu.h > $@
 
 regname_tok.shilka: ags_cpu.h
-	awk 'BEGIN{printf "%%type short\n%%%%\n";}/[\t ]\[AR_/{r=substr($$1,2,length($$1)-2);s=substr($$3,2,length($$3)-3);printf("%s\t{return RN_%s;}\n",s,r);}END{print("%other\t\t{return 0;}");}' < ags_cpu.h > $@
+	awk 'BEGIN{print("%type short\n%%\n");}/[\t ]\[AR_/{r=substr($$1,2,length($$1)-2);s=substr($$3,2,length($$3)-3);printf("%s\t{return RN_%s;}\n",s,r);}END{print("%other\t\t{return 0;}");}' < ags_cpu.h > $@
 
 regname_tok.c: $(SHILKA)
 regname_tok.c: regname_tok.shilka

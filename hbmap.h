@@ -86,7 +86,7 @@ static inline void* hbmap_new(bmap_compare_func fn, void* hash_func, size_t numb
 
 #define hbmap_iter_bucket(I) ( (I) >> 32)
 #define hbmap_iter_index(I)  ( (I) & 0xffffffff )
-#define hbmap_iter_makebucket(I) ( (I) << 32)
+#define hbmap_iter_makebucket(I) ( ((hbmap_iter)I) << 32)
 
 #define hbmap_iter_bucket_valid(X, ITER, NUMBUCKETS) ( \
 	hbmap_iter_bucket(ITER) < NUMBUCKETS )
