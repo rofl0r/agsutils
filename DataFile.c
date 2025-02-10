@@ -129,7 +129,7 @@ static int ADF_read_gamebase(ADF *a) {
 	AF_read_uint(a->f); /* totalscore*/
 	a->game.inventorycount = AF_read_ushort(a->f);
 	AF_read_ushort(a->f); /* padding */
-	a->game.dialogcount = AF_read_uint(a->f);
+	a->game.dialogcount = AF_read_uint(a->f); /* numdialog */
 	AF_read_uint(a->f); /* numdlgmessage*/
 	a->game.fontcount = AF_read_uint(a->f);
 	a->game.color_depth = AF_read_uint(a->f); /* color depth - offset 0x710 into game28.dta */
@@ -639,6 +639,7 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	}
 
 	/* ... we are around line 11977 in ac.cpp at this point*/
+
 	if(!ADF_read_characters(a)) ERR(AOE_character);
 
 	if(a->version > 19 /* 2.51*/) // current AGS code says lipsync was added in 2.54==21
@@ -646,8 +647,8 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 
 
 	if(a->version < 26) {
+		char buf[512];
 		for(l = 0; l < a->game.globalmessagecount; ++l) {
-			char buf[512];
 			if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_msg);
 		}
 	} else {
@@ -693,7 +694,8 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 
 	if(!ADF_read_guis(a)) ERR(AOE_guis);
 
-	if(a->version >= 25) {
+	/* both properties and viewname stuff later on were added in 2.60 */
+	if(a->version >= 25 /* kGameVersion_260 */) {
 		unsigned prop_version, x = AF_read_uint(a->f);
 		if(x != 1) ERR(AOE_props);
 		x = AF_read_uint(a->f); /* numplugins */
@@ -734,6 +736,8 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 		for(i=0; i<a->game.inventorycount; ++i)
 			if(!ADF_read_custom_property(a)) ERR(AOE_props);
 
+	}
+	if(a->version >= 25 /* kGameVersion_260 */) {
 		a->viewnames = malloc(a->game.viewcount * sizeof(char*));
 		for(i=0; i<a->game.viewcount; ++i) {
 			char buf[255+1]; /* was originally MAXVIEWNAMELENGTH aka 15 bytes, however "meaningless name restrictions for Views and InvItems" was removed in 8bb1bfa30610f3c3291029b2c05e6e5b37415269 */
@@ -741,19 +745,24 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 			if(!is_zeroterminated(buf, sizeof buf)) ERR(AOE_views);
 			a->viewnames[i] = strdup(buf);
 		}
+	}
+	/* ags version 2.55 (and earlier?) at this point have only 1 field left,
+	   plugin data version (32bit) == 1, and then num plugins and eventually
+	   some more data, if num plugins is 0 then that's the EOF. */
 
-		if(a->version >= 31) { // 2.7.0
-			a->inventorynames = malloc(a->game.inventorycount*sizeof(char*));
-			for(i=0; i<a->game.inventorycount; ++i) {
-				char buf[20]; /* MAX_SCRIPT_NAME_LEN */
-				if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_inventories);
-				if(!is_zeroterminated(buf, sizeof buf)) ERR(AOE_inventories);
-				a->inventorynames[i] = strdup(buf);
-			}
+	if(a->version >= 31) { // 2.7.0
+		a->inventorynames = malloc(a->game.inventorycount*sizeof(char*));
+		for(i=0; i<a->game.inventorycount; ++i) {
+			char buf[256]; /* arbitrary size chosen to hold a very long string */
+			/* somewhere between 3.4.0 and 3.4.1 the 20 char limit was removed */
+			if(!AF_read_string(a->f, buf, a->version >= 45 /* 3.4.0 */ ? sizeof buf : 20+1 /* MAX_SCRIPT_NAME_LEN */))
+				ERR(AOE_inventories);
+			if(!is_zeroterminated(buf, sizeof buf)) ERR(AOE_inventories);
+			a->inventorynames[i] = strdup(buf);
+		}
 
-			if(a->version >= 32) { // 2.7.2
-				/* here follow dialog script names */
-			}
+		if(a->version >= 32) { // 2.7.2
+			/* here follow dialog script names */
 		}
 	}
 
