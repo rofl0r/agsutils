@@ -228,6 +228,7 @@ int main(int argc, char**argv) {
 	} else if (aoe != AOE_success) {
 		fprintf(stderr, "warning: failed to process some non-essential parts (%s) of gamefile, probably from a newer game format\n", AOE2str(aoe));
 	}
+	fprintf(stdout, "info: ags engine version code %d\n", a->version);
 	ASI* s;
 	s = ADF_get_global_script(a);
 	char buf[256];
