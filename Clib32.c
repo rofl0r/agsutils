@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
@@ -259,7 +260,7 @@ void AgsFile_setFileCount(struct AgsFile *f, size_t count) {
 	f->mflib.num_files = count;
 }
 
-static off_t filelength(int fd) {
+static off_t getfilelength(int fd) {
 	struct stat st;
 	fstat(fd, &st);
 	return st.st_size;
@@ -271,7 +272,7 @@ int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn) {
 	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", f->dir, PSEP, f->mflib.filenames[index]);
 	int fd = open(fnbuf, O_RDONLY|O_BINARY);
 	if(fd == -1) return 0;
-	off_t fl = filelength(fd);
+	off_t fl = getfilelength(fd);
 	close(fd);
 	f->mflib.length[index] = fl;
 	return 1;
