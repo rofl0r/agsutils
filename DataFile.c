@@ -625,6 +625,13 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 			if(!ADF_read_view2x(a)) FAIL(AOE_view);
 	}
 
+	/*
+	   from here on, we have the important bits and everything else is
+	   "bonus", so we don't hard-fail anymore but skip the non-essential
+	   parts who rely on the below info. */
+
+	a->f->b->flags |= BAF_NONFATAL_READ_OOB;
+
 	if(a->version <= 19) {
 		/* skip version <= 2.51 unknown data */
 		l = AF_read_uint(a->f) * 0x204;
