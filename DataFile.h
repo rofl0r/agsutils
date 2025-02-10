@@ -53,6 +53,7 @@ enum ADF_open_error {
 	AOE_dictionary,
 	AOE_script,
 	AOE_view,
+	AOE_viewjunk,
 	AOE_character,
 	AOE_lipsync,
 	AOE_msg,

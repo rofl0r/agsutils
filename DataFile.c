@@ -507,6 +507,7 @@ const char *AOE2str(enum ADF_open_error e) {
 	[AOE_dictionary] = "dictionary",
 	[AOE_script] = "script",
 	[AOE_view] = "view",
+	[AOE_viewjunk] = "viewjunk",
 	[AOE_character] = "character",
 	[AOE_lipsync] = "lipsync",
 	[AOE_msg] = "message",
@@ -627,7 +628,7 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	if(a->version <= 19) {
 		/* skip version <= 2.51 unknown data */
 		l = AF_read_uint(a->f) * 0x204;
-		if(!AF_read_junk(a->f, l)) FAIL(AOE_view);
+		if(!AF_read_junk(a->f, l)) ERR(AOE_viewjunk);
 	}
 
 	/* ... we are around line 11977 in ac.cpp at this point*/
