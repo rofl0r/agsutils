@@ -109,7 +109,6 @@ static void neg_off() {
 static void oob(const char *fn, off_t want, off_t have) {
 	fprintf(stderr, "%s: oob access attempted (want: %jd, have %jd)\n", fn ? fn : "<unknown>", (intmax_t) want, (intmax_t) have);
 	fflush(stderr);
-	assert_dbg(0);
 }
 
 void ByteArray_set_length(struct ByteArray* self, off_t len) {
@@ -136,6 +135,8 @@ int ByteArray_set_position(struct ByteArray* self, off_t pos) {
 	if(pos == self->pos) return 1;
 	if(pos > self->size) {
 		oob(self->filename, pos, self->size);
+		if(!(self->flags & BAF_NONFATAL_READ_OOB)) assert_dbg(0);
+
 		return 0;
 	}
 
@@ -206,7 +207,11 @@ void* ByteArray_get_mem(struct ByteArray* self, size_t offset, size_t byteswante
 
 ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len) {
 	if(self->type == BAT_MEMSTREAM) {
-		assert_op((size_t) self->pos + len, <=, (size_t) self->size);
+		if((size_t) self->pos + len > (size_t) self->size) {
+			oob("memstream" , self->pos + len, self->size);
+			if(!(self->flags & BAF_NONFATAL_READ_OOB)) assert_dbg(0);
+			len = self->size - self->pos;
+		}
 		void *p = mem_getptr(&self->source_mem, self->pos, len);
 		if(p) memcpy(buffer, p, len);
 		else return -1;
@@ -236,11 +241,13 @@ off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, off_t 
 	if(len == 0) len = left;
 	else if(len > left) {
 		oob(self->filename, len, left);
+		if(!(self->flags & BAF_NONFATAL_READ_OOB)) assert_dbg(0);
 		len = left;
 	}
 	if(len == 0) return 0;
 	else if (len > start + dest->size) {
 		oob(self->filename, len, start + dest->size);
+		if(!(self->flags & BAF_NONFATAL_READ_OOB)) assert_dbg(0);
 		len = start + dest->size;
 		if(len == 0) return 0;
 	}

@@ -27,6 +27,7 @@ enum ByteArray_Type {
 
 enum ByteArray_Flags {
 	BAF_CANGROW = 1,
+	BAF_NONFATAL_READ_OOB = 2,
 };
 
 struct ByteArray {
