@@ -1,0 +1,41 @@
+name: compile_cygwin
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  cygwin_build:
+    runs-on: windows-latest
+    steps:
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - name: setup_cygwin
+        uses: cygwin/cygwin-install-action@v5
+        with:
+          packages: |
+            gcc-core,
+            gcc-g++,
+            make,
+            bison,
+            find-utils
+
+      - name: compile
+        shell: C:\cygwin\bin\bash.exe -o igncr '{0}'
+        env:
+          CYGWIN: winsymlinks:native
+        run: |
+             make --version
+             DEST=agsutils-cygwin-git
+             make CFLAGS="-O2 -g0 -fno-strict-aliasing" LDFLAGS=-s prefix= DESTDIR="$DEST" all install || exit 1
+             cp /cygdrive/c/cygwin/bin/cygwin1.dll "$DEST"/bin/ && echo "copy OK"
+             echo "current dir: $PWD"
+
+      - name: upload_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agsutils-cygwin-git
+          path: agsutils-cygwin-git/bin/*
+
