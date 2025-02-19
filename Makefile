@@ -14,8 +14,6 @@ PROGS_SRCS = \
 	agsinject.c
 
 PROGS_OBJS =  $(PROGS_SRCS:.c=.o)
-CPROGS = $(PROGS_SRCS:.c=$(EXE_EXT))
-PROGS = $(CPROGS) agsoptimize agsex
 
 LIB_SRCS = \
 	ags_cpu.c \
@@ -51,17 +49,32 @@ CFLAGS_WARN = -Wall -Wextra -Wno-unknown-pragmas -Wno-sign-compare -Wno-switch -
 
 GEN_FILES = scmd_tok.h scmd_tok.c scmd_tok.shilka regname_tok.h regname_tok.c regname_tok.shilka
 
+-include config.mak
 
+TOOLCHAIN := $(shell $(CC) -dumpmachine || echo 'unknown')
+
+ifeq ($(findstring mingw,$(TOOLCHAIN)),mingw)
+WIN=1
+endif
+ifeq ($(findstring cygwin,$(TOOLCHAIN)),cygwin)
+WIN=1
+endif
+
+# set this if you're on a windows shell - i.e. neither msys nor cygwin
 ifeq ($(WINBLOWS),1)
 CPPFLAGS=-DNO_MMAN
-CC=gcc
-EXE_EXT=.exe
+WIN=1
 RM_F=del
 else
 RM_F=rm -f
 endif
 
--include config.mak
+ifdef WIN
+EXE_EXT=.exe
+endif
+
+CPROGS = $(PROGS_SRCS:.c=$(EXE_EXT))
+PROGS = $(CPROGS) agsoptimize agsex
 
 ifeq ($(HOSTCC),)
 HOSTCC = $(CC)
