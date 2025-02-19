@@ -37,8 +37,11 @@
 #include "Clib32.h"
 #include "endianness.h"
 
-#ifndef _WIN32
+#ifndef O_BINARY
 #define O_BINARY 0
+#endif
+
+#ifndef _WIN32
 #define PSEP_STR "/"
 #else
 #define PSEP_STR "\\"
