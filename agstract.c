@@ -44,6 +44,13 @@ int main(int argc, char** argv) {
 	char *dir = argv[2];
 	char fnbuf[512];
 	char db[512];
+
+	AgsFile_init(ags, fn);
+	if(!AgsFile_open(ags)) {
+		fprintf(stderr, "error opening %s\n", fn);
+		return 1;
+	}
+
 	snprintf(fnbuf, sizeof(fnbuf), "%s%cagspack.info", dir, PSEP);
 	FILE *outf = open_packfile(fnbuf);
 	if(outf == 0 && errno == ENOENT) {
@@ -58,15 +65,11 @@ int main(int argc, char** argv) {
 	}
 	EFPRINTF(outf, "info=infofile created by %s\n"
 	        "info=this file is needed to reconstruct the packfile with AGSpack\n", ADS);
-	AgsFile_init(ags, fn);
+
 	if(strchr(fn, PSEP)) {
 		strcpy(db, fn);
 		*strrchr(db, PSEP) = 0;
 		AgsFile_setSourceDir(ags, db);
-	}
-	if(!AgsFile_open(ags)) {
-		fprintf(stderr, "error opening %s\n", fn);
-		return 1;
 	}
 	dump_exe(ags, dir);
 	int ec = 0;
