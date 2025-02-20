@@ -1,6 +1,6 @@
 /* CLIB32 - DJGPP implemention of the CLIB reader.
   (c) 1998-99 Chris Jones, (c) 2012 rofl0r
-  
+
   22/12/02 - Shawn's Linux changes approved and integrated - CJ
 
   v1.2 (Apr'01)  added support for new multi-file CLIB version 10 files
@@ -14,10 +14,10 @@
 
   You MAY NOT compile your own builds of the engine without making it EXPLICITLY
   CLEAR that the code has been altered from the Standard Version.
-  
+
   v1.3 rofl0r: code cleaned up for usage in agsutils.
   v1.4 rofl0r: added writer and reader interfaces, as well as the entire writer code.
-  
+
 */
 
 #include <assert.h>
@@ -226,9 +226,9 @@ static int read_new_format_clib(struct MultiFileLib * mfl, struct ByteArray * wo
 	mfl->num_files = ByteArray_readInt(wout);
 
 	if (mfl->num_files > MAX_FILES) return -1;
-	
+
 	ByteArray_readMultiByte(wout, (char*) mfl->filenames, 25U * mfl->num_files);
-	
+
 	fread_data_intarray(wout, mfl->offset, mfl->num_files);
 	fread_data_intarray(wout, mfl->length, mfl->num_files);
 	ByteArray_readMultiByte(wout, mfl->file_datafile, mfl->num_files);
@@ -490,11 +490,11 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	char clbuff[20];
 	if (!filename)
 		return -11;
-	
+
 	int passwmodifier = 0;
 	size_t aa;
 	size_t cc, l;
-	
+
 	struct ByteArray *ba = &f->f[0];
 	ByteArray_ctor(ba);
 	if(!ByteArray_open_file(ba, filename)) return -1;
@@ -552,7 +552,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 		case 6: case 10: case 11: case 15: case 20: case 21: case 30:
 			break;
 		default:
-			// unsupported version
+			fprintf(stderr, "error: unknown mfl version %d\n", (int) f->libversion);
 			return -3;
 	}
 
@@ -560,22 +560,33 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	while (filename[0] == '\\' || filename[0] == '/') filename++;
 
 	if (f->libversion >= 10) {
-		if (ByteArray_readUnsignedByte(ba) != 0)
-			return -4;  // not first datafile in chain
+		if (ByteArray_readUnsignedByte(ba) != 0) {
+			fprintf(stderr, "error: not first datafile in chain\n");
+			return -4;
+		}
 
 		if (f->libversion >= 30) {
-			if (read_v30_clib(&f->mflib, ba)) return -5;
+			if (read_v30_clib(&f->mflib, ba)) {
+				fprintf(stderr, "error: failed to read v30 mfl file\n");
+				return -5;
+			}
 		} else if (f->libversion >= 21) {
-			if (read_new_new_enc_format_clib(&f->mflib, ba))
-			return -5;
+			if (read_new_new_enc_format_clib(&f->mflib, ba)) {
+				fprintf(stderr, "error: failed to read v21-30 mfl file\n");
+				return -5;
+			}
 		} else if (f->libversion == 20) {
-			if (read_new_new_format_clib(&f->mflib, ba))
-			return -5;
+			if (read_new_new_format_clib(&f->mflib, ba)) {
+				fprintf(stderr, "error: failed to read v20 mfl file\n");
+				return -5;
+			}
 		} else  {
 			struct MultiFileLib mflibOld_b, *mflibOld = &mflibOld_b;
 
-			if (read_new_format_clib(mflibOld, ba, f->libversion))
+			if (read_new_format_clib(mflibOld, ba, f->libversion)) {
+				fprintf(stderr, "error: failed to read old mfl file\n");
 				return -5;
+			}
 			// convert to newer format
 			f->mflib.num_files = mflibOld->num_files;
 			f->mflib.num_data_files = mflibOld->num_data_files;
@@ -619,9 +630,9 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	}
 	for(cc = 0; cc < f->mflib.num_files; cc++)
 		f->mflib.length[cc] = ByteArray_readUnsignedInt(ba);
-	
+
 	ByteArray_set_position_rel(ba, 2 * f->mflib.num_files); // skip flags & ratio
-	
+
 	f->mflib.offset[0] = ByteArray_get_position(ba);
 
 	for (aa = 1; aa < f->mflib.num_files; aa++) {
@@ -725,7 +736,6 @@ void AgsFile_init(struct AgsFile *buf, char* filename) {
 
 int AgsFile_open(struct AgsFile *buf) {
 	int ret = csetlib(buf, buf->fn);
-	
 	return ret == 0;
 }
 
