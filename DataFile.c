@@ -44,14 +44,8 @@ typedef enum interaction_type {
 
 static int ADF_read_interaction(ADF *a, interaction_type t) {
 	/* deserialize_interaction_scripts */
-	static const size_t iter_start[it_max] = {
-		[it_char] = 0,
-		[it_inventory] = 1,
-	};
-	size_t *countmap[it_max] = {
-		[it_char] = &a->game.charactercount,
-		[it_inventory] = &a->game.inventorycount,
-	}, l = *countmap[t], i = iter_start[t];
+	size_t l = t == it_char ? a->game.charactercount : a->game.inventorycount;
+	size_t i = t == it_char ? 0 : 1;
 	char buf[200];
 	for(; i < l; i++) {
 		size_t j = 0, evcnt = AF_read_uint(a->f);
@@ -92,10 +86,8 @@ static int deserialize_command_list(ADF *a) {
 
 static int ADF_read_interaction2x(ADF *a, interaction_type t) {
 	/* deserialize_new_interaction */
-	size_t *countmap[it_max] = {
-		[it_char] = &a->game.charactercount,
-		[it_inventory] = &a->game.inventorycount,
-	}, l = *countmap[t], i = 0;
+	size_t l = t == it_char ? a->game.charactercount : a->game.inventorycount;
+	size_t i = 0;
 	for(; i < l; i++) {
 		int response[32];
 		if(AF_read_uint(a->f) != 1) continue;
