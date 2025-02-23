@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
 		ssoff += strlen(ss+1);
 		EFPRINTF(outf, "df%zu=%s\n", i, ss);
 	}
-	for(i = 0; i < l; i++) {
+	if(ld > 1) for(i = 0; i < l; i++) {
 		char buf[16];
 		snprintf(buf, sizeof(buf), "%d", AgsFile_getFileNumber(ags, i));
 		EFPRINTF(outf, "fileno%zu=%s\n", i, buf);
