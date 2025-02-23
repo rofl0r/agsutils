@@ -649,7 +649,7 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 
 	if(!ADF_read_characters(a)) ERR(AOE_character);
 
-	if(a->version > 19 /* 2.51*/) // current AGS code says lipsync was added in 2.54==21
+	if(a->version > 20 /* 2.54+*/)
 		if(!AF_read_junk(a->f, 50*20/*MAXLIPSYNCFRAMES*/)) ERR(AOE_lipsync);
 
 
