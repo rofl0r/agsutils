@@ -11,6 +11,10 @@
 #define PSEP '/'
 #endif
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
+
 void ADF_close(ADF* a) {
 	AF_close(a->f);
 }
@@ -44,7 +48,7 @@ static int ADF_read_interaction(ADF *a, interaction_type t) {
 		[it_char] = 0,
 		[it_inventory] = 1,
 	};
-	size_t *countmap[it_max] = { 
+	size_t *countmap[it_max] = {
 		[it_char] = &a->game.charactercount,
 		[it_inventory] = &a->game.inventorycount,
 	}, l = *countmap[t], i = iter_start[t];
@@ -244,19 +248,22 @@ static int ADF_read_characters(ADF *a) {
 
 int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen)
 {
-	size_t l = strlen(dir);
+	static const struct {const char name[12];} gfn[]= {
+	"game28.dta", "ac2game.dta", "AC2GAME.DTA"
+	};
+	size_t i, l = strlen(dir);
 	if(l >= flen - 20) return 0;
 	memcpy(fnbuf, dir, l);
 	char* p = fnbuf + l;
 	*p = PSEP; p++;
-	memcpy(p, "game28.dta", sizeof("game28.dta"));
-	AF f;
-	if(!AF_open(&f, fnbuf)) {
-		memcpy(p, "ac2game.dta", sizeof("ac2game.dta"));
-		if(!AF_open(&f, fnbuf)) return 0;
+	for(i = 0; i < ARRAY_SIZE(gfn); ++i) {
+		strcpy(p, gfn[i].name);
+		AF f;
+		if(!AF_open(&f, fnbuf)) continue;
+		AF_close(&f);
+		return 1;
 	}
-	AF_close(&f);
-	return 1;
+	return 0;
 }
 
 int ADF_read_cursors(ADF* a) {
