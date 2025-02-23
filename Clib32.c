@@ -34,7 +34,13 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
+#include <errno.h>
 #include "Clib32.h"
+
+#define STRSTORE_INDEX_TYPE unsigned int
+#define STRSTORE_LINEAR 1
+#include "strstore.h"
+
 #include "endianness.h"
 
 #ifndef O_BINARY
@@ -43,8 +49,11 @@
 
 #ifndef _WIN32
 #define PSEP_STR "/"
+#define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
 #else
 #define PSEP_STR "\\"
+#include <direct.h>
+#define MKDIR(D) mkdir(D)
 #endif
 #define PSEP PSEP_STR[0]
 
@@ -142,21 +151,40 @@ static void fgetstring_enc(char *sss, struct ByteArray *ooo, int maxLength) {
 	}
 }
 
-static int read_v30_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout) {
+static int mfl_alloc(struct MultiFileLibDyn * mfl, size_t num_files) {
+	int ssr = strstore_prealloc(mfl->filenames, num_files, 16);
+	mfl->file_datafile = calloc(num_files, 1);
+	mfl->offset = calloc(num_files, sizeof(*mfl->offset));
+	mfl->length = calloc(num_files, sizeof(*mfl->length));
+	return ssr && mfl->file_datafile && mfl->offset && mfl->length;
+}
+
+int AgsFile_setNumFiles(struct AgsFile *f, size_t num_files) {
+	return mfl_alloc(&f->mflib, num_files);
+}
+
+static int read_v30_clib(struct MultiFileLibDyn * mfl, struct ByteArray * wout) {
 	size_t aa;
+	char buf[260];
 	/* int reservedFlags = */ ByteArray_readInt(wout);
 
-	mfl->num_data_files = ByteArray_readInt(wout);
-	assert(mfl->num_data_files <= MAXMULTIFILES);
-	for (aa = 0; aa < mfl->num_data_files; aa++)
-		fgetnulltermstring(mfl->data_filenames[aa], wout, 50);
-	mfl->num_files = ByteArray_readInt(wout);
+	size_t num_data_files = ByteArray_readInt(wout);
+	if(num_data_files > MAXMULTIFILES) {
+		fprintf(stderr, "error: num_data_files exceeds MAXMULTIFILES\n");
+		return 0;
+	}
 
-	if (mfl->num_files > MAX_FILES)
-		return -1;
+	for (aa = 0; aa < num_data_files; aa++) {
+		fgetnulltermstring(buf, wout, 260);
+		strstore_append(mfl->data_filenames, buf);
+	}
+	size_t num_files = ByteArray_readInt(wout);
 
-	for (aa = 0; aa < mfl->num_files; aa++) {
-		fgetnulltermstring(mfl->filenames[aa], wout, 100);
+	mfl_alloc(mfl, num_files);
+
+	for (aa = 0; aa < num_files; aa++) {
+		fgetnulltermstring(buf, wout, 260);
+		strstore_append(mfl->filenames, buf);
 		mfl->file_datafile[aa] = ByteArray_readUnsignedByte(wout); /* "LibUid" */
 		unsigned long long tmp;
 		tmp = ByteArray_readUnsignedLongLong(wout);
@@ -174,70 +202,108 @@ static int getw_enc(struct ByteArray *ooo) {
 	return fread_data_enc_int(ooo);
 }
 
-static int read_new_new_enc_format_clib(struct MultiFileLibNew * mfl, struct ByteArray * wout) {
+static int read_new_new_enc_format_clib(struct MultiFileLibDyn * mfl, struct ByteArray * wout) {
 	size_t aa;
+	char buf[100];
 	int randSeed = ByteArray_readInt(wout);
 	init_pseudo_rand_gen(randSeed + RAND_SEED_SALT);
-	mfl->num_data_files = getw_enc(wout);
-	for (aa = 0; aa < mfl->num_data_files; aa++)
-		fgetstring_enc(mfl->data_filenames[aa], wout, 50);
-	mfl->num_files = getw_enc(wout);
+	size_t num_data_files = getw_enc(wout);
 
-	if (mfl->num_files > MAX_FILES)
+	for (aa = 0; aa < num_data_files; aa++) {
+		fgetstring_enc(buf, wout, 50);
+		strstore_append(mfl->data_filenames, buf);
+	}
+	size_t num_files = getw_enc(wout);
+
+	if (num_files > MAX_FILES)
 		return -1;
 
-	for (aa = 0; aa < mfl->num_files; aa++)
-		fgetstring_enc(mfl->filenames[aa], wout, 100);
-	for (aa = 0; aa < mfl->num_files; aa++)
+	mfl_alloc(mfl, num_files);
+
+	for (aa = 0; aa < num_files; aa++) {
+		fgetstring_enc(buf, wout, 100);
+		strstore_append(mfl->filenames, buf);
+	}
+	for (aa = 0; aa < num_files; aa++)
 		mfl->offset[aa] = fread_data_enc_int(wout);
-	for (aa = 0; aa < mfl->num_files; aa++)
+	for (aa = 0; aa < num_files; aa++)
 		mfl->length[aa] = fread_data_enc_int(wout);
-	for (aa = 0; aa < mfl->num_files; aa++)
+	for (aa = 0; aa < num_files; aa++)
 		mfl->file_datafile[aa] = fread_data_enc_byte(wout);
 	return 0;
 }
 
-static int read_new_new_format_clib(struct MultiFileLibNew* mfl, struct ByteArray * wout) {
+static int read_new_new_format_clib(struct MultiFileLibDyn* mfl, struct ByteArray * wout) {
+	char buf[260];
 	size_t aa;
-	mfl->num_data_files = ByteArray_readInt(wout);
-	for (aa = 0; aa < mfl->num_data_files; aa++)
-		fgetnulltermstring(mfl->data_filenames[aa], wout, 50);
-	mfl->num_files = ByteArray_readInt(wout);
-
-	if (mfl->num_files > MAX_FILES) return -1;
-
-	for (aa = 0; aa < mfl->num_files; aa++) {
-		short nameLength = ByteArray_readShort(wout);
-		nameLength /= 5;
-		ByteArray_readMultiByte(wout, mfl->filenames[aa], nameLength);
-		clib_decrypt_text(mfl->filenames[aa]);
+	size_t num_data_files = ByteArray_readInt(wout);
+	for (aa = 0; aa < num_data_files; aa++) {
+		fgetnulltermstring(buf, wout, 50);
+		strstore_append(mfl->data_filenames, buf);
 	}
-	for (aa = 0; aa < mfl->num_files; aa++)
+	size_t num_files = ByteArray_readInt(wout);
+
+	if (num_files > MAX_FILES) return -1;
+
+	mfl_alloc(mfl, num_files);
+
+	for (aa = 0; aa < num_files; aa++) {
+		unsigned short nameLength = ByteArray_readShort(wout);
+		nameLength /= 5;
+		ByteArray_readMultiByte(wout, buf, nameLength);
+		clib_decrypt_text(buf);
+		strstore_append(mfl->filenames, buf);
+	}
+	for (aa = 0; aa < num_files; aa++)
 		mfl->offset[aa] = ByteArray_readInt(wout);
-	for (aa = 0; aa < mfl->num_files; aa++)
+	for (aa = 0; aa < num_files; aa++)
 		mfl->length[aa] = ByteArray_readInt(wout);
-	ByteArray_readMultiByte(wout, mfl->file_datafile, mfl->num_files);
+	ByteArray_readMultiByte(wout, mfl->file_datafile, num_files);
 	return 0;
 }
 
-static int read_new_format_clib(struct MultiFileLib * mfl, struct ByteArray * wout, int libver) {
-	mfl->num_data_files = ByteArray_readInt(wout);
-	ByteArray_readMultiByte(wout, (char*) mfl->data_filenames, 20U * mfl->num_data_files);
-	mfl->num_files = ByteArray_readInt(wout);
+/* this is the 2nd oldest format we support. it's labeled "new" in the original code */
+static int read_new_format_clib(struct MultiFileLibDyn *mfl, struct ByteArray * wout, int libver) {
+	struct MultiFileLib *old = calloc(1, sizeof(*old));
+	size_t aa;
 
-	if (mfl->num_files > MAX_FILES) return -1;
+	old->num_data_files = ByteArray_readInt(wout);
+	ByteArray_readMultiByte(wout, (char*) old->data_filenames, 20U * old->num_data_files);
+	old->num_files = ByteArray_readInt(wout);
 
-	ByteArray_readMultiByte(wout, (char*) mfl->filenames, 25U * mfl->num_files);
+	if (old->num_files > MAX_FILES || old->num_data_files > MAXMULTIFILES) {
+		fprintf(stderr, "error: old mfl format file numbers exceed max\n");
+		free(old);
+		return -1;
+	}
 
-	fread_data_intarray(wout, mfl->offset, mfl->num_files);
-	fread_data_intarray(wout, mfl->length, mfl->num_files);
-	ByteArray_readMultiByte(wout, mfl->file_datafile, mfl->num_files);
+	ByteArray_readMultiByte(wout, (char*) old->filenames, 25U * old->num_files);
+
+	fread_data_intarray(wout, old->offset, old->num_files);
+	fread_data_intarray(wout, old->length, old->num_files);
+	ByteArray_readMultiByte(wout, old->file_datafile, old->num_files);
 
 	if (libver >= 11) {
-		size_t aa;
-		for (aa = 0; aa < mfl->num_files; aa++)
-			clib_decrypt_text(mfl->filenames[aa]);
+		for (aa = 0; aa < old->num_files; aa++)
+			clib_decrypt_text(old->filenames[aa]);
 	}
+
+	mfl_alloc(mfl, old->num_files);
+
+	// convert to regular format
+	for(aa = 0; aa < old->num_data_files; ++aa)
+		strstore_append(mfl->data_filenames, old->data_filenames[aa]);
+	for(aa = 0; aa < old->num_files; ++aa)
+		strstore_append(mfl->filenames, old->filenames[aa]);
+
+	for(aa = 0; aa < old->num_files; ++aa)
+		mfl->offset[aa] = old->offset[aa];
+	for(aa = 0; aa < old->num_files; ++aa)
+		mfl->length[aa] = old->length[aa];
+
+	memcpy(mfl->file_datafile, old->file_datafile, old->num_files);
+
+	free(old);
 	return 0;
 }
 
@@ -259,16 +325,26 @@ void AgsFile_setSourceDir(struct AgsFile *f, char* sourcedir) {
 	f->dir = sourcedir;
 }
 
-void AgsFile_setFileCount(struct AgsFile *f, size_t count) {
-	f->mflib.num_files = count;
-}
-
 static off_t getfilelength(int fd) {
 	struct stat st;
 	fstat(fd, &st);
 	return st.st_size;
 }
 
+int AgsFile_appendFile(struct AgsFile *f, char* fn) {
+	int idx = strstore_count(f->mflib.filenames);
+	strstore_append(f->mflib.filenames, fn);
+	char fnbuf[512];
+	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", f->dir, PSEP, fn);
+	int fd = open(fnbuf, O_RDONLY|O_BINARY);
+	if(fd == -1) return 0;
+	off_t fl = getfilelength(fd);
+	close(fd);
+	f->mflib.length[idx] = fl;
+	return 1;
+}
+
+/*
 int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn) {
 	strncpy(f->mflib.filenames[index], fn, 100);
 	char fnbuf[512];
@@ -280,16 +356,13 @@ int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn) {
 	f->mflib.length[index] = fl;
 	return 1;
 }
+*/
 
-int AgsFile_setDataFile(struct AgsFile *f, size_t index, char* fn) {
+int AgsFile_appendDataFile(struct AgsFile *f, char* fn) {
 	size_t l = strlen(fn);
 	if(l >= 20) return 0;
-	strncpy(f->mflib.data_filenames[index], fn, 20);
+	if(!strstore_append(f->mflib.data_filenames, fn)) return 0;
 	return 1;
-}
-
-void AgsFile_setDataFileCount(struct AgsFile *f, size_t count) {
-	f->mflib.num_data_files = count;
 }
 
 static void write_ull(int fd, unsigned long long val) {
@@ -371,23 +444,33 @@ static size_t write_header(struct AgsFile *f, int fd) {
 		write_int(fd, 0); /*reservedFlags*/
 		written += 4;
 	}
-	write_int(fd, f->mflib.num_data_files);
+	unsigned num_data_files = strstore_count(f->mflib.data_filenames);
+	write_int(fd, num_data_files);
 	written += sizeof(int);
-	for(i = 0; i < f->mflib.num_data_files; i++) {
-		l = strlen(f->mflib.data_filenames[i]) + 1;
+	char *ssdata = strstore_get_first(f->mflib.data_filenames);
+	size_t ssoff = 0;
+	for(i = 0; i < num_data_files; i++) {
+		char *s = ssdata + ssoff;
+		l = strlen(s) + 1;
 		written += l;
-		if(l != (size_t) write(fd, f->mflib.data_filenames[i], l))
+		ssoff += l;
+		if(l != (size_t) write(fd, s, l))
 			return 0;
 	}
 
-	write_int(fd, f->mflib.num_files);
+	unsigned num_files = strstore_count(f->mflib.filenames);
+	write_int(fd, num_files);
 	written += sizeof(int);
+	ssdata = strstore_get_first(f->mflib.filenames);
+	ssoff = 0;
 
 	if(myversion == 30) {
-		for(i = 0; i < f->mflib.num_files; i++) {
-			l = strlen(f->mflib.filenames[i]) + 1;
+		for(i = 0; i < num_files; i++) {
+			char *s = ssdata + ssoff;
+			l = strlen(s) + 1;
+			ssoff += l;
 			written += l;
-			if(l != (size_t) write(fd, f->mflib.filenames[i], l))
+			if(l != (size_t) write(fd, s, l))
 				return 0;
 			/* write another 0 byte as libuid */
 			WH_EWRITE(fd, &version, 1);
@@ -403,14 +486,20 @@ static size_t write_header(struct AgsFile *f, int fd) {
 	}
 
 	unsigned char encbuf[100];
-	for(i = 0; i < f->mflib.num_files; i++) {
-		l = strlen(f->mflib.filenames[i]) + 1;
+	for(i = 0; i < num_files; i++) {
+		char *s = ssdata + ssoff;
+		l = strlen(s) + 1;
+		ssoff += l;
+		if(l > 100) {
+			fprintf(stderr, "filename %d too long for mfl 20\n", (int) i);
+			return 0;
+		}
 		write_short(fd, l * 5);
-		clib_encrypt_text((unsigned char*)f->mflib.filenames[i], encbuf);
+		clib_encrypt_text((unsigned char*)s, encbuf);
 		if(l != (size_t) write(fd, encbuf, l)) return 0;
 		written += sizeof(short) + l;
 	}
-	l = f->mflib.num_files;
+	l = num_files;
 	for(i = 0; i < l; ++i)
 		write_int(fd, f->mflib.offset[i]);
 	written += sizeof(int) * l;
@@ -425,9 +514,9 @@ static size_t write_header(struct AgsFile *f, int fd) {
 	return written;
 }
 
-static void write_footer(int fd, unsigned offset, int v30) {
-	write_int(fd, offset);
-	if(v30) write_int(fd, 0);
+static void write_footer(int fd, unsigned long long offset, int v30) {
+	if(v30) write_ull(fd, offset);
+	else write_int(fd, offset);
 	write(fd, clibendfilesig, 12);
 }
 
@@ -440,13 +529,15 @@ int AgsFile_write(struct AgsFile *f) {
 	if(fd == -1) return 0;
 	size_t i;
 	unsigned long long off;
+	size_t num_files = AgsFile_getFileCount(f);
+
 	if(!(off = write_header(f, fd))) return 0;
-	for(i = 0; i < f->mflib.num_files; i++) {
+	for(i = 0; i < num_files; i++) {
 		f->mflib.offset[i] = off;
 		off += f->mflib.length[i];
 	}
 	lseek(fd, 0, SEEK_SET);
-	unsigned header_offset = 0; /* we can safely assume the exe stub fits into 4 GB */
+	unsigned long long header_offset = 0;
 	if(f->exestub_fn) {
 		size_t stubsize = -1L;
 		if(!copy_into_file(fd, f->dir, f->exestub_fn, &stubsize))
@@ -454,9 +545,17 @@ int AgsFile_write(struct AgsFile *f) {
 		header_offset = stubsize;
 	}
 	write_header(f, fd);
-	for(i = 0; i < f->mflib.num_files; i++) {
+	if(num_files > MAX_FILES && f->libversion < 30) {
+		fprintf(stderr, "error: number of files exceeds max for mfl 20\n");
+		return 0;
+	}
+	char *ssdata = strstore_get_first(f->mflib.filenames);
+	size_t ssoff = 0;
+	for(i = 0; i < num_files; i++) {
 		size_t fs = f->mflib.length[i];
-		if(!copy_into_file(fd, f->dir, f->mflib.filenames[i], &fs))
+		char *fn = ssdata + ssoff;
+		ssoff += strlen(fn) + 1;
+		if(!copy_into_file(fd, f->dir, fn, &fs))
 			return 0;
 	}
 	write_footer(fd, header_offset, f->libversion >= 30);
@@ -468,13 +567,21 @@ static int prep_multifiles(struct AgsFile *f) {
 	unsigned aa;
 	struct ByteArray *ba;
 	/* open each datafile as a byte array */
-	assert(MAXMULTIFILES >= f->mflib.num_data_files);
-	for (aa = 1; aa < f->mflib.num_data_files; aa++) {
+	size_t num_data_files = strstore_count(f->mflib.data_filenames);
+	if(num_data_files > MAXMULTIFILES) {
+		fprintf(stderr, "error: number of datafiles exceed MAXMULTIFILES\n");
+		return 0;
+	}
+	char *ssdata = strstore_get_first(f->mflib.data_filenames);
+	size_t ssoff = strlen(ssdata) + 1;
+	for (aa = 1; aa < num_data_files; aa++) {
 		char fntmp[512];
+		char *s = ssdata + ssoff;
+		ssoff += strlen(s) + 1;
 		snprintf(fntmp, sizeof fntmp, "%s%s%s",
 			f->dir ? f->dir : "",
 			f->dir ? PSEP_STR : "",
-			f->mflib.data_filenames[aa]);
+			s);
 		ba = &f->f[aa];
 		ByteArray_ctor(ba);
 		if(!ByteArray_open_file(ba, fntmp)) {
@@ -502,7 +609,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	off_t ba_len = ByteArray_get_length(ba);
 	ByteArray_readMultiByte(ba, clbuff, 5);
 
-	uint32_t absoffs = 0; /* we read 4 bytes- so our datatype 
+	uint32_t absoffs = 0; /* we read 4 bytes- so our datatype
 	must be 4 bytes as well, since we use a pointer to it */
 
 	f->pack_off = 0;
@@ -581,29 +688,13 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 				return -5;
 			}
 		} else  {
-			struct MultiFileLib mflibOld_b, *mflibOld = &mflibOld_b;
-
-			if (read_new_format_clib(mflibOld, ba, f->libversion)) {
+			if (read_new_format_clib(&f->mflib, ba, f->libversion)) {
 				fprintf(stderr, "error: failed to read old mfl file\n");
 				return -5;
 			}
-			// convert to newer format
-			f->mflib.num_files = mflibOld->num_files;
-			f->mflib.num_data_files = mflibOld->num_data_files;
-			for(aa = 0; aa < f->mflib.num_files; ++aa)
-				f->mflib.offset[aa] = mflibOld->offset[aa];
-			for(aa = 0; aa < f->mflib.num_files; ++aa)
-				f->mflib.length[aa] = mflibOld->length[aa];
-			memcpy(f->mflib.file_datafile, mflibOld->file_datafile, sizeof(char) * f->mflib.num_files);
-			assert(MAXMULTIFILES >= f->mflib.num_data_files);
-			for (aa = 0; aa < f->mflib.num_data_files; aa++)
-				strcpy(f->mflib.data_filenames[aa], mflibOld->data_filenames[aa]);
-			for (aa = 0; aa < f->mflib.num_files; aa++)
-				strcpy(f->mflib.filenames[aa], mflibOld->filenames[aa]);
 		}
-
-		strcpy(f->mflib.data_filenames[0], filename);
-		for (aa = 0; aa < f->mflib.num_files; aa++) {
+		size_t num_files = strstore_count(f->mflib.filenames);
+		for (aa = 0; aa < num_files; aa++) {
 			// correct offsets for EXE file
 			if (f->mflib.file_datafile[aa] == 0)
 				f->mflib.offset[aa] += absoffs;
@@ -611,31 +702,37 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 		return prep_multifiles(f);
 	}
 
+	// this code only mflib < 10
+	strstore_append(f->mflib.data_filenames, filename);
 	passwmodifier = ByteArray_readUnsignedByte(ba);
 	ByteArray_readUnsignedByte(ba); // unused byte
-	f->mflib.num_data_files = 1;
-	strcpy(f->mflib.data_filenames[0], filename);
 
 	short tempshort = ByteArray_readShort(ba);
-	f->mflib.num_files = tempshort;
+	size_t num_files = tempshort;
+	mfl_alloc(&f->mflib, num_files);
 
-	if (f->mflib.num_files > MAX_FILES) return -4;
+	if (num_files > MAX_FILES) {
+		fprintf(stderr, "error: num_files for mfl 6 exceeds MAX_FILES\n");
+		return -4;
+	}
 
 	ByteArray_readMultiByte(ba, clbuff, 13);  // skip password dooberry
-	for (aa = 0; aa < f->mflib.num_files; aa++) {
-		ByteArray_readMultiByte(ba, f->mflib.filenames[aa], 13);
-		l = strlen(f->mflib.filenames[aa]);
+	char buf[260];
+	for (aa = 0; aa < num_files; aa++) {
+		ByteArray_readMultiByte(ba, buf, 13);
+		l = strlen(buf);
 		for (cc = 0; cc < l; cc++)
-			f->mflib.filenames[aa][cc] -= passwmodifier;
+			buf[cc] -= passwmodifier;
+		strstore_append(f->mflib.filenames, buf);
 	}
-	for(cc = 0; cc < f->mflib.num_files; cc++)
+	for(cc = 0; cc < num_files; cc++)
 		f->mflib.length[cc] = ByteArray_readUnsignedInt(ba);
 
-	ByteArray_set_position_rel(ba, 2 * f->mflib.num_files); // skip flags & ratio
+	ByteArray_set_position_rel(ba, 2 * num_files); // skip flags & ratio
 
 	f->mflib.offset[0] = ByteArray_get_position(ba);
 
-	for (aa = 1; aa < f->mflib.num_files; aa++) {
+	for (aa = 1; aa < num_files; aa++) {
 		f->mflib.offset[aa] = f->mflib.offset[aa - 1] + f->mflib.length[aa - 1];
 		f->mflib.file_datafile[aa] = 0;
 	}
@@ -655,11 +752,11 @@ static int checkDataIndex(struct AgsFile *f, size_t index) {
 }
 
 size_t AgsFile_getFileCount(struct AgsFile *f) {
-	return f->mflib.num_files;
+	return strstore_count(f->mflib.filenames);
 }
 
 size_t AgsFile_getDataFileCount(struct AgsFile *f) {
-	return f->mflib.num_data_files;
+	return strstore_count(f->mflib.data_filenames);
 }
 
 int AgsFile_getFileNumber(struct AgsFile *f, size_t index) {
@@ -671,14 +768,24 @@ void AgsFile_setFileNumber(struct AgsFile *f, size_t index, int number) {
 	*(unsigned char*)(&f->mflib.file_datafile[index]) = number;
 }
 
+#if ! STRSTORE_LINEAR
 char *AgsFile_getFileName(struct AgsFile *f, size_t index) {
 	if (!checkIndex(f, index)) return 0;
-	return f->mflib.filenames[index];
+	return strstore_get(f->mflib.filenames, index);
 }
 
 char *AgsFile_getDataFileName(struct AgsFile *f, size_t index) {
 	if (!checkDataIndex(f, index)) return 0;
-	return f->mflib.data_filenames[index];
+	return strstore_get(f->mflib.data_filenames, index);
+}
+#endif
+
+char *AgsFile_getFileNameLinear(struct AgsFile *f, size_t off) {
+	return strstore_get_first(f->mflib.filenames) + off;
+}
+
+char *AgsFile_getDataFileNameLinear(struct AgsFile *f, size_t off) {
+	return strstore_get_first(f->mflib.data_filenames) + off;
 }
 
 size_t AgsFile_getFileSize(struct AgsFile *f, size_t index) {
@@ -700,9 +807,18 @@ static ssize_t AgsFile_read(struct AgsFile *f, int multifileno, void* buf, size_
 }
 
 int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len, const char* outfn) {
-	FILE *fo = fopen(outfn, "wb");
-	if(fo == 0) return 0;
 	char buf[4096];
+	buf[0] = 0;
+	FILE *fo = fopen(outfn, "wb");
+	while(fo == 0 && errno == ENOENT) {
+		if(buf[0] == 0) strcpy(buf, outfn);
+		char *p = strrchr(buf, PSEP);
+		if(!p) return 0;
+		*p = 0;
+		if(MKDIR(buf) == 0) strcpy(buf, outfn);
+		fo = fopen(outfn, "wb");
+	}
+	if(!fo) return 0;
 	size_t written = 0, l = len;
 	off_t save_pos = ByteArray_get_position(&f->f[multifileno]);
 	AgsFile_seek(f, multifileno, start);
@@ -732,6 +848,8 @@ int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn) {
 void AgsFile_init(struct AgsFile *buf, char* filename) {
 	memset(buf, 0, sizeof *buf);
 	buf->fn = filename;
+	buf->mflib.data_filenames = strstore_new();
+	buf->mflib.filenames = strstore_new();
 }
 
 int AgsFile_open(struct AgsFile *buf) {

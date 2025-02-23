@@ -27,9 +27,18 @@ struct MultiFileLibNew {
 	size_t num_files;
 };
 
+struct strstore;
+struct MultiFileLibDyn {
+	struct strstore *data_filenames;
+	struct strstore *filenames;
+	unsigned long long *offset;
+	unsigned long long *length;
+	char *file_datafile;        // number of datafile
+};
+
 struct AgsFile {
 	struct ByteArray f[MAXMULTIFILES];
-	struct MultiFileLibNew mflib;
+	struct MultiFileLibDyn mflib;
 	int libversion;
 	char* fn;
 	char *dir;
@@ -46,12 +55,17 @@ int AgsFile_open(struct AgsFile *buf);
 
 int AgsFile_getVersion(struct AgsFile *f);
 size_t AgsFile_getFileCount(struct AgsFile *f);
-char *AgsFile_getFileName(struct AgsFile *f, size_t index);
 size_t AgsFile_getOffset(struct AgsFile *f, size_t index);
 size_t AgsFile_getFileSize(struct AgsFile *f, size_t index);
 int AgsFile_getFileNumber(struct AgsFile *f, size_t index);
 size_t AgsFile_getDataFileCount(struct AgsFile *f);
+/* the availability of getFileName* APIs depends upon STRSTORE_LINEAR setting
+   in CLib32.c */
+char *AgsFile_getFileName(struct AgsFile *f, size_t index);
+char *AgsFile_getFileNameLinear(struct AgsFile *f, size_t off);
 char *AgsFile_getDataFileName(struct AgsFile *f, size_t index);
+char *AgsFile_getDataFileNameLinear(struct AgsFile *f, size_t off);
+
 int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn);
 int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len, const char* outfn);
 
@@ -59,9 +73,10 @@ int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len,
 // the directory containing the files passed via setFile
 void AgsFile_setSourceDir(struct AgsFile *f, char* sourcedir);
 void AgsFile_setVersion(struct AgsFile *f, int version);
-void AgsFile_setFileCount(struct AgsFile *f, size_t count);
-int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn);
-void AgsFile_setDataFileCount(struct AgsFile *f, size_t count);
+//int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn);
+int AgsFile_setNumFiles(struct AgsFile *f, size_t num_files);
+int AgsFile_appendFile(struct AgsFile *f, char* fn);
+int AgsFile_appendDataFile(struct AgsFile *f, char* fn);
 void AgsFile_setFileNumber(struct AgsFile *f, size_t index, int number);
 int AgsFile_setDataFile(struct AgsFile *f, size_t index, char* fn);
 void AgsFile_setExeStub(struct AgsFile *f, const char *fn);

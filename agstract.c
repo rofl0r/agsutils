@@ -5,15 +5,19 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <libgen.h> /* basename */
+#include <limits.h>
 #include "version.h"
 #ifdef _WIN32
 #include <direct.h>
 #define MKDIR(D) mkdir(D)
+#define PSEP_STR "\\"
 #define PSEP '\\'
 #else
 #define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
-#define PSEP '/'
+#define PSEP_STR "/"
 #endif
+#define PSEP PSEP_STR[0]
 
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
@@ -32,6 +36,15 @@ static void dump_exe(struct AgsFile *ags, const char *dir) {
 
 static FILE* open_packfile(const char* fn) {
 	return fopen(fn, "w");
+}
+
+/* assert that the resolved absolute filename stays within root,
+   without using tricks like /.. */
+static int sec_check(char* want) {
+	if(want[0] == PSEP) return 0;
+	if(strstr(want, ".." PSEP_STR) || strstr(want, PSEP_STR ".."))
+		return 0;
+	return 1;
 }
 
 #define EFPRINTF(F, FMT, ...) \
@@ -77,17 +90,32 @@ int main(int argc, char** argv) {
 	fprintf(stdout, "%s: mfl version %d, containing %zu files.\n", fn, AgsFile_getVersion(ags), l);
 	EFPRINTF(outf, "agspackfile=%s\nmflversion=%d\nfilecount=%zu\n", fn, AgsFile_getVersion(ags), l);
 	EFPRINTF(outf, "datafilecount=%zu\n", ld);
-	for(i = 0; i < ld; i++) {
-		EFPRINTF(outf, "df%zu=%s\n", i, AgsFile_getDataFileName(ags, i));
+	EFPRINTF(outf, "df0=%s\n", basename(strdup(fn))); // leak that one string happily
+	/* skip first data filename, as we replace it with the exe name the user has */
+	size_t ssoff = strlen(AgsFile_getDataFileNameLinear(ags, 0)) + 1;
+	for(i = 1; i < ld; i++) {
+		char *ss = AgsFile_getDataFileNameLinear(ags, ssoff);
+		ssoff += strlen(ss+1);
+		EFPRINTF(outf, "df%zu=%s\n", i, ss);
 	}
 	for(i = 0; i < l; i++) {
 		char buf[16];
 		snprintf(buf, sizeof(buf), "%d", AgsFile_getFileNumber(ags, i));
 		EFPRINTF(outf, "fileno%zu=%s\n", i, buf);
 	}
+	ssoff = 0;
 	for(i = 0; i < l; i++) {
-		char *currfn = AgsFile_getFileName(ags, i);
+		char *currfn = AgsFile_getFileNameLinear(ags, ssoff), *p;
+		ssoff += strlen(currfn)+1;
 		snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, currfn);
+		if((p = strchr(currfn, '/'))) {
+			if(PSEP != '/')
+				do { *p = PSEP; ++p;} while((p=strchr(currfn, '/')));
+			if(!sec_check(currfn)) {
+				fprintf(stderr, "error: file %s tries to write outside dest dir\n", currfn);
+				return 1;
+			}
+		}
 		fprintf(stdout, "%s -> %s\n", currfn, fnbuf);
 		EFPRINTF(outf, "%zu=%s\n", i, currfn);
 		if(!AgsFile_dump(ags, i, fnbuf)) ec++;

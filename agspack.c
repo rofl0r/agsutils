@@ -51,13 +51,13 @@ int main(int argc, char** argv) {
 	struct AgsFile *ags = calloc(1, sizeof(*ags));
 	AgsFile_init(ags, pack);
 	AgsFile_setSourceDir(ags, dir);
-	AgsFile_setDataFileCount(ags, 1); //TODO
-	if(!AgsFile_setDataFile(ags, 0, "AGSPACKv" VERSION)) {
+
+	if(!AgsFile_appendDataFile(ags, "AGSPACKv" VERSION)) {
 		fprintf(stderr, "error: packname exceeds 20 chars\n");
 		return 1;
 	}
 	if(exe_opt) AgsFile_setExeStub(ags, "agspack.exestub");
-
+	size_t filecount = 0;
 	while(fgets(line, sizeof(line), fp)) {
 		size_t l = strlen(line);
 		if(l) {
@@ -70,17 +70,27 @@ int main(int argc, char** argv) {
 		if(0) ;
 		else if(strcmp(line, "agsversion") == 0 || strcmp(line, "mflversion") == 0)
 			AgsFile_setVersion(ags, atoi(p));
-		else if(strcmp(line, "filecount") == 0)
-			AgsFile_setFileCount(ags, atoi(p));
-		else if(isdigit(*line))
-			if(!AgsFile_setFile(ags, index++, p)) {
+		else if(strcmp(line, "filecount") == 0) {
+			filecount = atoi(p);
+			AgsFile_setNumFiles(ags, filecount);
+		}
+		else if(isdigit(*line)) {
+			// FIXME: we just add the files sequentially now
+			// though it's most likely correct...
+			//if(!AgsFile_setFile(ags, index++, p))
+			if(filecount == 0) {
+				fprintf(stderr, "error: filecount required before first file\n");
+				return 1;
+			}
+			++index;
+			if(!AgsFile_appendFile(ags, p)) {
 				perror(p);
 				return 1;
 			}
+		}
 	}
 	fclose(fp);
-	size_t l = AgsFile_getFileCount(ags);
-	for(index = 0; index < l; index++) {
+	for(index = 0; index < filecount; index++) {
 		// TODO read from input file, but it seems to be all 0 for some games.
 		AgsFile_setFileNumber(ags, index, 0);
 	}
