@@ -210,7 +210,9 @@ ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len
 		if((size_t) self->pos + len > (size_t) self->size) {
 			oob("memstream" , self->pos + len, self->size);
 			if(!(self->flags & BAF_NONFATAL_READ_OOB)) assert_dbg(0);
-			len = self->size - self->pos;
+			off_t slen = self->size - self->pos;
+			if(slen > 0) len = slen;
+			else return -1;
 		}
 		void *p = mem_getptr(&self->source_mem, self->pos, len);
 		if(p) memcpy(buffer, p, len);
@@ -329,16 +331,18 @@ unsigned char ByteArray_readUnsignedByte(struct ByteArray* self) {
 	union {
 		unsigned char intval;
 	} buf;
-	self->readMultiByte(self, (char*) &buf.intval, 1);
-	return buf.intval;
+	if(self->readMultiByte(self, (char*) &buf.intval, 1) == 1)
+		return buf.intval;
+	return -1;
 }
 
 signed char ByteArray_readByte(struct ByteArray* self) {
 	union {
 		signed char intval;
 	} buf;
-	self->readMultiByte(self, (char*) &buf.intval, 1);
-	return buf.intval;
+	if(self->readMultiByte(self, (char*) &buf.intval, 1) == 1)
+		return buf.intval;
+	return -1;
 }
 
 /* equivalent to foo = self[x]; (pos stays unchanged) */
