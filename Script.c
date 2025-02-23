@@ -56,13 +56,19 @@ static int get_fixups(AF* a, size_t start, size_t count, struct fixup_data *ret)
 
 	if(count != (size_t) AF_read(a, ret->types, count)) goto err;
 	for(i = 0; i < count; i++) {
-		assert(ret->types[i]>=0 && ret->types[i]<=FIXUP_MAX);
+		if(!(ret->types[i]>=0 && ret->types[i]<=FIXUP_MAX)) {
+			fprintf(stderr, "error: get_fixups type assert\n");
+			goto err;
+		}
 		ret->count[ret->types[i]]++;
 		ret->codeindex[i] = AF_read_uint(a);
 	}
 	for(i = 0; i <= FIXUP_MAX; i++) {
 		ret->codeindex_per[i] = malloc(ret->count[i] * sizeof(unsigned));
-		if(!ret->codeindex_per[i]) goto err;
+		if(!ret->codeindex_per[i]) {
+			fprintf(stderr, "error: get_fixups OOM\n");
+			goto err;
+		}
 		ret->count[i] = 0; /* reset to 0 to use as index i.t. next loop */
 	}
 
@@ -179,7 +185,10 @@ static struct labels get_labels(unsigned *code, size_t count) {
 		insn = code[insno] & 0x00ffffff;
 		insno++;
 		int isjmp = 0;
-		assert(insn < SCMD_MAX);
+		if(insn >= SCMD_MAX) {
+			fprintf(stderr, "error: instruction number unknown\n");
+			abort();
+		}
 		switch(insn) {
 			case SCMD_JZ: case SCMD_JMP: case SCMD_JNZ:
 				isjmp = 1;
@@ -194,7 +203,7 @@ static struct labels get_labels(unsigned *code, size_t count) {
 				if((int) insno + val < 0 || insno + val >= count || code[insno + val] > SCMD_MAX) {
 					fprintf(stderr, "error: label referenced from jump at %zu is out of bounds\n"
 					"or points to non-instruction start code.\n", insno);
-					assert(0);
+					abort();
 				}
 				ret.insno[ret.count] = insno + val;
 				ret.count++;
@@ -805,7 +814,10 @@ int ASI_read_script(AF *a, ASI* s) {
 	char sig[4];
 	size_t l = 4;
 	if(l != (size_t) AF_read(a, sig, l)) return 0;
-	assert(memcmp("SCOM", sig, 4) == 0);
+	if(memcmp("SCOM", sig, 4)) {
+		fprintf(stderr, "error: SCOM signature expected\n");
+		return 0;
+	}
 	s->version = AF_read_int(a);
 	s->globaldatasize = AF_read_int(a);
 	s->codesize = AF_read_int(a);
