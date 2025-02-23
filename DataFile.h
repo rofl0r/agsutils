@@ -5,13 +5,13 @@
 #include "Script.h"
 
 typedef struct AgsGameData {
-	size_t fontcount;
-	size_t cursorcount;
-	size_t charactercount;
-	size_t inventorycount;
-	size_t viewcount;
-	size_t dialogcount;
-	size_t globalmessagecount;
+	unsigned fontcount;
+	unsigned cursorcount;
+	unsigned charactercount;
+	unsigned inventorycount;
+	unsigned viewcount;
+	unsigned dialogcount;
+	unsigned globalmessagecount;
 	unsigned color_depth;
 	int hasdict;
 } AGD;

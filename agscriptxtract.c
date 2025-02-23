@@ -151,13 +151,13 @@ void dump_header(ADF *a, char *fn) {
 		fprintf(f, "  eMode%s = %u", buf, i);
 	}
 	if(i) fprintf(f, "};\n");
-	fprintf(f, "import Character character[%zu];\n", ADF_get_charactercount(a));
+	fprintf(f, "import Character character[%u];\n", ADF_get_charactercount(a));
 	for(i=0; i<ADF_get_charactercount(a); ++i) {
 		char buf[64], *p = buf, *n = ADF_get_characterscriptname(a, i);
 		pfx_capitalize(ADF_get_characterscriptname(a, i), 'c', buf);
 		fprintf(f, "import Character %s;\n", buf);
 	}
-	fprintf(f, "import InventoryItem inventory[%zu];\n", ADF_get_inventorycount(a));
+	fprintf(f, "import InventoryItem inventory[%u];\n", ADF_get_inventorycount(a));
 	if(a->inventorynames) for(i=1; i<ADF_get_inventorycount(a); ++i) {
 		fprintf(f, "import InventoryItem %s;\n", ADF_get_inventoryname(a, i));
 	}
