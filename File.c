@@ -7,6 +7,10 @@ int AF_open(AF *f, const char* fn) {
 	return ByteArray_open_file(f->b, fn);
 }
 
+int AF_is_eof(AF *f) {
+	return ByteArray_is_eof(f->b);
+}
+
 void AF_close(AF* f) {
 	ByteArray_close_file(f->b);
 }

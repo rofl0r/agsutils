@@ -13,6 +13,7 @@ typedef struct AFile {
 int AF_open(AF *f, const char* fn);
 void AF_close(AF* f);
 
+int AF_is_eof(AF *f);
 off_t AF_get_pos(AF* f);
 int AF_set_pos(AF* f, off_t x);
 

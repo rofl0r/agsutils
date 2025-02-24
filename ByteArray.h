@@ -87,7 +87,7 @@ off_t ByteArray_get_position(struct ByteArray* self);
 int ByteArray_set_position(struct ByteArray* self, off_t pos);
 int ByteArray_set_position_rel(struct ByteArray* self, int rel);
 off_t ByteArray_bytesAvailable(struct ByteArray* self);
-
+int ByteArray_is_eof(struct ByteArray* self);
 ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len);
 unsigned long long ByteArray_readUnsignedLongLong(struct ByteArray* self);
 unsigned int ByteArray_readUnsignedInt(struct ByteArray* self);

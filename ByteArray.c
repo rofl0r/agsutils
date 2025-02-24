@@ -96,6 +96,10 @@ off_t ByteArray_get_position(struct ByteArray* self) {
 	return self->pos;
 }
 
+int ByteArray_is_eof(struct ByteArray* self) {
+	return self->pos >= self->size;
+}
+
 static void seek_error() {
 	perror("seek error!\n");
 	assert_dbg(0);
