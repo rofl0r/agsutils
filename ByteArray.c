@@ -1,5 +1,5 @@
 /* ByteArray (C) 2012 rofl0r
- * 
+ *
  * licensed under the LGPL 2.1+ */
 
 #include "ByteArray.h"
@@ -140,7 +140,6 @@ int ByteArray_set_position(struct ByteArray* self, off_t pos) {
 	if(pos > self->size) {
 		oob(self->filename, pos, self->size);
 		if(!(self->flags & BAF_NONFATAL_READ_OOB)) assert_dbg(0);
-
 		return 0;
 	}
 
@@ -234,6 +233,20 @@ ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len
 	}
 	self->pos += len;
 	return len;
+}
+
+/* search for the next occurence of bytes starting from current position.
+   return 1 if found before eof, else 0.
+   if found, the array position will be set to just after the pattern. */
+int ByteArray_search(struct ByteArray *self, unsigned char* bytes, size_t len) {
+	size_t match = 0;
+	while(!ByteArray_is_eof(self)) {
+		unsigned char c = ByteArray_readByte(self);
+		if(c == bytes[match]) {
+			if(++match == len) return 1;
+		} else match = 0;
+	}
+	return 0;
 }
 
 // write contents of self into dest

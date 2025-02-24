@@ -112,6 +112,8 @@ off_t ByteArray_writeBytes(struct ByteArray* self, struct ByteArray* what);
 unsigned char ByteArray_getUnsignedByte(struct ByteArray* self, off_t index);
 void ByteArray_setUnsignedByte(struct ByteArray* self, off_t index, unsigned char what);
 
+int ByteArray_search(struct ByteArray *self, unsigned char* bytes, size_t len);
+
 void ByteArray_dump_to_stream(struct ByteArray* self, FILE *out);
 void ByteArray_dump_to_file(struct ByteArray* self, char* filename);
 

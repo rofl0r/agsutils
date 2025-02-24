@@ -681,10 +681,9 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 		if(a->version <= 25) {
 			// unencrypted dialog lines
 			// we just seek till end marker
-			int c;
-			while((c = AF_read_uchar(a->f)) != 0xef)
-				if(AF_is_eof(a->f)) ERR(AOE_dialog);
-			AF_set_pos(a->f, AF_get_pos(a->f) -1);
+			if(!AF_search(a->f, "\xEF\xBE\xFE\xCA", 4))
+				ERR(AOE_dialog);
+			AF_set_pos(a->f, AF_get_pos(a->f) - 4);
 		} else {
 			// encrypted dialog lines
 			while(1) {

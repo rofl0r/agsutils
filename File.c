@@ -11,6 +11,10 @@ int AF_is_eof(AF *f) {
 	return ByteArray_is_eof(f->b);
 }
 
+int AF_search(AF *f, unsigned char* bytes, size_t len) {
+	return ByteArray_search(f->b, bytes, len);
+}
+
 void AF_close(AF* f) {
 	ByteArray_close_file(f->b);
 }
