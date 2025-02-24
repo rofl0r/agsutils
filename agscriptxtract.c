@@ -30,6 +30,21 @@ static int usage(char *argv0) {
 	return 1;
 }
 
+static float gamefileversion2engine(int gamever) {
+	static const float oldversions[] = {
+	[5] = 2.00, [6] = 2.01, [7] = 2.03, [9] = 2.07,
+	[11] = 2.20, [12] = 2.30, [18] = 2.50, [19] = 2.51,
+	[20] = 2.53, [21] = 2.54, [22] = 2.55, [24] = 2.56,
+	[25] = 2.60, [26] = 2.61, [27] = 2.62, [31] = 2.70,
+	[32] = 2.72, [35] = 3.00, [36] = 3.01, [37] = 3.10,
+	[39] = 3.11, [40] = 3.12, [41] = 3.20, [42] = 3.21,
+	[43] = 3.30, [44] = 3.31, [45] = 3.40, [46] = 3.401,
+	[47] = 3.402, [48] = 3.41, [49] = 3.411, [50] = 3.50,
+	};
+	if(gamever <= 50) return oldversions[gamever];
+	return gamever / 1000000 + ((double)gamever / (double)100000.f) - gamever / 100000;
+}
+
 static void disas(const char*inp, char *o, int flags) {
 	//ARF_find_code_start
 	AF f_b, *f = &f_b;
@@ -228,7 +243,8 @@ int main(int argc, char**argv) {
 	} else if (aoe != AOE_success) {
 		fprintf(stderr, "warning: failed to process some non-essential parts (%s) of gamefile, probably from a newer game format\n", AOE2str(aoe));
 	}
-	fprintf(stdout, "info: ags engine version code %d\n", a->version);
+	fprintf(stdout, "info: ags engine version code %d (%.3f)\n",
+	        a->version, gamefileversion2engine(a->version));
 	ASI* s;
 	s = ADF_get_global_script(a);
 	char buf[256];
