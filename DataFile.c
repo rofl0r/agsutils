@@ -532,6 +532,8 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	a->f = &a->f_b;
 
 	if(!AF_open(a->f, filename)) return AOE_open;
+	/* prevent bytearray from throwing debug asserts */
+	a->f->b->flags |= BAF_NONFATAL_READ_OOB;
 
 	if(30 != AF_read(a->f, fnbuf, 30)) {
 		aoe = AOE_read;
@@ -628,8 +630,6 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	   from here on, we have the important bits and everything else is
 	   "bonus", so we don't hard-fail anymore but skip the non-essential
 	   parts who rely on the below info. */
-
-	a->f->b->flags |= BAF_NONFATAL_READ_OOB;
 
 	if(a->version <= 19) {
 		/* skip version <= 2.51 unknown data */
