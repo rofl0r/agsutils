@@ -195,18 +195,20 @@ none. \o/
 
 supported AGS versions:
 -----------------------
-like the opensource AGS engine, version 2.3 and 2.4 aren't properly supported
-due to lack of available format information. support for those might be
-completed at some point in the future.
+like the opensource AGS engine, version 2.0 - 2.4 aren't properly supported
+due to lack of available format information. currently it's possible to
+extract the packfiles, sprites, and scripts (for 2.2+).
+full support for those might be completed at some point in the future.
 all versions >= 2.5.0 are supported, and if one of the tools bails out on them
 it's considered a bug.
 
 License:
 --------
-there is a tiny part of code left from the original AGS engine, about 150 LOC in CLib32.c.
+there is a tiny part of code left from the original AGS engine, about 150 LOC
+in CLib32.c.
 it is covered under the artistic license, see file header for details.
-all other code is (C) 2012-2019 rofl0r and licensed under the LGPL 2.1+ with the "NO C++"
-exception.
-the "NO C++" exception means that you are not allowed to convert the code into C++, but
-you can link it to C++ code.
+all other code is (C) 2012-2025 rofl0r and licensed under the LGPL 2.1+ with
+the "NO C++" exception.
+the "NO C++" exception means that you are not allowed to convert the code into
+C++, but you can link it to C++ code.
 
