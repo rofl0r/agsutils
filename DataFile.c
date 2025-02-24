@@ -111,7 +111,10 @@ static int ADF_read_gamebase(ADF *a) {
 	size_t l;
 	unsigned x;
 	char game_name[52];
-	l = 50 /* game name */ + 2 /*padding*/;
+	if(a->version <= 12)
+		l = 30;
+	else
+		l = 50 /* game name */ + 2 /*padding*/;
 	if(!AF_read(a->f, game_name, l)) return 0;
 	/* 100 options */
 	if(!AF_read_junk(a->f, 100*4)) return 0;
@@ -546,12 +549,33 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	   engine codebase, e.g. kGameVersion_350 == 50 */
 	a->version = AF_read_int(a->f);
 	/* here comes some version string with minor, major - we dont need it */
-	/* FIXME? newer ags does this only with version >= 12 */
-	/* 4 bytes containing the length of the string, followed by the string */
-	l = AF_read_uint(a->f);
-	if(l > 20) FAIL(AOE_header);
-	if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
-
+	/* 4 bytes containing the length of the version string, e.g. "2.3", followed by the string */
+	if(a->version >= 12) {
+		l = AF_read_uint(a->f);
+		if(l > 20) FAIL(AOE_header);
+		if(l != (size_t) AF_read(a->f, fnbuf, l)) goto err_close;
+	}
+	/* attempt to reverse engineer agsedit v2.40 loading.
+	   the func doing it is at 0x44CDA0, these tests are at 0x44cf0a */
+	if(a->version <= 12){
+		/* these are the hardcoded sizeof(GameSetupStructBase_vWhatever) */
+		if(a->version >= 11) l = 49028;
+		else if(a->version >= 6) l = 43028;
+		else if(a->version == 5) l = 42968;
+		else l = 0;
+		char* oldhdr = malloc(l);
+		if(l != (size_t) AF_read(a->f, oldhdr, l)) goto err_close;
+		if(a->version <= 9) {
+			fprintf(stderr, "sorry, ags older than 2.20 has no compiled scripts\n");
+		}
+		/* for versions between 2.20 and 2.50, we can skip the
+		   unknown file layout and search for the SCOM header */
+		if(AF_search(a->f, "SCOM", 4)) {
+			AF_set_pos(a->f, AF_get_pos(a->f) -4);
+			goto read_scripts;
+		}
+		FAIL(AOE_gamebase);
+	}
 	/* main_game_file.cpp:OpenMainGameFileBase */
 	if(a->version >= 48 /* kGameVersion_341 */) {
 		/* latest ags now has placed an int here: number of required capabilities */
@@ -607,6 +631,7 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	}
 	if(a->game.hasdict)
 		if(!ADF_read_dictionary(a)) FAIL(AOE_dictionary);
+read_scripts:;
 	a->scriptstart = AF_get_pos(a->f);
 	if(!ASI_read_script(a->f, &a->globalscript)) FAIL(AOE_script);
 	if(a->version > 37)
