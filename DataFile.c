@@ -662,11 +662,16 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	/* Engine/ac.cpp:12045 */
 	a->old_dialogscripts = 0;
 	if(a->version <= 37) {
-		a->old_dialogscripts = malloc(a->game.dialogcount*sizeof(char*));
+		/* 24 bits should be the upper limit of a reasonable dialogcount,
+		   else what we read was junk intended for a different purpose */
+		if((a->game.dialogcount & 0xff000000) ||
+		  !(a->old_dialogscripts = malloc(a->game.dialogcount*sizeof(char*))))
+			ERR(AOE_dialog);
 		for(i = 0; i<a->game.dialogcount; ++i) {
 			AF_read_junk(a->f, a->dialog_codesize[i]);
 			l = AF_read_int(a->f);
-			char* buf = malloc(l);
+			char* buf;
+			if((l & 0xff000000) || !(buf = malloc(l))) ERR(AOE_dialog);
 			AF_read(a->f, buf, l);
 			dialog_decrypt_text(buf, l);
 			a->old_dialogscripts[i] = buf;
@@ -702,7 +707,8 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 			char buf[80];
 			if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_props);
 			unsigned psize = AF_read_uint(a->f);
-			AF_read_junk(a->f, psize); /* plugin content */
+			if(!AF_read_junk(a->f, psize)); /* plugin content */
+				ERR(AOE_props);
 		}
 		/* CustomPropertySchema::UnSerialize */
 		prop_version = AF_read_uint(a->f);
@@ -737,7 +743,9 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 
 	}
 	if(a->version >= 25 /* kGameVersion_260 */) {
-		a->viewnames = malloc(a->game.viewcount * sizeof(char*));
+		if((a->game.viewcount & 0xff000000) ||
+		   !(a->viewnames = malloc(a->game.viewcount * sizeof(char*))))
+			ERR(AOE_views);
 		for(i=0; i<a->game.viewcount; ++i) {
 			char buf[255+1]; /* was originally MAXVIEWNAMELENGTH aka 15 bytes, however "meaningless name restrictions for Views and InvItems" was removed in 8bb1bfa30610f3c3291029b2c05e6e5b37415269 */
 			if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_views);
@@ -750,7 +758,9 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 	   some more data, if num plugins is 0 then that's the EOF. */
 
 	if(a->version >= 31) { // 2.7.0
-		a->inventorynames = malloc(a->game.inventorycount*sizeof(char*));
+		if((a->game.inventorycount & 0xff000000) ||
+		  !(a->inventorynames = malloc(a->game.inventorycount*sizeof(char*))))
+			ERR(AOE_inventories);
 		for(i=0; i<a->game.inventorycount; ++i) {
 			char buf[256]; /* arbitrary size chosen to hold a very long string */
 			/* somewhere between 3.4.0 and 3.4.1 the 20 char limit was removed */
