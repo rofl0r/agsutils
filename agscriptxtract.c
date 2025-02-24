@@ -26,6 +26,7 @@ static int usage(char *argv0) {
 		   "-b : dump hexadecimal bytecode comments in disassembly\n"
 		   "-f : dump informative original fixups section\n"
 		   "-l : remove linenumber debug assembly directives [produces smaller files]\n"
+		   "-v : enable verbose warning output\n"
 		   , argv0);
 	return 1;
 }
@@ -215,11 +216,12 @@ static void dump_old_dialogscripts(ADF *a, char *dir) {
 
 int main(int argc, char**argv) {
 	int flags = 0, c;
-	while ((c = getopt(argc, argv, "oblf")) != EOF) switch(c) {
+	while ((c = getopt(argc, argv, "oblfv")) != EOF) switch(c) {
 		case 'o': flags |= DISAS_DEBUG_OFFSETS; break;
 		case 'b': flags |= DISAS_DEBUG_BYTECODE; break;
 		case 'l': flags |= DISAS_SKIP_LINENO; break;
 		case 'f': flags |= DISAS_DEBUG_FIXUPS; break;
+		case 'v': flags |= DISAS_VERBOSE; break;
 		default: return usage(argv[0]);
 	}
 	if(!argv[optind]) return usage(argv[0]);

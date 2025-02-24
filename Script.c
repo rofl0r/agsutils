@@ -214,7 +214,7 @@ static struct labels get_labels(unsigned *code, size_t count) {
 	return ret;
 }
 
-static struct strings get_strings(AF* a, size_t start, size_t size) {
+static struct strings get_strings(AF* a, int flags, size_t start, size_t size) {
 	struct strings ret = {0,0,0};
 	int corrupt = 0;
 	if(!size) return ret;
@@ -233,7 +233,7 @@ static struct strings get_strings(AF* a, size_t start, size_t size) {
 		|| (ret.data[i] > 13 && ret.data[i] < 32))
 			corrupt++;
 	}
-	if(corrupt) {
+	if(corrupt && (flags & DISAS_VERBOSE)) {
 		fprintf(stderr, "warning: %d unusual bytes in string data section, file may be corrupted\n", corrupt);
 	}
 	if(ret.data[size-1]) {
@@ -334,7 +334,7 @@ static int has_datadata_fixup(unsigned gdoffset, struct fixup_data *fxd) {
 	return 0;
 }
 
-struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
+struct varinfo find_fixup_for_globaldata(FILE *f, int flags, size_t offset,
 		struct fixup_resolved *fxlist_resolved, size_t fxlist_cnt,
 		unsigned* code, size_t codecount)
 {
@@ -450,7 +450,8 @@ struct varinfo find_fixup_for_globaldata(FILE *f, size_t offset,
 						/* don't bother guessing the varsize if we already determined it */
 						ret.varsize = oldvarsize;
 					}
-					fprintf(stderr, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
+					if(flags & DISAS_VERBOSE)
+						fprintf(stderr, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
 						opcodes[code[x+1]].mnemonic, x+1, offset);
 					COMMENT(f, "warning: '%s' globaldata fixup on insno %zu offset %zu\n",
 						opcodes[code[x+1]].mnemonic, x+1, offset);
@@ -483,6 +484,7 @@ static const char* get_varsize_typename(unsigned varsize) {
 }
 
 static struct varinfo get_varinfo_from_code(
+	int flags,
 	unsigned *code, size_t codesize,
 	size_t offset,
 	struct fixup_data *fxd,
@@ -493,7 +495,7 @@ static struct varinfo get_varinfo_from_code(
 		if(has_datadata_fixup(offset, fxd))
 			vi = (struct varinfo){0,4};
 		else {
-			vi = find_fixup_for_globaldata(f, offset, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize);
+			vi = find_fixup_for_globaldata(f, flags, offset, gd_fixups_resolved, fxd->count[FIXUP_GLOBALDATA], code, codesize);
 			if(vi.varsize == 0 && has_datadata_fixup(offset+200, fxd))
 				vi.varsize = 200;
 		}
@@ -511,7 +513,8 @@ int get_varinfo_from_exports(size_t offs, struct export *exp, size_t expcount, s
 	return 0;
 }
 
-static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
+static int dump_globaldata(AF *a, FILE *f, int flags,
+			   size_t start, size_t size,
 			   struct export* exp, size_t expcount,
 			   struct fixup_data *fxd,
 			   unsigned *code, size_t codesize) {
@@ -534,7 +537,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 
 	for(i = 0; i < size; ) {
 		struct varinfo vi;
-		vi = get_varinfo_from_code(code, codesize, i, fxd, gd_fixups_resolved, f);
+		vi = get_varinfo_from_code(flags, code, codesize, i, fxd, gd_fixups_resolved, f);
 		if(vi.varsize == 0) get_varinfo_from_exports(i, exp, expcount, &vi);
 		int x;
 		char *comment = "";
@@ -579,7 +582,7 @@ static int dump_globaldata(AF *a, FILE *f, size_t start, size_t size,
 					struct varinfo vi2;
 					size_t j = i;
 					while(++j < size) {
-						vi2 = get_varinfo_from_code(code, codesize, j, fxd, gd_fixups_resolved, f);
+						vi2 = get_varinfo_from_code(flags, code, codesize, j, fxd, gd_fixups_resolved, f);
 						if(vi2.varsize || vi.numrefs || get_varinfo_from_exports(j, exp, expcount, &vi2)) break;
 						x = ByteArray_readByte(a->b);
 						if(x) {
@@ -620,7 +623,7 @@ static int disassemble_code_and_data(AF* a, ASI* s, FILE *f, int flags, struct f
 
 	struct export* fl = get_exports(a, s->exportstart, s->exportcount);
 
-	dump_globaldata(a, f, s->globaldatastart, s->globaldatasize, fl, s->exportcount, fxd, code, s->codesize);
+	dump_globaldata(a, f, flags, s->globaldatastart, s->globaldatasize, fl, s->exportcount, fxd, code, s->codesize);
 
 	if(!len) return 1; /* its valid for a scriptfile to have no code at all */
 
@@ -791,7 +794,7 @@ int ASI_disassemble(AF* a, ASI* s, char *fn, int flags) {
 	AF_set_pos(a, s->start);
 	struct fixup_data fxd = {0};
 	if(!get_fixups(a, s->fixupstart, s->fixupcount, &fxd)) return 0;
-	struct strings str = get_strings(a, s->stringsstart, s->stringssize);
+	struct strings str = get_strings(a, flags, s->stringsstart, s->stringssize);
 
 	//if(!dump_globaldata(a, fd, s->globaldatastart, s->globaldatasize)) goto err_close;
 	if(!disassemble_code_and_data(a, s, f, flags, &fxd, &str)) goto err_close;
