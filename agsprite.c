@@ -46,6 +46,9 @@ sprite file versions:
 static int debug_pic = -1, flags, filenr;
 static unsigned char *alphaflags;
 
+static int convert_32_to_24(ImageData *d);
+static int is_fully_transparent(ImageData *d);
+
 static int extract(char* file, char* dir) {
 	if(access(dir, R_OK) == -1 && errno == ENOENT) {
 		MKDIR(dir);
@@ -104,6 +107,11 @@ static int extract(char* file, char* dir) {
 			if(flags & FL_VERBOSE) printf("extracting sprite %d (%s)\n", i, namebuf);
 			char filename[1024];
 			snprintf(filename, sizeof filename, "%s%c%s", dir, PSEP, namebuf);
+			/* ags editor seems to set the alpha of all pixels in a 32 bit image to 0 if the alpha flag is not set.
+			   while the editor itself then ignores the alpha, an image extracted in such a way is invisible in e.g. gimp.
+			   therefore we save it as a 24 bit image and restore the 0 alpha channel on packing. */
+			if(d.bytesperpixel == 4 && is_fully_transparent(&d))
+				convert_32_to_24(&d);
 			if(!Targa_writefile(filename, &d, sf.palette))
 				fprintf(stderr, "error opening %s\n", filename);
 			free(d.data);
@@ -128,6 +136,27 @@ static int is_upscaled_16bit(ImageData *d) {
 	}
 	return 1;
 }
+
+static int convert_32_to_24(ImageData *d) {
+	unsigned char* data = malloc(d->width*d->height*3UL), *p = data, *q = d->data;
+	if(!data) return 0;
+	int i;
+	for(i=0;i<d->width*d->height;++i) {
+		unsigned b = *(q++);
+		unsigned g = *(q++);
+		unsigned r = *(q++);
+		unsigned a = *(q++);
+		*(p++) = b;
+		*(p++) = g;
+		*(p++) = r;
+	}
+	free(d->data);
+	d->data = data;
+	d->bytesperpixel = 3;
+	d->data_size = d->width*d->height*3;
+	return 1;
+}
+
 
 static int rawx_to_ags16(ImageData *d, int bpp) {
 	int i, imax = d->data_size/bpp;
@@ -176,6 +205,27 @@ static int raw24_to_32(ImageData *d) {
 	d->data_size = d->width*d->height*4;
 	return 1;
 }
+
+static int raw24_to_32_fulltrans(ImageData *d) {
+	unsigned char* data = malloc(d->width*d->height*4UL), *p = data, *q = d->data;
+	if(!data) return 0;
+	int i;
+	for(i=0;i<d->width*d->height;++i) {
+		unsigned b = *(q++);
+		unsigned g = *(q++);
+		unsigned r = *(q++);
+		*(p++) = b;
+		*(p++) = g;
+		*(p++) = r;
+		*(p++) = 0;
+	}
+	free(d->data);
+	d->data = data;
+	d->bytesperpixel = 4;
+	d->data_size = d->width*d->height*4;
+	return 1;
+}
+
 static int raw32_swap_alpha(ImageData *d) {
 #if 0
 	unsigned char *p = d->data, *pe = d->data+d->data_size;
@@ -221,6 +271,18 @@ static int is_hicolor_candidate(ImageData *d) {
 	}
 	return 1;
 }
+
+static int is_fully_transparent(ImageData *d) {
+	unsigned char *p = d->data, *pe = d->data+d->data_size;
+	while(p < pe) {
+		unsigned b = *(p++);
+		unsigned g = *(p++);
+		unsigned r = *(p++);
+		unsigned a = *(p++);
+		if(a) return 0;
+	}
+	return 1;
+}
 static int tga_to_ags(ImageData *d, int org_bpp) {
 	/* convert raw image data to something acceptable for ags */
 	switch(d->bytesperpixel) {
@@ -232,6 +294,7 @@ static int tga_to_ags(ImageData *d, int org_bpp) {
 		} else return raw32_swap_alpha(d);
 	case 3:
 		if(flags & FL_HICOLOR) return raw24_to_ags16(d);
+		if(org_bpp == 4) return raw24_to_32_fulltrans(d);
 		if(org_bpp == 2 && is_upscaled_16bit(d)) return raw24_to_ags16(d);
 		else return raw24_to_32(d);
 	}
