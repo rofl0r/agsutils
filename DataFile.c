@@ -731,7 +731,7 @@ read_scripts:;
 			char buf[80];
 			if(!AF_read_string(a->f, buf, sizeof buf)) ERR(AOE_props);
 			unsigned psize = AF_read_uint(a->f);
-			if(!AF_read_junk(a->f, psize)); /* plugin content */
+			if(psize && !AF_read_junk(a->f, psize)) /* plugin content */
 				ERR(AOE_props);
 		}
 		/* CustomPropertySchema::UnSerialize */
