@@ -1,5 +1,5 @@
 /* CLIB32 - DJGPP implemention of the CLIB reader.
-  (c) 1998-99 Chris Jones, (c) 2012 rofl0r
+  (c) 1998-99 Chris Jones, (c) 2012-2025 rofl0r
 
   22/12/02 - Shawn's Linux changes approved and integrated - CJ
 
@@ -11,9 +11,6 @@
 
   The AGS Editor Source Code is provided under the Artistic License 2.0
   http://www.opensource.org/licenses/artistic-license-2.0.php
-
-  You MAY NOT compile your own builds of the engine without making it EXPLICITLY
-  CLEAR that the code has been altered from the Standard Version.
 
   v1.3 rofl0r: code cleaned up for usage in agsutils.
   v1.4 rofl0r: added writer and reader interfaces, as well as the entire writer code.
