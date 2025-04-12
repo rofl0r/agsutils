@@ -6,19 +6,32 @@
 #include "debug.h"
 #include "endianness.h"
 
+#include <errno.h>
+#include <stdlib.h>
+
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
 
-#include <errno.h>
-#include <stdlib.h>
-#ifndef NO_MMAN /* lame OS like winblows */
-#include <sys/mman.h>
-#define BLOWS 0
+#ifdef _WIN32
+#define WINFILE_EXPORT static
+#include "winfile.h"
+#define OPEN(FN, FL) win_open(FN, FL)
+#define READ(FD, BUF, CNT) win_read(FD, BUF, CNT)
+#define LSEEK(FD, POS, WHENCE) win_lseek(FD, POS, WHENCE)
+#define MMAP(ADR, LEN, PRT, FLG, FD, OFF) win_mmap(ADR, LEN, PRT, FLG, FD, OFF)
+#define MUNMAP(ADR, LEN) win_munmap(ADR, LEN)
+#define CLOSE(FD) win_close(FD)
+#define FD_INVALID INVALID_HANDLE_VALUE
 #else
-#define mmap(...) (void*)0xffffffff
-#define MAP_FAILED (void*)0xffffffff
-#define BLOWS 1
+#include <sys/mman.h>
+#define OPEN(FN, FL) open(FN, FL)
+#define READ(FD, BUF, CNT) read(FD, BUF, CNT)
+#define LSEEK(FD, POS, WHENCE) lseek(FD, POS, WHENCE)
+#define MMAP(ADR, LEN, PRT, FLG, FD, OFF) mmap(ADR, LEN, PRT, FLG, FD, OFF)
+#define MUNMAP(ADR, LEN) munmap(ADR, LEN)
+#define CLOSE(FD) close(FD)
+#define FD_INVALID -1
 #endif
 
 void ByteArray_defaults(struct ByteArray* self) {
@@ -144,7 +157,7 @@ int ByteArray_set_position(struct ByteArray* self, ba_off_t pos) {
 	}
 
 	if(self->type == BAT_FILESTREAM) {
-		ba_off_t ret = lseek(self->source_fd, pos, SEEK_SET);
+		ba_off_t ret = LSEEK(self->source_fd, pos, SEEK_SET);
 		if(ret == (ba_off_t) -1) {
 			seek_error();
 			return 0;
@@ -165,23 +178,20 @@ static void read_error_short() {
 }
 
 int ByteArray_open_file(struct ByteArray* self, const char* filename) {
-	struct stat st;
 	self->type = BAT_FILESTREAM;
 	self->pos = 0;
 	self->size = 0;
-	if(stat(filename, &st) == -1) return 0;
-	self->size = st.st_size;
 	self->filename = filename;
-	self->source_fd = open(filename, O_RDONLY|O_BINARY);
-	if (self->source_fd == -1) return 0;
-	void *addr = mmap(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source_fd, 0);
+	self->source_fd = OPEN(filename, O_RDONLY|O_BINARY);
+	if (self->source_fd == FD_INVALID) return 0;
+	self->size = LSEEK(self->source_fd, 0, SEEK_END);
+	if(self->size == -1LL) return 0;
+	LSEEK(self->source_fd, 0, SEEK_SET);
+
+	void *addr = MMAP(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source_fd, 0);
 	if(addr == MAP_FAILED) {
-		if(!BLOWS)
-			fprintf(stderr, "mmap %s failed (%s) - fd %d, size %llu\n", filename, strerror(errno), self->source_fd, (long long) self->size);
-#ifdef __POCC__
-		if(sizeof(off_t) < 8 && self->size < 0)
-			fprintf(stderr, "sorry, the PellesC compiled 32 bit windows binaries do not support files > 2GB at this point.\nplease compile from source in a linux environment, WSL or cygwin to access this file.\n");
-#endif
+		fprintf(stderr, "warning: mmap %s failed (%s) - fd %lld, size %llu\n", filename, strerror(errno), (long long) self->source_fd, (long long) self->size);
+		fprintf(stderr, "warning: falling back to slower alternative code\n");
 		return 1; // fall back to traditional non-mmaped BAT_FILESTREAM
 	}
 	return ByteArray_open_mem(self, addr, self->size);
@@ -189,11 +199,11 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 
 void ByteArray_close_file(struct ByteArray *self) {
 	if(self->type == BAT_MEMSTREAM) {
-		munmap(self->source_mem.mem, self->size);
+		MUNMAP(self->source_mem.mem, self->size);
 		self->source_mem.mem = 0;
 	}
-	close(self->source_fd);
-	self->source_fd = -1;
+	CLOSE(self->source_fd);
+	self->source_fd = FD_INVALID;
 }
 
 int ByteArray_open_mem(struct ByteArray* self, char* data, size_t size) {
@@ -221,7 +231,7 @@ ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len
 		if(p) memcpy(buffer, p, len);
 		else return -1;
 	} else {
-		ssize_t ret = read(self->source_fd, buffer, len);
+		ssize_t ret = READ(self->source_fd, buffer, len);
 		if(ret == -1) {
 			read_error();
 			return -1;

@@ -13,6 +13,13 @@ extern "C" {
 #include <string.h>
 #include <stdio.h>
 #include "MemGrow.h"
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h> /* for HANDLE */
+#define FILEDESC HANDLE
+#else
+#define FILEDESC int
+#endif
 
 enum ByteArray_Endianess {
 	BAE_BIG,
@@ -39,7 +46,7 @@ struct ByteArray {
 	ba_off_t pos;
 	ba_off_t size;
 	MG source_mem;
-	int source_fd;
+	FILEDESC source_fd;
 	const char *filename;
 	ssize_t (*readMultiByte)(struct ByteArray*, char*, size_t);
 	unsigned long long (*readUnsignedLongLong)(struct ByteArray*);
