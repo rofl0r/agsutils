@@ -68,6 +68,8 @@ static ba_off_t getfilesize(const char *fn) {
 #define MKDIR(D) mkdir(D)
 #endif
 
+#define OOM(X) do{ fprintf(stderr, "OOM on %s:%d\n", __FILE__, __LINE__); return X; }while(0)
+
 #define RAND_SEED_SALT 9338638
 
 static char *clibendfilesig = "CLIB\x1\x2\x3\x4SIGE";
@@ -189,9 +191,12 @@ static int read_v30_clib(struct MultiFileLibDyn * mfl, struct ByteArray * wout) 
 		fgetnulltermstring(buf, wout, 260);
 		strstore_append(mfl->data_filenames, buf);
 	}
+
 	size_t num_files = ByteArray_readInt(wout);
 
-	mfl_alloc(mfl, num_files);
+	if(0) fprintf(stderr, "current pos %lld\n", ByteArray_get_position(wout));
+
+	if(!mfl_alloc(mfl, num_files)) OOM(-1);
 
 	for (aa = 0; aa < num_files; aa++) {
 		fgetnulltermstring(buf, wout, 260);
@@ -229,7 +234,7 @@ static int read_new_new_enc_format_clib(struct MultiFileLibDyn * mfl, struct Byt
 	if (num_files > MAX_FILES)
 		return -1;
 
-	mfl_alloc(mfl, num_files);
+	if(!mfl_alloc(mfl, num_files)) OOM(-1);
 
 	for (aa = 0; aa < num_files; aa++) {
 		fgetstring_enc(buf, wout, 100);
@@ -256,7 +261,7 @@ static int read_new_new_format_clib(struct MultiFileLibDyn* mfl, struct ByteArra
 
 	if (num_files > MAX_FILES) return -1;
 
-	mfl_alloc(mfl, num_files);
+	if(!mfl_alloc(mfl, num_files)) OOM(-1);
 
 	for (aa = 0; aa < num_files; aa++) {
 		unsigned short nameLength = ByteArray_readShort(wout);
@@ -299,7 +304,7 @@ static int read_new_format_clib(struct MultiFileLibDyn *mfl, struct ByteArray * 
 			clib_decrypt_text(old->filenames[aa]);
 	}
 
-	mfl_alloc(mfl, old->num_files);
+	if(!mfl_alloc(mfl, old->num_files)) OOM(-1);
 
 	// convert to regular format
 	for(aa = 0; aa < old->num_data_files; ++aa)
@@ -558,8 +563,10 @@ int AgsFile_write(struct AgsFile *f) {
 		size_t fs = f->mflib.length[i];
 		char *fn = ssdata + ssoff;
 		ssoff += strlen(fn) + 1;
-		if(!copy_into_file(fd, f->dir, fn, &fs))
+		if(!copy_into_file(fd, f->dir, fn, &fs)) {
+			fprintf(stderr, "copy_into_file %s %s failed\n", f->dir, fn);
 			return 0;
+		}
 	}
 	write_footer(fd, header_offset, f->libversion >= 30);
 	close(fd);
@@ -712,7 +719,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 
 	short tempshort = ByteArray_readShort(ba);
 	size_t num_files = tempshort;
-	mfl_alloc(&f->mflib, num_files);
+	if(!mfl_alloc(&f->mflib, num_files)) OOM(-12);
 
 	if (num_files > MAX_FILES) {
 		fprintf(stderr, "error: num_files for mfl 6 exceeds MAX_FILES\n");
