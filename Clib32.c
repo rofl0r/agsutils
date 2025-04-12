@@ -88,7 +88,7 @@ static void clib_decrypt_text(char *toenc) {
 
 static void fgetnulltermstring(char *sss, struct ByteArray *ddd, int bufsize) {
 	int b = -1;
-	off_t l = ByteArray_get_length(ddd);
+	ba_off_t l = ByteArray_get_length(ddd);
 	do {
 		if (b < bufsize - 1) b++;
 		if(ByteArray_get_position(ddd) >= l)
@@ -600,7 +600,7 @@ static int csetlib(struct AgsFile* f, char *filename)  {
 	ByteArray_ctor(ba);
 	if(!ByteArray_open_file(ba, filename)) return -1;
 	ByteArray_set_endian(ba, BAE_LITTLE); // all ints etc are saved in little endian.
-	off_t ba_len = ByteArray_get_length(ba);
+	ba_off_t ba_len = ByteArray_get_length(ba);
 	ByteArray_readMultiByte(ba, clbuff, 5);
 
 	uint32_t absoffs = 0; /* we read 4 bytes- so our datatype
@@ -774,11 +774,11 @@ char *AgsFile_getDataFileName(struct AgsFile *f, size_t index) {
 }
 #endif
 
-char *AgsFile_getFileNameLinear(struct AgsFile *f, size_t off) {
+char *AgsFile_getFileNameLinear(struct AgsFile *f, ba_off_t off) {
 	return strstore_get_first(f->mflib.filenames) + off;
 }
 
-char *AgsFile_getDataFileNameLinear(struct AgsFile *f, size_t off) {
+char *AgsFile_getDataFileNameLinear(struct AgsFile *f, ba_off_t off) {
 	return strstore_get_first(f->mflib.data_filenames) + off;
 }
 
@@ -792,7 +792,7 @@ size_t AgsFile_getOffset(struct AgsFile *f, size_t index) {
 	return f->mflib.offset[index];
 }
 
-static int AgsFile_seek(struct AgsFile *f, int multifileno, off_t pos) {
+static int AgsFile_seek(struct AgsFile *f, int multifileno, ba_off_t pos) {
 	return ByteArray_set_position(&f->f[multifileno], pos);
 }
 
@@ -800,7 +800,7 @@ static ssize_t AgsFile_read(struct AgsFile *f, int multifileno, void* buf, size_
 	return ByteArray_readMultiByte(&f->f[multifileno], buf, count);
 }
 
-int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len, const char* outfn) {
+int AgsFile_extract(struct AgsFile* f, int multifileno, ba_off_t start, size_t len, const char* outfn) {
 	char buf[4096];
 	buf[0] = 0;
 	FILE *fo = fopen(outfn, "wb");
@@ -814,7 +814,7 @@ int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len,
 	}
 	if(!fo) return 0;
 	size_t written = 0, l = len;
-	off_t save_pos = ByteArray_get_position(&f->f[multifileno]);
+	ba_off_t save_pos = ByteArray_get_position(&f->f[multifileno]);
 	AgsFile_seek(f, multifileno, start);
 	while(written < l) {
 		size_t togo = l - written;

@@ -42,7 +42,7 @@ struct AgsFile {
 	int libversion;
 	char* fn;
 	char *dir;
-	off_t pack_off;
+	ba_off_t pack_off;
 	const char *exestub_fn;
 };
 
@@ -62,12 +62,12 @@ size_t AgsFile_getDataFileCount(struct AgsFile *f);
 /* the availability of getFileName* APIs depends upon STRSTORE_LINEAR setting
    in CLib32.c */
 char *AgsFile_getFileName(struct AgsFile *f, size_t index);
-char *AgsFile_getFileNameLinear(struct AgsFile *f, size_t off);
+char *AgsFile_getFileNameLinear(struct AgsFile *f, ba_off_t off);
 char *AgsFile_getDataFileName(struct AgsFile *f, size_t index);
-char *AgsFile_getDataFileNameLinear(struct AgsFile *f, size_t off);
+char *AgsFile_getDataFileNameLinear(struct AgsFile *f, ba_off_t off);
 
 int AgsFile_dump(struct AgsFile* f, size_t index, const char* outfn);
-int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len, const char* outfn);
+int AgsFile_extract(struct AgsFile* f, int multifileno, ba_off_t start, size_t len, const char* outfn);
 
 /* writer interface */
 // the directory containing the files passed via setFile
