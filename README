@@ -172,22 +172,41 @@ or append them to the make command, i.e. `make CFLAGS="-O2 -g"`
 compilation on windos:
 ----------------------
 
-mingw is not supported. it' s a half-baked PoS, which lacks a dozen or more of
-the POSIX APIs we require. worse than that, it even has *wrong* prototypes
-for some of them, for example it defines mkdir(char*), but the proper prototype
-is mkdir(char*, int), so we'd have to litter the code with #ifdefs and remove
-parts of the functionality to support it. that's not gonna happen.
+preferably, use cygwin. with cygwin, every works just fine without *any*
+changes. you only need to ship cygwin1.dll together with the binaries.
 
-use cygwin. with cygwin, every works just fine without *any* changes. you can
-even run `make` and it produces files with .exe extensions even though we don't
-have a rule for that anywhere. you only need to ship cygwin-1.dll together with
-the binaries.
+mingw is <strike>not</strike> supported.
+even though it' s a half-baked PoS, which lacks a dozen or more of
+the POSIX APIs we require. i went to great effort to make it compile
+anyway - however with some functionality disabled, namely the pre-
+processor of agssemble.
 
-NEW!!! agsutils can now also be compiled using [PellesC](http://www.smorgasbordet.com/pellesc/)
+agsutils can now also be compiled using [PellesC](http://www.smorgasbordet.com/pellesc/)
 (use [pellescc wrapper](https://github.com/rofl0r/pellescc) to build from Makefile).
+unlike mingw, it supports the whole functionality of agsutils.
+since 32-bit pellesC (at least in version 8) uses a signed 32-bit off_t,
+i wrote some code to use win32 api directly in critical pieces of code
+that may need to access files > 2GB.
 
 alternatively you can use WSL/WSL2 and just use native linux compiler and the
 binaries inside the WSL environment.
+
+that's really a lot of options to compile from source.
+however, for you lazy windos consumer-minded types, we now even offer
+pre-built windos binaries:
+
+pre-built binaries:
+-------------------
+
+you can find stable versions attached to releases, or get "nightlies"
+from latest commits - you need to be logged in to github for the latter
+though.
+you can find them by either clicking on the green checkmark on the latest
+commit title, or click on the "Actions" tab in github.
+there are 2 actions run on every push, click on either
+"compile_cygwin" for win x64 binaries or "build" for mingw i686 builds
+or statically linked x86_64 linux binaries (for use in WSL/Linux/FreeBSD).
+scroll down to "Artifacts" to find the file attachments.
 
 third-party library requirements:
 ---------------------------------
@@ -197,10 +216,10 @@ supported AGS versions:
 -----------------------
 like the opensource AGS engine, version 2.0 - 2.4 aren't properly supported
 due to lack of available format information. currently it's possible to
-extract the packfiles, sprites, and scripts (for 2.2+).
+extract the packfiles, sprites, and scripts (for 2.2+), though.
 full support for those might be completed at some point in the future.
-all versions >= 2.5.0 are supported, and if one of the tools bails out on them
-it's considered a bug.
+all versions >= 2.5.0 and < 4.0.0 are 100% supported, and if one of the tools
+bails out on them it's considered a bug.
 
 License:
 --------
