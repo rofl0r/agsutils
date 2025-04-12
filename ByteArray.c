@@ -1,4 +1,4 @@
-/* ByteArray (C) 2012 rofl0r
+/* ByteArray (C) 2012-2025 rofl0r
  *
  * licensed under the LGPL 2.1+ */
 
@@ -92,7 +92,7 @@ void ByteArray_close(struct ByteArray* self) {
 	mem_free(&self->source_mem);
 }
 
-off_t ByteArray_get_position(struct ByteArray* self) {
+ba_off_t ByteArray_get_position(struct ByteArray* self) {
 	return self->pos;
 }
 
@@ -110,12 +110,12 @@ static void neg_off() {
 	assert_dbg(0);
 }
 
-static void oob(const char *fn, off_t want, off_t have) {
+static void oob(const char *fn, ba_off_t want, ba_off_t have) {
 	fprintf(stderr, "%s: oob access attempted (want: %jd, have %jd)\n", fn ? fn : "<unknown>", (intmax_t) want, (intmax_t) have);
 	fflush(stderr);
 }
 
-void ByteArray_set_length(struct ByteArray* self, off_t len) {
+void ByteArray_set_length(struct ByteArray* self, ba_off_t len) {
 	if(len > self->size) {
 		oob(self->filename, len, self->size);
 		return;
@@ -123,7 +123,7 @@ void ByteArray_set_length(struct ByteArray* self, off_t len) {
 	self->size = len;
 }
 
-off_t ByteArray_get_length(struct ByteArray* self) {
+ba_off_t ByteArray_get_length(struct ByteArray* self) {
 	return self->size;
 }
 
@@ -135,7 +135,7 @@ int ByteArray_set_position_rel(struct ByteArray* self, int rel) {
 	return ByteArray_set_position(self, self->pos + rel);
 }
 
-int ByteArray_set_position(struct ByteArray* self, off_t pos) {
+int ByteArray_set_position(struct ByteArray* self, ba_off_t pos) {
 	if(pos == self->pos) return 1;
 	if(pos > self->size) {
 		oob(self->filename, pos, self->size);
@@ -144,8 +144,8 @@ int ByteArray_set_position(struct ByteArray* self, off_t pos) {
 	}
 
 	if(self->type == BAT_FILESTREAM) {
-		off_t ret = lseek(self->source_fd, pos, SEEK_SET);
-		if(ret == (off_t) -1) {
+		ba_off_t ret = lseek(self->source_fd, pos, SEEK_SET);
+		if(ret == (ba_off_t) -1) {
 			seek_error();
 			return 0;
 		}
@@ -213,7 +213,7 @@ ssize_t ByteArray_readMultiByte(struct ByteArray* self, char* buffer, size_t len
 		if((size_t) self->pos + len > (size_t) self->size) {
 			oob("memstream" , self->pos + len, self->size);
 			if(!(self->flags & BAF_NONFATAL_READ_OOB)) assert_dbg(0);
-			off_t slen = self->size - self->pos;
+			ba_off_t slen = self->size - self->pos;
 			if(slen > 0) len = slen;
 			else return -1;
 		}
@@ -255,8 +255,8 @@ int ByteArray_search(struct ByteArray *self, unsigned char* bytes, size_t len) {
 // the position in dest will not be advanced.
 // the position in source will be advanced len bytes.
 // returns the number of bytes written
-off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, off_t start, off_t len) {
-	off_t left = self->size - self->pos;
+ba_off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, ba_off_t start, ba_off_t len) {
+	ba_off_t left = self->size - self->pos;
 	if(len == 0) len = left;
 	else if(len > left) {
 		oob(self->filename, len, left);
@@ -279,7 +279,7 @@ off_t ByteArray_readBytes(struct ByteArray* self, struct ByteArray *dest, off_t 
 	return len;
 }
 
-off_t ByteArray_bytesAvailable(struct ByteArray* self) {
+ba_off_t ByteArray_bytesAvailable(struct ByteArray* self) {
 	if(self->pos < self->size) return self->size - self->pos;
 	return 0;
 }
@@ -363,10 +363,10 @@ signed char ByteArray_readByte(struct ByteArray* self) {
 }
 
 /* equivalent to foo = self[x]; (pos stays unchanged) */
-unsigned char ByteArray_getUnsignedByte(struct ByteArray* self, off_t index) {
+unsigned char ByteArray_getUnsignedByte(struct ByteArray* self, ba_off_t index) {
 	//assert_op(self->type, ==, BAT_MEMSTREAM);
 	assert_op(index, <, self->size);
-	off_t save = self->pos;
+	ba_off_t save = self->pos;
 	unsigned char res;
 	ByteArray_set_position(self, index);
 	res = ByteArray_readUnsignedByte(self);
@@ -375,23 +375,23 @@ unsigned char ByteArray_getUnsignedByte(struct ByteArray* self, off_t index) {
 }
 
 /* equivalent to self[x] = what (pos stays unchanged) */
-void ByteArray_setUnsignedByte(struct ByteArray* self, off_t index, unsigned char what) {
-	off_t save = self->pos;
+void ByteArray_setUnsignedByte(struct ByteArray* self, ba_off_t index, unsigned char what) {
+	ba_off_t save = self->pos;
 	if(ByteArray_set_position(self, index)) {
 		ByteArray_writeUnsignedByte(self, what);
 		self->pos = save;
 	}
 }
 
-off_t ByteArray_writeByte(struct ByteArray* self, signed char what) {
+ba_off_t ByteArray_writeByte(struct ByteArray* self, signed char what) {
 	return ByteArray_writeMem(self, (unsigned char*) &what, 1);
 }
 
-off_t ByteArray_writeUnsignedByte(struct ByteArray* self, unsigned char what) {
+ba_off_t ByteArray_writeUnsignedByte(struct ByteArray* self, unsigned char what) {
 	return ByteArray_writeMem(self, (unsigned char*) &what, 1);
 }
 
-off_t ByteArray_writeShort(struct ByteArray* self, signed short what) {
+ba_off_t ByteArray_writeShort(struct ByteArray* self, signed short what) {
 	union {
 		short intval;
 		unsigned char charval[sizeof(what)];
@@ -403,7 +403,7 @@ off_t ByteArray_writeShort(struct ByteArray* self, signed short what) {
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
 
-off_t ByteArray_writeUnsignedShort(struct ByteArray* self, unsigned short what) {
+ba_off_t ByteArray_writeUnsignedShort(struct ByteArray* self, unsigned short what) {
 	union {
 		unsigned short intval;
 		unsigned char charval[sizeof(what)];
@@ -415,7 +415,7 @@ off_t ByteArray_writeUnsignedShort(struct ByteArray* self, unsigned short what) 
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
 
-off_t ByteArray_writeInt(struct ByteArray* self, signed int what) {
+ba_off_t ByteArray_writeInt(struct ByteArray* self, signed int what) {
 	union {
 		int intval;
 		unsigned char charval[sizeof(what)];
@@ -427,7 +427,7 @@ off_t ByteArray_writeInt(struct ByteArray* self, signed int what) {
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
 
-off_t ByteArray_writeUnsignedInt(struct ByteArray* self, unsigned int what) {
+ba_off_t ByteArray_writeUnsignedInt(struct ByteArray* self, unsigned int what) {
 	union {
 		unsigned int intval;
 		unsigned char charval[sizeof(what)];
@@ -439,7 +439,7 @@ off_t ByteArray_writeUnsignedInt(struct ByteArray* self, unsigned int what) {
 	return ByteArray_writeMem(self, u.charval, sizeof(what));
 }
 
-off_t ByteArray_writeMem(struct ByteArray* self, unsigned char* what, size_t len) {
+ba_off_t ByteArray_writeMem(struct ByteArray* self, unsigned char* what, size_t len) {
 	if(self->type == BAT_FILESTREAM) {
 		fprintf(stderr, "tried to write to file!\n");
 		assert_dbg(0);
@@ -458,12 +458,12 @@ off_t ByteArray_writeMem(struct ByteArray* self, unsigned char* what, size_t len
 	return len;
 }
 
-off_t ByteArray_writeUTFBytes(struct ByteArray* self, char* what) {
+ba_off_t ByteArray_writeUTFBytes(struct ByteArray* self, char* what) {
 	return ByteArray_writeMem(self, (unsigned char*) what, strlen(what));
 }
 
 // write contents of what into self
-off_t ByteArray_writeBytes(struct ByteArray* self, struct ByteArray* what) {
+ba_off_t ByteArray_writeBytes(struct ByteArray* self, struct ByteArray* what) {
 	if(what->type == BAT_FILESTREAM) {
 		fprintf(stderr, "tried to write from non-memory stream\n");
 		assert_dbg(0);
@@ -476,7 +476,7 @@ off_t ByteArray_writeBytes(struct ByteArray* self, struct ByteArray* what) {
 	}
 }
 
-off_t ByteArray_writeFloat(struct ByteArray* self, float what) {
+ba_off_t ByteArray_writeFloat(struct ByteArray* self, float what) {
 	union {
 		float floatval;
 		unsigned int intval;
