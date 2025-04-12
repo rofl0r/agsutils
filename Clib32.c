@@ -44,6 +44,23 @@
 #define O_BINARY 0
 #endif
 
+#ifdef _WIN32
+#define WINFILE_EXPORT
+#include "winfile.h"
+#define getfilesize(FN) win_filesize(FN)
+#else
+static ba_off_t getfilesize(const char *fn) {
+	int fd = open(fn, O_RDONLY|O_BINARY);
+	if(fd == -1) return 0;
+	struct stat st;
+	off_t fl = -1LL;
+	if(fstat(fd, &st) != -1)
+		fl = st.st_size;
+	close(fd);
+	return fl;
+}
+#endif
+
 #ifndef _WIN32
 #define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
 #else
@@ -319,21 +336,13 @@ void AgsFile_setSourceDir(struct AgsFile *f, char* sourcedir) {
 	f->dir = sourcedir;
 }
 
-static off_t getfilelength(int fd) {
-	struct stat st;
-	fstat(fd, &st);
-	return st.st_size;
-}
-
 int AgsFile_appendFile(struct AgsFile *f, char* fn) {
 	int idx = strstore_count(f->mflib.filenames);
 	strstore_append(f->mflib.filenames, fn);
 	char fnbuf[512];
 	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", f->dir, fn);
-	int fd = open(fnbuf, O_RDONLY|O_BINARY);
-	if(fd == -1) return 0;
-	off_t fl = getfilelength(fd);
-	close(fd);
+	ba_off_t fl = getfilesize(fnbuf);
+	if(fl == -1LL) return 0;
 	f->mflib.length[idx] = fl;
 	return 1;
 }
@@ -345,7 +354,7 @@ int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn) {
 	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", f->dir, f->mflib.filenames[index]);
 	int fd = open(fnbuf, O_RDONLY|O_BINARY);
 	if(fd == -1) return 0;
-	off_t fl = getfilelength(fd);
+	ba_off_t fl = getfilelength(fd);
 	close(fd);
 	f->mflib.length[index] = fl;
 	return 1;
