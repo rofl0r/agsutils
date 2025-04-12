@@ -1,0 +1,37 @@
+name: build
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  cygwin_build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup_packages
+        run: sudo apt update && sudo apt install gcc-mingw-w64-i686 musl-tools
+
+      - name: compile_win32
+        run: |
+             DEST=agsutils-mingw-i686-git
+             make CC=i686-w64-mingw32-gcc HOSTCC=gcc CFLAGS="-O2 -g0 -fno-strict-aliasing" LDFLAGS="-s -static" prefix= DESTDIR="$DEST" -j8 all install || exit 1
+
+      - name: compile_musl_x86_64
+        run: |
+             DEST=agsutils-linux-x86_64-git
+             make CC=musl-gcc HOSTCC=gcc CFLAGS="-O2 -g0 -fno-strict-aliasing" LDFLAGS="-s -static" prefix= DESTDIR="$DEST" -j8 all install || exit 1
+
+      - name: upload_win32_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agsutils-mingw-i686-git
+          path: agsutils-mingw-i686-git/bin/*
+
+      - name: upload_musl_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agsutils-linux-x86_64-git
+          path: agsutils-linux-x86_64-git/bin/*
+
