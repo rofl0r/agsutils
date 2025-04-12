@@ -48,14 +48,11 @@
 #endif
 
 #ifndef _WIN32
-#define PSEP_STR "/"
 #define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
 #else
-#define PSEP_STR "\\"
 #include <direct.h>
 #define MKDIR(D) mkdir(D)
 #endif
-#define PSEP PSEP_STR[0]
 
 #define RAND_SEED_SALT 9338638
 
@@ -335,7 +332,7 @@ int AgsFile_appendFile(struct AgsFile *f, char* fn) {
 	int idx = strstore_count(f->mflib.filenames);
 	strstore_append(f->mflib.filenames, fn);
 	char fnbuf[512];
-	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", f->dir, PSEP, fn);
+	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", f->dir, fn);
 	int fd = open(fnbuf, O_RDONLY|O_BINARY);
 	if(fd == -1) return 0;
 	off_t fl = getfilelength(fd);
@@ -348,7 +345,7 @@ int AgsFile_appendFile(struct AgsFile *f, char* fn) {
 int AgsFile_setFile(struct AgsFile *f, size_t index, char* fn) {
 	strncpy(f->mflib.filenames[index], fn, 100);
 	char fnbuf[512];
-	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", f->dir, PSEP, f->mflib.filenames[index]);
+	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", f->dir, f->mflib.filenames[index]);
 	int fd = open(fnbuf, O_RDONLY|O_BINARY);
 	if(fd == -1) return 0;
 	off_t fl = getfilelength(fd);
@@ -397,7 +394,7 @@ static void write_int_array(int fd, int* arr, size_t len) {
 /* if *bytes == -1L, read entire file, and store the total amount read there */
 static int copy_into_file(int fd, const char *dir, const char *fn, size_t *bytes) {
 	char fnbuf[512];
-	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, fn);
+	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, fn);
 	int f = open(fnbuf, O_RDONLY|O_BINARY);
 	if(f == -1) return 0;
 	size_t filesize = *bytes;
@@ -580,7 +577,7 @@ static int prep_multifiles(struct AgsFile *f) {
 		ssoff += strlen(s) + 1;
 		snprintf(fntmp, sizeof fntmp, "%s%s%s",
 			f->dir ? f->dir : "",
-			f->dir ? PSEP_STR : "",
+			f->dir ? "/" : "",
 			s);
 		ba = &f->f[aa];
 		ByteArray_ctor(ba);
@@ -812,7 +809,7 @@ int AgsFile_extract(struct AgsFile* f, int multifileno, off_t start, size_t len,
 	FILE *fo = fopen(outfn, "wb");
 	while(fo == 0 && errno == ENOENT) {
 		if(buf[0] == 0) strcpy(buf, outfn);
-		char *p = strrchr(buf, PSEP);
+		char *p = strrchr(buf, '/');
 		if(!p) return 0;
 		*p = 0;
 		if(MKDIR(buf) == 0) strcpy(buf, outfn);

@@ -11,13 +11,9 @@
 #ifdef _WIN32
 #include <direct.h>
 #define MKDIR(D) mkdir(D)
-#define PSEP_STR "\\"
-#define PSEP '\\'
 #else
 #define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
-#define PSEP_STR "/"
 #endif
-#define PSEP PSEP_STR[0]
 
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
 
@@ -29,7 +25,7 @@ static void usage(char *argv0) {
 static void dump_exe(struct AgsFile *ags, const char *dir) {
 	if(ags->pack_off) {
 		char fnbuf[512];
-		snprintf(fnbuf, sizeof(fnbuf), "%s%cagspack.exestub", dir, PSEP);
+		snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.exestub", dir);
 		AgsFile_extract(ags, 0, 0, ags->pack_off, fnbuf);
 	}
 }
@@ -41,8 +37,8 @@ static FILE* open_packfile(const char* fn) {
 /* assert that the resolved absolute filename stays within root,
    without using tricks like /.. */
 static int sec_check(char* want) {
-	if(want[0] == PSEP) return 0;
-	if(strstr(want, ".." PSEP_STR) || strstr(want, PSEP_STR ".."))
+	if(want[0] == '/') return 0;
+	if(strstr(want, "../") || strstr(want, "/.."))
 		return 0;
 	return 1;
 }
@@ -64,7 +60,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	snprintf(fnbuf, sizeof(fnbuf), "%s%cagspack.info", dir, PSEP);
+	snprintf(fnbuf, sizeof(fnbuf), "%s/agspack.info", dir);
 	FILE *outf = open_packfile(fnbuf);
 	if(outf == 0 && errno == ENOENT) {
 		MKDIR(dir);
@@ -79,9 +75,9 @@ int main(int argc, char** argv) {
 	EFPRINTF(outf, "info=infofile created by %s\n"
 	        "info=this file is needed to reconstruct the packfile with AGSpack\n", ADS);
 
-	if(strchr(fn, PSEP)) {
+	if(strchr(fn, '/')) {
 		strcpy(db, fn);
-		*strrchr(db, PSEP) = 0;
+		*strrchr(db, '/') = 0;
 		AgsFile_setSourceDir(ags, db);
 	}
 	dump_exe(ags, dir);
@@ -107,10 +103,8 @@ int main(int argc, char** argv) {
 	for(i = 0; i < l; i++) {
 		char *currfn = AgsFile_getFileNameLinear(ags, ssoff), *p;
 		ssoff += strlen(currfn)+1;
-		snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, currfn);
+		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, currfn);
 		if((p = strchr(currfn, '/'))) {
-			if(PSEP != '/')
-				do { *p = PSEP; ++p;} while((p=strchr(currfn, '/')));
 			if(!sec_check(currfn)) {
 				fprintf(stderr, "error: file %s tries to write outside dest dir\n", currfn);
 				return 1;

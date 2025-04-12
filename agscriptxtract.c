@@ -9,10 +9,8 @@
 #ifdef _WIN32
 #include <direct.h>
 #define MKDIR(D) mkdir(D)
-#define PSEP '\\'
 #else
 #define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
-#define PSEP '/'
 #endif
 
 #define ADS ":::AGStract " VERSION " by rofl0r:::"
@@ -64,7 +62,7 @@ static void disas(const char*inp, char *o, int flags) {
 }
 
 static char *filename(const char *dir, const char *fn, char *buf, size_t bsize) {
-	snprintf(buf, bsize, "%s%c%s", dir, PSEP, fn);
+	snprintf(buf, bsize, "%s/%s", dir, fn);
 	return buf;
 }
 
@@ -90,7 +88,7 @@ static int dumprooms(const char* dir, const char* out, int flags) {
 		size_t l = strlen(di->d_name);
 		if(l > 4 && is_roomfile(di->d_name)) {
 			char fnbuf[512];
-			snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, di->d_name);
+			snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, di->d_name);
 			AF f; ssize_t off; ASI s;
 			if(!AF_open(&f, fnbuf)) goto extract_error;
 			struct RoomFile rinfo = {0};
@@ -202,7 +200,7 @@ static void dump_old_dialogscripts(ADF *a, char *dir) {
 	size_t i, n =a->game.dialogcount;
 	for(i=0; i<n; ++i) {
 		char fnbuf[512];
-		snprintf(fnbuf, sizeof(fnbuf), "%s%cdialogscript%03d.ads", dir, PSEP, (int)i);
+		snprintf(fnbuf, sizeof(fnbuf), "%s/dialogscript%03d.ads", dir, (int)i);
 		fprintf(stdout, "extracting dialogscript source %s\n", fnbuf);
 		FILE *f = fopen(fnbuf, "w");
 		if(!f) {

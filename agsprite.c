@@ -15,10 +15,8 @@
 #ifdef _WIN32
 #include <direct.h>
 #define MKDIR(D) mkdir(D)
-#define PSEP '\\'
 #else
 #define MKDIR(D) mkdir(D, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
-#define PSEP '/'
 #endif
 
 #define ADS ":::AGSprite " VERSION " by rofl0r:::"
@@ -71,13 +69,13 @@ static int extract(char* file, char* dir) {
 	{
 		char buf[1024];
 		if(sf.palette) {
-			snprintf(buf, sizeof buf, "%s%cagsprite.pal", dir, PSEP);
+			snprintf(buf, sizeof buf, "%s/agsprite.pal", dir);
 			FILE *pal = fopen(buf, "wb");
 			if(!pal) goto ferr;
 			fwrite(sf.palette, 1, 256*3, pal);
 			fclose(pal);
 		}
-		snprintf(buf, sizeof buf, "%s%cagsprite.info", dir, PSEP);
+		snprintf(buf, sizeof buf, "%s/agsprite.info", dir);
 		info = fopen(buf, "w");
 		if(!info) {
 		ferr:
@@ -106,7 +104,7 @@ static int extract(char* file, char* dir) {
 			fprintf(info, "%d=%s\n", i, namebuf);
 			if(flags & FL_VERBOSE) printf("extracting sprite %d (%s)\n", i, namebuf);
 			char filename[1024];
-			snprintf(filename, sizeof filename, "%s%c%s", dir, PSEP, namebuf);
+			snprintf(filename, sizeof filename, "%s/%s", dir, namebuf);
 			/* ags editor seems to set the alpha of all pixels in a 32 bit image to 0 if the alpha flag is not set.
 			   while the editor itself then ignores the alpha, an image extracted in such a way is invisible in e.g. gimp.
 			   therefore we save it as a 24 bit image and restore the 0 alpha channel on packing. */
@@ -308,7 +306,7 @@ static int pack(char* file, char* dir) {
 	}
 	FILE *info = 0, *out = 0;
 	char buf[1024];
-	snprintf(buf, sizeof buf, "%s%cagsprite.info", dir, PSEP);
+	snprintf(buf, sizeof buf, "%s/agsprite.info", dir);
 	info = fopen(buf, "r");
 	if(!info) {
 		fprintf(stderr, "error opening %s\n", buf);
@@ -347,7 +345,7 @@ static int pack(char* file, char* dir) {
 			} else if(!strcmp("palette", buf)) {
 				if (*p) {
 					char buf2[1024];
-					snprintf(buf2, sizeof buf2, "%s%c%s", dir, PSEP, p);
+					snprintf(buf2, sizeof buf2, "%s/%s", dir, p);
 					FILE *pal = fopen(buf2, "rb");
 					if(!pal) {
 						fprintf(stderr, "error opening %s\n", buf2);
@@ -384,7 +382,7 @@ static int pack(char* file, char* dir) {
 
 			while(sf.num_sprites < n) SpriteFile_add(out, &sf, &(ImageData){0});
 			char fnbuf[1024];
-			snprintf(fnbuf, sizeof fnbuf, "%s%c%s", dir, PSEP, p);
+			snprintf(fnbuf, sizeof fnbuf, "%s/%s", dir, p);
 			ImageData data;
 			int skip_palette = org_bpp == 1;
 			if(!Targa_readfile(fnbuf, &data, skip_palette)) {

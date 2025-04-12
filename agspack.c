@@ -5,11 +5,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include "version.h"
-#ifdef _WIN32
-#define PSEP '\\'
-#else
-#define PSEP '/'
-#endif
+
 #define ADS ":::AGSpack " VERSION " by rofl0r:::"
 
 static int usage(char *argv0) {
@@ -35,13 +31,13 @@ int main(int argc, char** argv) {
 	char fnbuf[512];
 	char line[1024];
 	FILE* fp;
-	snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, "agspack.info");
+	snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, "agspack.info");
 	if(!(fp = fopen(fnbuf, "r"))) {
 		fprintf(stderr, "couldnt open %s\n", fnbuf);
 		return 1;
 	}
 	if(exe_opt) {
-		snprintf(fnbuf, sizeof(fnbuf), "%s%c%s", dir, PSEP, "agspack.exestub");
+		snprintf(fnbuf, sizeof(fnbuf), "%s/%s", dir, "agspack.exestub");
 		if(access(fnbuf, R_OK) == -1) {
 			fprintf(stderr, "exestub requested, but couldnt read %s\n", fnbuf);
 			return 1;

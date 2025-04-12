@@ -5,12 +5,6 @@
 #include "DataFile.h"
 #include "Script.h"
 
-#ifdef _WIN32
-#define PSEP '\\'
-#else
-#define PSEP '/'
-#endif
-
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
@@ -250,7 +244,7 @@ int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen)
 	if(l >= flen - 20) return 0;
 	memcpy(fnbuf, dir, l);
 	char* p = fnbuf + l;
-	*p = PSEP; p++;
+	*p = '/'; p++;
 	for(i = 0; i < ARRAY_SIZE(gfn); ++i) {
 		strcpy(p, gfn[i].name);
 		AF f;
