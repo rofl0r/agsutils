@@ -1,4 +1,6 @@
+#ifdef __POCC__ /* Pelles C */
 #define __STDC_WANT_LIB_EXT2__ 1
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
