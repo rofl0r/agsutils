@@ -9,6 +9,8 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
 
+#define OOM(X) do{ fprintf(stderr, "OOM on %s:%d\n", __FILE__, __LINE__); return X; }while(0)
+
 void ADF_close(ADF* a) {
 	AF_close(a->f);
 }
@@ -224,7 +226,9 @@ static int ADF_read_characters(ADF *a) {
 	} character;
 	size_t i;
 	a->characternames = malloc(a->game.charactercount*sizeof(char*));
+	if(!a->characternames) OOM(0);
 	a->characterscriptnames = malloc(a->game.charactercount*sizeof(char*));
+	if(!a->characterscriptnames) OOM(0);
 	for(i=0; i<a->game.charactercount; ++i) {
 		if(sizeof(character) != AF_read(a->f, &character, sizeof(character))) return 0;
 		if(strlen(character.name) >= sizeof(character.name)) return 0;
@@ -257,14 +261,14 @@ int ADF_find_datafile(const char *dir, char *fnbuf, size_t flen)
 
 int ADF_read_cursors(ADF* a) {
 	a->cursornames = malloc(a->game.cursorcount * sizeof(char*));
-	if(!a->cursornames) return 0;
+	if(!a->cursornames) OOM(0);
 
 	unsigned i;
 	for(i=0; i<a->game.cursorcount; ++i) {
 		char buf[24];
 		if(24 != AF_read(a->f, buf, 24)) return 0;
 		if(buf[19] != 0) return 0;
-		a->cursornames[i] = strdup(buf+10);
+		if(!(a->cursornames[i] = strdup(buf+10))) OOM(0);
 	}
 	return 1;
 }
@@ -272,6 +276,7 @@ int ADF_read_cursors(ADF* a) {
 int ADF_read_dialogtopics(ADF *a) {
 	/* Common/acroom.h:2722 */
 	a->dialog_codesize = malloc(a->game.dialogcount*sizeof(short));
+	if(!a->dialog_codesize) OOM(0);
 	#define MAXTOPICOPTIONS 30
 	size_t i, l; // = (150*MAXTOPICOPTIONS)+(4*MAXTOPICOPTIONS)+4+(2*MAXTOPICOPTIONS)+2+2+4+4;
 	for(i=0; i<a->game.dialogcount; ++i) {
@@ -349,6 +354,7 @@ int ADF_read_guis(ADF *a) {
 	if(n < 0 || n > 1000) return 0;
 	a->guicount = n;
 	a->guinames = malloc(sizeof(char*)*a->guicount);
+	if(!a->guinames) FAIL();
 	size_t i;
 	for(i = 0; i < a->guicount; ++i) {
 		char buf[512];
@@ -558,6 +564,7 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 		else if(a->version == 5) l = 42968;
 		else l = 0;
 		char* oldhdr = malloc(l);
+		if(!oldhdr) FAIL(AOE_gamebase);
 		if(l != (size_t) AF_read(a->f, oldhdr, l)) goto err_close;
 		if(a->version <= 9) {
 			fprintf(stderr, "sorry, ags older than 2.20 has no compiled scripts\n");
@@ -581,6 +588,7 @@ enum ADF_open_error ADF_open(ADF* a, const char *filename) {
 		}
 	}
 	if(!ADF_read_gamebase(a)) FAIL(AOE_gamebase);
+
 	if(a->version > 32) {
 		/* we're at line 11798 in Engine/ac.cpp, git revision:
 		   205c56d693d903516b7b21beb454251e9489aabf - which is highly
