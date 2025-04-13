@@ -190,7 +190,7 @@ int ByteArray_open_file(struct ByteArray* self, const char* filename) {
 
 	void *addr = MMAP(NULL, self->size, PROT_READ, MAP_PRIVATE, self->source_fd, 0);
 	if(addr == MAP_FAILED) {
-		fprintf(stderr, "warning: mmap %s failed (%s) - fd %lld, size %llu\n", filename, strerror(errno), (long long) self->source_fd, (long long) self->size);
+		fprintf(stderr, "warning: mmap %s failed (%s) - fd %lld, size %llu\n", filename, strerror(errno), (long long)(ssize_t)self->source_fd, (long long) self->size);
 		fprintf(stderr, "warning: falling back to slower alternative code\n");
 		return 1; // fall back to traditional non-mmaped BAT_FILESTREAM
 	}
