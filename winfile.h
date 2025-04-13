@@ -111,21 +111,57 @@ void *win_mmap(void *addr, WIN_OFF64_T len, int prot, int flags, HANDLE hFile, W
 	HANDLE map;
 	void *mapview;
 	DWORD fsizeL, fsizeH;
-	DWORD dwFileOffsetLow;
-	int64_t fsize, maxsize, misalign;
-
+	uint64_t fsize, alignment_offset, aligned_offset, mapping_size;
 
 	if (!len) {
 	l_einval:
 		set_errno(EINVAL);
 		return MAP_FAILED;
 	}
+	// Calculate misalignment of the offset.
+	alignment_offset = off & (getAllocationGranularity() - 1);
+	/*
+	Adjust the offset to be aligned to the granularity boundary.
+	The adjusted offset represents the nearest lower multiple of the
+	granularity that is less than or equal to the original offset.
+	This ensures compatibility with the requirements of MapViewOfFileEx.
+	https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffileex
+	*/
+	aligned_offset = off - alignment_offset;
+
+	/*
+	Calculate the size of the mapping region.
+	The mapping size must include the misaligned portion of the file
+	(alignment_offset) to ensure that the desired range can be accessed
+	after the mapping.
+	The total mapping size is the sum of the requested length (`len`) and the misaligned portion.
+	*/
+	mapping_size = alignment_offset + len;
+
 	fsizeL = GetFileSize(hFile, &fsizeH);
 	if (fsizeL == -1) {
 		translate_errno();
 		return MAP_FAILED;
 	}
 	fsize = fsizeL | ((int64_t)fsizeH << 32);
+
+	/*
+	Ensure that the mapping size does not exceed the file size.
+	If the requested range (alignment_offset + len) extends beyond the
+	end of the file,the mapping size is truncated to the remaining
+	file size.
+	*/
+	if ((aligned_offset + mapping_size) > fsize) {
+		mapping_size = fsize - aligned_offset; // Truncate to the remaining file size.
+	}
+
+	/*
+	Ensure the mapping size is lower than 4GB on 32bit windows,
+	which is necessary because the dwNumberOfBytesToMap parameter is
+	SIZE_T (and more memory can't be addressed anyhow).
+	*/
+	if(sizeof(SIZE_T) < 8 && mapping_size > 0xFFFFFFFFULL)
+		goto l_einval;
 
 	switch (prot) {
 	case PROT_WRITE | PROT_EXEC:
@@ -165,25 +201,40 @@ void *win_mmap(void *addr, WIN_OFF64_T len, int prot, int flags, HANDLE hFile, W
 	if (!(flags & MAP_FIXED))
 		addr = 0;
 
-	misalign = off & (getAllocationGranularity() - 1);
-	dwFileOffsetLow = off - misalign;
-	maxsize = misalign + len;
-	if ((int64_t)(misalign + len + dwFileOffsetLow) > fsize)
-		maxsize = fsize - dwFileOffsetLow;
-
-	map = CreateFileMappingA(hFile, 0, flProtect, maxsize >> 32, maxsize & 0xffffffff, 0);
+	/*
+	Create a file mapping object to enable memory mapping of the file.
+	A file mapping object represents a portion of a file in memory.
+	The object is created with the desired protection level and the
+	maximum mapping size.
+	*/
+	map = CreateFileMappingA(
+		hFile,                     // HANDLE hFile: Handle to the file to be mapped.
+		NULL,                      // LPSECURITY_ATTRIBUTES lpAttributes: Default security attributes.
+		flProtect,                 // DWORD flProtect: Protection level (e.g., PAGE_READWRITE).
+		mapping_size >> 32,        // DWORD dwMaximumSizeHigh: High 32 bits of maximum mapping size.
+		mapping_size & 0xFFFFFFFF, // DWORD dwMaximumSizeLow: Low 32 bits of maximum mapping size.
+		NULL                       // LPCSTR lpName: No named mapping object.
+	);
 	if (!map) {
 		translate_errno();
 		return MAP_FAILED;
 	}
-	mapview = MapViewOfFileEx(map, dwDesiredAccess, 0, dwFileOffsetLow, maxsize > 0xffffffff ? 0xffffffff : maxsize & 0xffffffff, addr);
-	if (mapview) {
-		CloseHandle(map);
-		return mapview;
+	// Map a view of the file into the process's address space.
+	mapview = MapViewOfFileEx(
+		map,                         // HANDLE hFileMappingObject: Handle to the file mapping object.
+		dwDesiredAccess,             // DWORD dwDesiredAccess: Desired access level (e.g., FILE_MAP_READ).
+		aligned_offset >> 32,        // DWORD dwFileOffsetHigh: High 32 bits of the file offset.
+		aligned_offset & 0xFFFFFFFF, // DWORD dwFileOffsetLow: Low 32 bits of the file offset.
+		mapping_size,                // SIZE_T dwNumberOfBytesToMap: Number of bytes to map (max 4 GB).
+		addr                         // LPVOID lpBaseAddress: Desired starting address (NULL for automatic).
+	);
+
+	if(!mapview) {
+		translate_errno();
+		mapview = MAP_FAILED;
 	}
-	translate_errno();
 	CloseHandle(map);
-	return MAP_FAILED;
+	return mapview;
 }
 
 WINFILE_EXPORT
