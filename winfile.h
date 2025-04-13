@@ -96,13 +96,6 @@ static void translate_errno_dbg(char *file, int line) {
     }
 }
 
-static DWORD getAllocationGranularity()
-{
-	struct _SYSTEM_INFO SystemInfo;
-	GetSystemInfo(&SystemInfo);
-	return SystemInfo.dwAllocationGranularity;
-}
-
 WINFILE_EXPORT
 void *win_mmap(void *addr, WIN_OFF64_T len, int prot, int flags, HANDLE hFile, WIN_OFF64_T off)
 {
@@ -112,20 +105,25 @@ void *win_mmap(void *addr, WIN_OFF64_T len, int prot, int flags, HANDLE hFile, W
 	void *mapview;
 	DWORD fsizeL, fsizeH;
 	uint64_t fsize, alignment_offset, aligned_offset, mapping_size;
+	struct _SYSTEM_INFO si;
 
 	if (!len) {
 	l_einval:
 		set_errno(EINVAL);
 		return MAP_FAILED;
 	}
-	// Calculate misalignment of the offset.
-	alignment_offset = off & (getAllocationGranularity() - 1);
+
+	GetSystemInfo(&si);
+	/* don't allow offsets not aligned to PAGE_SIZE as per POSIX. */
+	if(off & (si.dwPageSize - 1)) goto l_einval;
+	// Get misalignment of offset in respect to Allocation Granularity.
+	alignment_offset = off & (si.dwAllocationGranularity - 1);
+
 	/*
-	Adjust the offset to be aligned to the granularity boundary.
+	Adjust the offset to be aligned to the granularity boundary (typ. 64K).
 	The adjusted offset represents the nearest lower multiple of the
 	granularity that is less than or equal to the original offset.
-	This ensures compatibility with the requirements of MapViewOfFileEx.
-	https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffileex
+	Required by MapViewOfFileEx: https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffileex
 	*/
 	aligned_offset = off - alignment_offset;
 
@@ -233,6 +231,12 @@ void *win_mmap(void *addr, WIN_OFF64_T len, int prot, int flags, HANDLE hFile, W
 	if(!mapview) {
 		translate_errno();
 		mapview = MAP_FAILED;
+	} else {
+		/*
+		if a user passes a legal page-aligned offset, which is
+		however not aligned to allocation granularity, he expects
+		the returned pointer to point to that offset regardless. */
+		mapview = (char*)mapview + alignment_offset;
 	}
 	CloseHandle(map);
 	return mapview;
@@ -248,10 +252,23 @@ int win_msync(void * addr, size_t length, int flags)
 	return -1;
 }
 
+/*
+The only supported use of this implementation is to unmap an entire
+mapping as obtained by win_mmap(). unmapping only parts of it isn't.
+*/
 WINFILE_EXPORT
 int win_munmap(void *addr, size_t len)
 {
 	(void) len;
+	struct _SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	/*
+	If the addr passed isnt aligned to Alloc. granularity, we must
+	subtract the misalignment we added earlier to get the start
+	of the mapping.
+	*/
+	addr = (char*)addr - ((SIZE_T)addr & (si.dwAllocationGranularity - 1));
+
 	if (UnmapViewOfFile(addr))
 		return 0;
 	translate_errno();
