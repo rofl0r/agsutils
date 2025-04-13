@@ -152,7 +152,8 @@ void *win_mmap(void *addr, WIN_OFF64_T len, int prot, int flags, HANDLE hFile, W
 	file size.
 	*/
 	if ((aligned_offset + mapping_size) > fsize) {
-		mapping_size = fsize - aligned_offset; // Truncate to the remaining file size.
+		set_errno(ENXIO);
+		return MAP_FAILED;
 	}
 
 	/*
