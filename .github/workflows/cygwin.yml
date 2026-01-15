@@ -31,6 +31,7 @@ jobs:
              DEST=agsutils-cygwin-git
              make CFLAGS="-O2 -g0 -fno-strict-aliasing" LDFLAGS=-s prefix= DESTDIR="$DEST" all install || exit 1
              cp /cygdrive/c/cygwin/bin/cygwin1.dll "$DEST"/bin/ && echo "copy OK"
+             cp README "$DEST"/bin/
              echo "current dir: $PWD"
 
       - name: upload_artifact

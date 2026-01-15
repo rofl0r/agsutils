@@ -17,11 +17,13 @@ jobs:
         run: |
              DEST=agsutils-mingw-i686-git
              make CC=i686-w64-mingw32-gcc HOSTCC=gcc CFLAGS="-O2 -g0 -fno-strict-aliasing" LDFLAGS="-s -static" prefix= DESTDIR="$DEST" -j8 all install || exit 1
+             cp README "$DEST"/bin/
 
       - name: compile_musl_x86_64
         run: |
              DEST=agsutils-linux-x86_64-git
              make CC=musl-gcc HOSTCC=gcc CFLAGS="-O2 -g0 -fno-strict-aliasing" LDFLAGS="-s -static" prefix= DESTDIR="$DEST" -j8 all install || exit 1
+             cp README "$DEST"/bin/
 
       - name: upload_win32_artifact
         uses: actions/upload-artifact@v4
